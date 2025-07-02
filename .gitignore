@@ -1,0 +1,13 @@
+
+# Virtuální prostředí
+.venv/
+
+# Soubory s proměnnými prostředí
+.env
+
+# Dočasné skripty
+seed_db.py
+
+# Python cache
+__pycache__/
+*.pyc
