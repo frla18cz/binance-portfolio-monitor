@@ -88,7 +88,9 @@ def process_single_account(account):
     now_utc = datetime.now(UTC)
     next_rebalance_str = config.get('next_rebalance_timestamp')
     if next_rebalance_str:
-        next_rebalance_dt = datetime.fromisoformat(next_rebalance_str.replace('Z', '+00:00').replace('+00:00', ''))
+        # Properly parse ISO timestamp with timezone
+        clean_timestamp = next_rebalance_str.replace('Z', '+00:00')
+        next_rebalance_dt = datetime.fromisoformat(clean_timestamp)
         if now_utc >= next_rebalance_dt:
             print("Rebalance time reached. Rebalancing benchmark...")
             benchmark_value = calculate_benchmark_value(config, prices)

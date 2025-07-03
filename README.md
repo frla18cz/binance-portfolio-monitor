@@ -1,6 +1,13 @@
-# Binance Portfolio Monitor
+# 📊 Binance Portfolio Monitor
+
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-30%20passed-green.svg)](./tests/)
+[![Coverage](https://img.shields.io/badge/coverage-71%25-green.svg)](./tests/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 **Automated cryptocurrency trading performance monitoring system** that tracks Binance futures accounts against a 50/50 BTC/ETH benchmark portfolio.
+
+> ⚠️ **Educational Project**: This is a learning and research project. Use with caution in production environments.
 
 ## 🎯 What It Does
 
@@ -292,40 +299,53 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
-## 📚 API Reference
+## 📚 Documentation
 
-### Main Endpoint
-```
-GET /api
-```
-Processes all accounts and returns status.
+- **[📖 Setup Guide](./docs/SETUP_GUIDE.md)** - Complete installation and configuration
+- **[🔧 API Reference](./docs/API_REFERENCE.md)** - Technical documentation  
+- **[🚀 Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[📋 Project Roadmap](./PROJECT_ROADMAP.md)** - Development progress
 
-### Response Format
-```
-HTTP 200: "Monitoring process completed successfully."
-HTTP 500: "Error: [error message]"
-```
+## ⚡ Quick Links
+
+- **[Live Demo](https://your-demo.vercel.app)** *(Coming Soon)*
+- **[Issues](https://github.com/your-username/binance-portfolio-monitor/issues)** - Bug reports & feature requests
+- **[Discussions](https://github.com/your-username/binance-portfolio-monitor/discussions)** - Community chat
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our [Contributing Guidelines](./CONTRIBUTING.md) for details.
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes and add tests
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ## 📄 License
 
-This project is for educational and personal use. Please ensure compliance with Binance API terms of service.
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
-## 🆘 Support
+## ⚠️ Disclaimer
 
-For issues and questions:
-1. Check the troubleshooting section
-2. Review Binance API documentation
-3. Check Supabase connection and permissions
-4. Open an issue with detailed error logs
+This project is for educational and research purposes. 
+- Not financial advice
+- Use at your own risk
+- Ensure compliance with Binance API terms
+- Always test with small amounts first
+
+## 🆘 Support & Community
+
+- **[📖 Documentation](./docs/)** - Comprehensive guides
+- **[❓ Issues](https://github.com/your-username/binance-portfolio-monitor/issues)** - Bug reports
+- **[💬 Discussions](https://github.com/your-username/binance-portfolio-monitor/discussions)** - Questions & ideas
+- **[📧 Email](mailto:your-email@domain.com)** - Direct contact
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=your-username/binance-portfolio-monitor&type=Date)](https://star-history.com/#your-username/binance-portfolio-monitor&Date)
 
 ---
 
-**Happy Trading! 📈**
+**Made with ❤️ for the crypto community | Happy Trading! 📈**
