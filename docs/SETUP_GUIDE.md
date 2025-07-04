@@ -142,6 +142,13 @@ SUPABASE_ANON_KEY=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 
 # Optional: For enhanced security
 # SUPABASE_SERVICE_ROLE_KEY=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+
+# Demo Mode (for safe testing)
+DEMO_MODE=false  # Set to 'true' for risk-free testing with mock data
+
+# Logging Configuration
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+MAX_LOG_ENTRIES=10000  # Maximum logs kept in memory
 ```
 
 ### Add to .gitignore
@@ -175,12 +182,31 @@ SELECT * FROM benchmark_configs;
 
 ## 🧪 Step 6: Test Your Setup
 
-### Run First Test
+### Safe Demo Mode Testing (Recommended First)
 ```bash
 # Make sure virtual environment is activated
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 
-# Run the monitor
+# Run safe demo mode test
+export DEMO_MODE=true  # or set DEMO_MODE=true on Windows
+python demo_test.py
+```
+
+### Web Dashboard Testing
+```bash
+# Start the dashboard server
+python -m api.dashboard
+
+# Open browser to: http://localhost:8000/dashboard
+# Use the dashboard interface to monitor and test the system
+```
+
+### Production Test
+```bash
+# Make sure virtual environment is activated
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
+# Run the monitor with real data (ensure DEMO_MODE=false in .env)
 python api/index.py
 ```
 
@@ -350,8 +376,52 @@ ORDER BY date DESC;
 - Check if deposits are showing in Binance API
 - Review transaction processing logs
 
-### Debug Mode
-Enable detailed logging:
+### Advanced Logging & Debugging
+
+The system includes comprehensive logging capabilities:
+
+#### Check Log Files
+```bash
+# View recent structured logs
+tail -f logs/monitor_logs.jsonl
+
+# View standard logs
+tail -f logs/monitor.log
+
+# Check log directory
+ls -la logs/
+```
+
+#### Dashboard Debugging
+```bash
+# Start dashboard with debugging
+python -m api.dashboard
+
+# Check dashboard API endpoints
+curl http://localhost:8000/api/dashboard/status
+curl http://localhost:8000/api/dashboard/logs
+curl http://localhost:8000/api/dashboard/metrics
+```
+
+#### Demo Mode Debugging
+```bash
+# Test demo mode controller
+python -c "from api.demo_mode import get_demo_controller; print(get_demo_controller().get_mode_status())"
+
+# Test mock data
+python -c "from api.mock_mode import get_mock_manager; print(get_mock_manager().get_performance_summary(1))"
+
+# Reset demo data
+python -c "from api.demo_mode import reset_demo_data; print(reset_demo_data())"
+```
+
+#### Enable Debug Level Logging
+Set in `.env` file:
+```bash
+LOG_LEVEL=DEBUG
+```
+
+Or enable programmatically:
 ```python
 # Add to top of api/index.py
 import logging
@@ -373,6 +443,10 @@ After setup, you should have:
 - [ ] Historical data accumulating
 - [ ] Deposit/withdrawal tracking working
 - [ ] Rebalancing scheduled correctly
+- [ ] **Web dashboard accessible** at `http://localhost:8000/dashboard`
+- [ ] **Structured logging working** (check `logs/` directory)
+- [ ] **Demo mode functioning** for safe testing
+- [ ] **Performance metrics** showing in dashboard
 
 **Congratulations! Your portfolio monitoring system is now active! 🎉**
 

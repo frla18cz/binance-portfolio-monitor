@@ -1,10 +1,13 @@
 import os
 import traceback
+from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from dotenv import load_dotenv
 from http.server import BaseHTTPRequestHandler
 from supabase import create_client, Client
 from binance.client import Client as BinanceClient
+from .demo_mode import get_demo_controller
+from .logger import get_logger, LogCategory, OperationTimer
 
 # Načtení proměnných z .env souboru
 load_dotenv()
@@ -17,16 +20,24 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # --- Hlavní handler pro Vercel ---
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        print("Cron job triggered. Starting the monitoring process...")
+        logger = get_logger()
+        logger.info(LogCategory.SYSTEM, "cron_trigger", "Cron job triggered - starting monitoring process")
+        
         try:
-            process_all_accounts()
+            with OperationTimer(logger, LogCategory.SYSTEM, "full_monitoring_cycle"):
+                process_all_accounts()
+            
             self.send_response(200)
             self.send_header('Content-type','text/plain')
             self.end_headers()
             self.wfile.write('Monitoring process completed successfully.'.encode('utf-8'))
+            
+            logger.info(LogCategory.SYSTEM, "cron_complete", "Monitoring process completed successfully")
+            
         except Exception as e:
-            print(f"An error occurred during the main process: {e}")
+            logger.error(LogCategory.SYSTEM, "cron_error", f"Main process failed: {str(e)}", error=str(e))
             traceback.print_exc()
+            
             self.send_response(500)
             self.send_header('Content-type','text/plain')
             self.end_headers()
@@ -36,53 +47,92 @@ class handler(BaseHTTPRequestHandler):
 # --- Hlavní logika ---
 def process_all_accounts():
     """Získá všechny účty z DB a spustí pro ně monitorovací proces."""
-    response = supabase.table('binance_accounts').select('*, benchmark_configs(*)').execute()
+    logger = get_logger()
+    
+    with OperationTimer(logger, LogCategory.SYSTEM, "fetch_all_accounts"):
+        # Use demo controller to get appropriate database client
+        demo_controller = get_demo_controller()
+        db_client = demo_controller.get_supabase_client(supabase)
+        
+        response = db_client.table('binance_accounts').select('*, benchmark_configs(*)').execute()
+    
     if not response.data:
-        print("No accounts found in the database.")
+        logger.warning(LogCategory.SYSTEM, "no_accounts", "No accounts found in database")
         return
 
-    print(f"Found {len(response.data)} accounts to process.")
+    logger.info(LogCategory.SYSTEM, "accounts_found", f"Found {len(response.data)} accounts to process")
+    
     for account in response.data:
-        print(f"--- Processing account: {account.get('account_name')} ---")
+        account_name = account.get('account_name', 'Unknown')
+        account_id = account.get('id')
+        
+        logger.info(LogCategory.ACCOUNT_PROCESSING, "start_processing", 
+                   f"Starting processing for account: {account_name}", 
+                   account_id=account_id, account_name=account_name)
+        
         try:
-            process_single_account(account)
+            with OperationTimer(logger, LogCategory.ACCOUNT_PROCESSING, "process_account", 
+                              account_id, account_name):
+                process_single_account(account)
+                
+            logger.info(LogCategory.ACCOUNT_PROCESSING, "complete_processing", 
+                       f"Successfully processed account: {account_name}",
+                       account_id=account_id, account_name=account_name)
+                       
         except Exception as e:
-            print(f"Failed to process account {account.get('account_name')}. Error: {e}")
+            logger.error(LogCategory.ACCOUNT_PROCESSING, "process_error", 
+                        f"Failed to process account {account_name}: {str(e)}",
+                        account_id=account_id, account_name=account_name, error=str(e))
             traceback.print_exc()
 
 def process_single_account(account):
     """Kompletní logika pro jeden Binance účet."""
+    logger = get_logger()
+    
     api_key = account.get('api_key')
     api_secret = account.get('api_secret')
     account_id = account.get('id')
+    account_name = account.get('account_name', 'Unknown')
     config = account.get('benchmark_configs')
 
     if not config:
-        print("Benchmark config not found for this account. Skipping.")
+        logger.warning(LogCategory.ACCOUNT_PROCESSING, "no_config", 
+                      "Benchmark config not found for account, skipping",
+                      account_id=account_id, account_name=account_name)
         return
     if isinstance(config, list):
         config = config[0]
 
     if not all([api_key, api_secret, account_id, config]):
-        print("Account data is incomplete. Skipping.")
+        logger.error(LogCategory.ACCOUNT_PROCESSING, "incomplete_data", 
+                    "Account data incomplete, skipping",
+                    account_id=account_id, account_name=account_name)
         return
 
-    binance_client = BinanceClient(api_key, api_secret, tld='com')
+    # Use demo controller to get appropriate clients (real or mock)
+    demo_controller = get_demo_controller()
+    binance_client = demo_controller.get_binance_client(api_key, api_secret, tld='com')
+    db_client = demo_controller.get_supabase_client(supabase)
     
-    prices = get_prices(binance_client)
+    with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
+        prices = get_prices(binance_client, logger, account_id, account_name)
     if not prices:
         return
 
-    nav = get_futures_account_nav(binance_client)
+    with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
+        nav = get_futures_account_nav(binance_client, logger, account_id, account_name)
     if nav is None:
         return
 
     if not config.get('btc_units') and not config.get('eth_units'):
-        print("Benchmark not initialized. Initializing now...")
-        config = initialize_benchmark(supabase, config, account_id, nav, prices)
+        logger.info(LogCategory.BENCHMARK, "initialize", 
+                   f"Benchmark not initialized, initializing with NAV: ${nav:.2f}",
+                   account_id=account_id, account_name=account_name, 
+                   data={"initial_nav": nav})
+        config = initialize_benchmark(db_client, config, account_id, nav, prices, logger)
 
     # Zpracování vkladů a výběrů
-    config = process_deposits_withdrawals(supabase, binance_client, account_id, config, prices)
+    config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
 
     # Kontrola a provedení rebalance
     now_utc = datetime.now(UTC)
@@ -92,32 +142,54 @@ def process_single_account(account):
         clean_timestamp = next_rebalance_str.replace('Z', '+00:00')
         next_rebalance_dt = datetime.fromisoformat(clean_timestamp)
         if now_utc >= next_rebalance_dt:
-            print("Rebalance time reached. Rebalancing benchmark...")
+            logger.info(LogCategory.REBALANCING, "rebalance_time", 
+                       "Rebalance time reached, starting rebalancing",
+                       account_id=account_id, account_name=account_name)
             benchmark_value = calculate_benchmark_value(config, prices)
-            config = rebalance_benchmark(supabase, config, account_id, benchmark_value, prices)
+            config = rebalance_benchmark(db_client, config, account_id, benchmark_value, prices, logger)
 
     benchmark_value = calculate_benchmark_value(config, prices)
-    save_history(supabase, account_id, nav, benchmark_value)
+    save_history(db_client, account_id, nav, benchmark_value, logger, account_name)
 
 # --- Pomocné funkce ---
 
-def get_prices(client):
+def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
         prices = {}
         for symbol in ["BTCUSDT", "ETHUSDT"]:
             ticker = client.get_symbol_ticker(symbol=symbol)
             prices[symbol] = float(ticker['price'])
+        
+        if logger:
+            logger.info(LogCategory.PRICE_UPDATE, "prices_fetched", 
+                       f"Successfully fetched prices: BTC=${prices['BTCUSDT']:,.2f}, ETH=${prices['ETHUSDT']:,.2f}",
+                       account_id=account_id, account_name=account_name, data=prices)
         return prices
     except Exception as e:
+        if logger:
+            logger.error(LogCategory.PRICE_UPDATE, "price_fetch_error", 
+                        f"Failed to fetch prices: {str(e)}",
+                        account_id=account_id, account_name=account_name, error=str(e))
         print(f"Error getting prices: {e}")
         return None
 
-def get_futures_account_nav(client):
+def get_futures_account_nav(client, logger=None, account_id=None, account_name=None):
     try:
         info = client.futures_account()
         nav = float(info['totalWalletBalance']) + float(info['totalUnrealizedProfit'])
+        
+        if logger:
+            logger.info(LogCategory.API_CALL, "nav_fetched", 
+                       f"Successfully fetched NAV: ${nav:.2f}",
+                       account_id=account_id, account_name=account_name, 
+                       data={"nav": nav, "wallet_balance": float(info['totalWalletBalance']), 
+                            "unrealized_pnl": float(info['totalUnrealizedProfit'])})
         return nav
     except Exception as e:
+        if logger:
+            logger.error(LogCategory.API_CALL, "nav_fetch_error", 
+                        f"Failed to fetch NAV: {str(e)}",
+                        account_id=account_id, account_name=account_name, error=str(e))
         print(f"Error getting NAV: {e}")
         return None
 
@@ -128,8 +200,7 @@ def calculate_next_rebalance_time(now, rebalance_day, rebalance_hour):
     next_date = now.date() + timedelta(days=days_ahead)
     return datetime.combine(next_date, datetime.min.time()).replace(hour=rebalance_hour)
 
-def initialize_benchmark(db_client, config, account_id, initial_nav, prices):
-    print(f"Initializing benchmark with NAV: {initial_nav:.2f}")
+def initialize_benchmark(db_client, config, account_id, initial_nav, prices, logger=None):
     investment = initial_nav / 2
     btc_units = investment / prices['BTCUSDT']
     eth_units = investment / prices['ETHUSDT']
@@ -138,16 +209,30 @@ def initialize_benchmark(db_client, config, account_id, initial_nav, prices):
         datetime.now(UTC), config['rebalance_day'], config['rebalance_hour']
     )
 
-    response = db_client.table('benchmark_configs').update({
-        'btc_units': btc_units,
-        'eth_units': eth_units,
-        'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00'
-    }).eq('account_id', account_id).execute()
+    if logger:
+        logger.info(LogCategory.BENCHMARK, "initialize_start", 
+                   f"Initializing benchmark with NAV: ${initial_nav:.2f}",
+                   account_id=account_id, 
+                   data={"initial_nav": initial_nav, "btc_investment": investment, 
+                        "eth_investment": investment, "btc_units": btc_units, "eth_units": eth_units})
+    
+    with OperationTimer(logger, LogCategory.DATABASE, "update_benchmark_config", account_id) if logger else nullcontext():
+        response = db_client.table('benchmark_configs').update({
+            'btc_units': btc_units,
+            'eth_units': eth_units,
+            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00'
+        }).eq('account_id', account_id).execute()
+    
+    if logger:
+        logger.info(LogCategory.BENCHMARK, "initialize_complete", 
+                   f"Benchmark initialized successfully. Next rebalance: {next_rebalance}",
+                   account_id=account_id,
+                   data={"btc_units": btc_units, "eth_units": eth_units, "next_rebalance": next_rebalance.isoformat()})
+    
     print(f"Benchmark initialized. Next rebalance: {next_rebalance}")
     return response.data[0]
 
-def rebalance_benchmark(db_client, config, account_id, current_value, prices):
-    print(f"Rebalancing benchmark with current value: {current_value:.2f}")
+def rebalance_benchmark(db_client, config, account_id, current_value, prices, logger=None):
     investment = current_value / 2
     btc_units = investment / prices['BTCUSDT']
     eth_units = investment / prices['ETHUSDT']
@@ -156,11 +241,40 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices):
         datetime.now(UTC), config['rebalance_day'], config['rebalance_hour']
     )
 
-    response = db_client.table('benchmark_configs').update({
-        'btc_units': btc_units,
-        'eth_units': eth_units,
-        'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00'
-    }).eq('account_id', account_id).execute()
+    if logger:
+        old_btc_units = float(config.get('btc_units', 0))
+        old_eth_units = float(config.get('eth_units', 0))
+        
+        logger.info(LogCategory.REBALANCING, "rebalance_start", 
+                   f"Rebalancing benchmark with current value: ${current_value:.2f}",
+                   account_id=account_id,
+                   data={
+                       "current_value": current_value,
+                       "old_btc_units": old_btc_units,
+                       "old_eth_units": old_eth_units,
+                       "new_btc_units": btc_units,
+                       "new_eth_units": new_eth_units,
+                       "btc_investment": investment,
+                       "eth_investment": investment
+                   })
+
+    with OperationTimer(logger, LogCategory.DATABASE, "update_rebalance_config", account_id) if logger else nullcontext():
+        response = db_client.table('benchmark_configs').update({
+            'btc_units': btc_units,
+            'eth_units': eth_units,
+            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00'
+        }).eq('account_id', account_id).execute()
+    
+    if logger:
+        logger.info(LogCategory.REBALANCING, "rebalance_complete", 
+                   f"Benchmark rebalanced successfully. Next rebalance: {next_rebalance}",
+                   account_id=account_id,
+                   data={
+                       "btc_units": btc_units,
+                       "eth_units": eth_units,
+                       "next_rebalance": next_rebalance.isoformat()
+                   })
+    
     print(f"Benchmark rebalanced. Next rebalance: {next_rebalance}")
     return response.data[0]
 
@@ -169,22 +283,28 @@ def calculate_benchmark_value(config, prices):
     eth_val = (float(config.get('eth_units') or 0)) * prices['ETHUSDT']
     return btc_val + eth_val
 
-def process_deposits_withdrawals(db_client, binance_client, account_id, config, prices):
+def process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger=None):
     """
     Optimalizované zpracování deposits/withdrawals s idempotencí a atomic operations.
     Vrací aktualizovaný config s upravenými BTC/ETH units podle cashflow změn.
     """
     try:
-        # Získání posledního zpracovaného času pro tento účet
-        last_processed = get_last_processed_time(db_client, account_id)
+        with OperationTimer(logger, LogCategory.TRANSACTION, "fetch_last_processed", account_id) if logger else nullcontext():
+            last_processed = get_last_processed_time(db_client, account_id)
         
-        # Fetch nových transakcí od posledního zpracování
-        new_transactions = fetch_new_transactions(binance_client, last_processed)
+        with OperationTimer(logger, LogCategory.TRANSACTION, "fetch_new_transactions", account_id) if logger else nullcontext():
+            new_transactions = fetch_new_transactions(binance_client, last_processed, logger, account_id)
         
         if not new_transactions:
+            if logger:
+                logger.debug(LogCategory.TRANSACTION, "no_new_transactions", 
+                           "No new transactions found", account_id=account_id)
             return config
             
-        print(f"Processing {len(new_transactions)} new transactions...")
+        if logger:
+            logger.info(LogCategory.TRANSACTION, "processing_transactions", 
+                       f"Processing {len(new_transactions)} new transactions",
+                       account_id=account_id, data={"transaction_count": len(new_transactions)})
         
         # Batch zpracování všech nových transakcí
         total_net_flow = 0  # Kladné = deposit, záporné = withdrawal
@@ -208,19 +328,34 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                 })
         
         if total_net_flow != 0:
+            if logger:
+                logger.info(LogCategory.TRANSACTION, "cashflow_detected", 
+                           f"Net cashflow detected: ${total_net_flow:+,.2f}",
+                           account_id=account_id, data={"net_flow": total_net_flow, "transaction_count": len(processed_txns)})
+            
             # Atomic update: benchmark config + processed transactions
             updated_config = adjust_benchmark_for_cashflow(
-                db_client, config, account_id, total_net_flow, prices, processed_txns
+                db_client, config, account_id, total_net_flow, prices, processed_txns, logger
             )
             return updated_config
         else:
             # Žádné cashflow změny, jen uložíme tracking
             if processed_txns:
-                db_client.table('processed_transactions').insert(processed_txns).execute()
-                update_last_processed_time(db_client, account_id)
+                with OperationTimer(logger, LogCategory.DATABASE, "save_processed_transactions", account_id) if logger else nullcontext():
+                    db_client.table('processed_transactions').insert(processed_txns).execute()
+                    update_last_processed_time(db_client, account_id)
+                    
+                if logger:
+                    logger.info(LogCategory.TRANSACTION, "transactions_saved", 
+                               f"Saved {len(processed_txns)} transactions with no net cashflow",
+                               account_id=account_id)
             return config
             
     except Exception as e:
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "process_error", 
+                        f"Error processing deposits/withdrawals: {str(e)}",
+                        account_id=account_id, error=str(e))
         print(f"Error processing deposits/withdrawals: {e}")
         return config  # Failsafe - vrátíme původní config
 
@@ -236,7 +371,7 @@ def get_last_processed_time(db_client, account_id):
     except:
         return (datetime.now(UTC) - timedelta(days=30)).isoformat()
 
-def fetch_new_transactions(binance_client, start_time):
+def fetch_new_transactions(binance_client, start_time, logger=None, account_id=None):
     """
     Optimalizovaně fetchne deposits + withdrawals od start_time.
     Kombinuje oba API calls pro minimální latenci.
@@ -244,6 +379,11 @@ def fetch_new_transactions(binance_client, start_time):
     try:
         transactions = []
         start_timestamp = int(datetime.fromisoformat(start_time.replace('Z', '+00:00')).timestamp() * 1000)
+        
+        if logger:
+            logger.debug(LogCategory.API_CALL, "fetch_transactions_start", 
+                        f"Fetching transactions since {start_time}",
+                        account_id=account_id, data={"start_timestamp": start_timestamp})
         
         # Paralelně fetchneme deposits a withdrawals
         deposits = binance_client.get_deposit_history(startTime=start_timestamp)
@@ -275,14 +415,24 @@ def fetch_new_transactions(binance_client, start_time):
                 txn['status'] = 'SUCCESS'
                 txn['timestamp'] = datetime.fromtimestamp(txn['timestamp']/1000, UTC).isoformat()
                 successful_txns.append(txn)
+        
+        if logger:
+            logger.info(LogCategory.API_CALL, "transactions_fetched", 
+                       f"Fetched {len(successful_txns)} successful transactions (from {len(transactions)} total)",
+                       account_id=account_id, 
+                       data={"successful_count": len(successful_txns), "total_count": len(transactions)})
                 
         return sorted(successful_txns, key=lambda x: x['timestamp'])
         
     except Exception as e:
+        if logger:
+            logger.error(LogCategory.API_CALL, "fetch_transactions_error", 
+                        f"Error fetching transaction history: {str(e)}",
+                        account_id=account_id, error=str(e))
         print(f"Error fetching transaction history: {e}")
         return []
 
-def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, prices, processed_txns):
+def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, prices, processed_txns, logger=None):
     """
     Atomic adjustment benchmarku podle net cashflow.
     Při depositu: zvýší BTC/ETH units proporcionálně
@@ -293,7 +443,6 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
         current_eth_units = float(config.get('eth_units', 0))
         
         if net_flow > 0:  # DEPOSIT - přidáváme do benchmarku
-            print(f"Processing deposit: +${net_flow:.2f}")
             # Rozdělíme deposit 50/50 mezi BTC a ETH
             btc_investment = net_flow / 2
             eth_investment = net_flow / 2
@@ -301,8 +450,15 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
             new_btc_units = current_btc_units + (btc_investment / prices['BTCUSDT'])
             new_eth_units = current_eth_units + (eth_investment / prices['ETHUSDT'])
             
+            if logger:
+                logger.info(LogCategory.TRANSACTION, "process_deposit", 
+                           f"Processing deposit: +${net_flow:.2f}",
+                           account_id=account_id,
+                           data={"net_flow": net_flow, "btc_investment": btc_investment, 
+                                "eth_investment": eth_investment, "new_btc_units": new_btc_units, 
+                                "new_eth_units": new_eth_units})
+            
         else:  # WITHDRAWAL - ubíráme z benchmarku proporcionálně
-            print(f"Processing withdrawal: ${net_flow:.2f}")
             withdrawal_amount = abs(net_flow)
             
             # Zjistíme aktuální hodnotu benchmarku
@@ -316,27 +472,48 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
             else:
                 new_btc_units = current_btc_units
                 new_eth_units = current_eth_units
+            
+            if logger:
+                logger.info(LogCategory.TRANSACTION, "process_withdrawal", 
+                           f"Processing withdrawal: ${net_flow:.2f}",
+                           account_id=account_id,
+                           data={"net_flow": net_flow, "withdrawal_amount": withdrawal_amount,
+                                "current_benchmark_value": current_benchmark_value,
+                                "reduction_ratio": reduction_ratio if current_benchmark_value > 0 else 0,
+                                "new_btc_units": new_btc_units, "new_eth_units": new_eth_units})
         
         # Atomic database update - benchmark config + processed transactions
-        db_client.table('benchmark_configs').update({
-            'btc_units': new_btc_units,
-            'eth_units': new_eth_units
-        }).eq('account_id', account_id).execute()
-        
-        if processed_txns:
-            db_client.table('processed_transactions').insert(processed_txns).execute()
+        with OperationTimer(logger, LogCategory.DATABASE, "atomic_cashflow_update", account_id) if logger else nullcontext():
+            db_client.table('benchmark_configs').update({
+                'btc_units': new_btc_units,
+                'eth_units': new_eth_units
+            }).eq('account_id', account_id).execute()
             
-        update_last_processed_time(db_client, account_id)
+            if processed_txns:
+                db_client.table('processed_transactions').insert(processed_txns).execute()
+                
+            update_last_processed_time(db_client, account_id)
         
         # Vrátíme aktualizovaný config
         updated_config = config.copy()
         updated_config['btc_units'] = new_btc_units
         updated_config['eth_units'] = new_eth_units
         
+        if logger:
+            logger.info(LogCategory.TRANSACTION, "benchmark_adjusted", 
+                       f"Benchmark adjusted - BTC: {new_btc_units:.6f}, ETH: {new_eth_units:.6f}",
+                       account_id=account_id, 
+                       data={"old_btc_units": current_btc_units, "old_eth_units": current_eth_units,
+                            "new_btc_units": new_btc_units, "new_eth_units": new_eth_units})
+        
         print(f"Benchmark adjusted - BTC: {new_btc_units:.6f}, ETH: {new_eth_units:.6f}")
         return updated_config
         
     except Exception as e:
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
+                        f"Error adjusting benchmark: {str(e)}",
+                        account_id=account_id, error=str(e))
         print(f"Error adjusting benchmark: {e}")
         raise  # Re-raise aby se celá operace rollbackla
 
@@ -351,15 +528,29 @@ def update_last_processed_time(db_client, account_id):
     except Exception as e:
         print(f"Error updating last processed time: {e}")
 
-def save_history(db_client, account_id, nav, benchmark_value):
+def save_history(db_client, account_id, nav, benchmark_value, logger=None, account_name=None):
     timestamp = datetime.now(UTC).isoformat()
-    print(f"{timestamp} | NAV: {nav:.2f} | Benchmark: {benchmark_value:.2f}")
-    db_client.table('nav_history').insert({
+    
+    history_data = {
         'account_id': account_id,
         'timestamp': timestamp,
         'nav': f'{nav:.2f}',
         'benchmark_value': f'{benchmark_value:.2f}'
-    }).execute()
+    }
+    
+    if logger:
+        vs_benchmark = nav - benchmark_value
+        vs_benchmark_pct = (vs_benchmark / benchmark_value * 100) if benchmark_value > 0 else 0
+        
+        logger.info(LogCategory.DATABASE, "save_nav_history", 
+                   f"NAV: ${nav:.2f} | Benchmark: ${benchmark_value:.2f} | vs Benchmark: ${vs_benchmark:+.2f} ({vs_benchmark_pct:+.2f}%)",
+                   account_id=account_id, account_name=account_name,
+                   data={"nav": nav, "benchmark_value": benchmark_value, "vs_benchmark": vs_benchmark, "vs_benchmark_pct": vs_benchmark_pct})
+    
+    with OperationTimer(logger, LogCategory.DATABASE, "insert_nav_history", account_id, account_name) if logger else nullcontext():
+        db_client.table('nav_history').insert(history_data).execute()
+    
+    print(f"{timestamp} | NAV: {nav:.2f} | Benchmark: {benchmark_value:.2f}")
 
 # Tento blok je pro lokální testování, Vercel ho ignoruje
 if __name__ == "__main__":

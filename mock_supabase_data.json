@@ -1,0 +1,350 @@
+{
+  "binance_accounts": [
+    {
+      "id": 1,
+      "account_name": "Demo Trading Account",
+      "api_key": "demo_api_key",
+      "api_secret": "demo_api_secret",
+      "created_at": "2025-07-04T11:39:17.458056+00:00",
+      "benchmark_configs": {
+        "id": 1,
+        "account_id": 1,
+        "btc_units": 0.0769230769,
+        "eth_units": 1.4285714286,
+        "rebalance_day": 0,
+        "rebalance_hour": 12,
+        "next_rebalance_timestamp": "2025-07-07T12:00:00+00:00",
+        "created_at": "2025-07-04T11:39:17.458056+00:00"
+      }
+    }
+  ],
+  "benchmark_configs": [
+    {
+      "id": 1,
+      "account_id": 1,
+      "btc_units": 0.09219976211188355,
+      "eth_units": 1.6091368149377006,
+      "rebalance_day": 0,
+      "rebalance_hour": 12,
+      "next_rebalance_timestamp": "2025-07-07T12:00:00+00:00",
+      "created_at": "2025-07-04T11:39:17.458056+00:00"
+    }
+  ],
+  "nav_history": [
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T11:39:17.462667+00:00",
+      "nav": "16000.00",
+      "benchmark_value": "17038.70"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T13:21:55.736280+00:00",
+      "nav": "19000.00",
+      "benchmark_value": "14603.09"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:54:12.699656+00:00",
+      "nav": "22000.00",
+      "benchmark_value": "15200.01"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:55:33.115806+00:00",
+      "nav": "25000.00",
+      "benchmark_value": "15831.52"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:55:42.002024+00:00",
+      "nav": "28000.00",
+      "benchmark_value": "16499.75"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:56:01.489907+00:00",
+      "nav": "31000.00",
+      "benchmark_value": "17207.02"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:56:16.811007+00:00",
+      "nav": "34000.00",
+      "benchmark_value": "17955.80"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:57:34.031502+00:00",
+      "nav": "37000.00",
+      "benchmark_value": "18748.73"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:58:07.048969+00:00",
+      "nav": "40000.00",
+      "benchmark_value": "19588.57"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T22:59:09.458541+00:00",
+      "nav": "43000.00",
+      "benchmark_value": "20478.32"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T23:00:03.452968+00:00",
+      "nav": "46000.00",
+      "benchmark_value": "21421.16"
+    },
+    {
+      "account_id": 1,
+      "timestamp": "2025-07-04T23:00:29.965877+00:00",
+      "nav": "49000.00",
+      "benchmark_value": "22420.47"
+    }
+  ],
+  "processed_transactions": [
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_1",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T11:37:20.913000+00:00",
+      "status": "SUCCESS",
+      "id": 1
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_2",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T11:37:20.914000+00:00",
+      "status": "SUCCESS",
+      "id": 2
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_3",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T11:39:15.430000+00:00",
+      "status": "SUCCESS",
+      "id": 3
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_4",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T11:39:15.430000+00:00",
+      "status": "SUCCESS",
+      "id": 4
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_5",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T13:21:53.712000+00:00",
+      "status": "SUCCESS",
+      "id": 5
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_6",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T13:21:53.712000+00:00",
+      "status": "SUCCESS",
+      "id": 6
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_7",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:54:10.674000+00:00",
+      "status": "SUCCESS",
+      "id": 7
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_8",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:54:10.674000+00:00",
+      "status": "SUCCESS",
+      "id": 8
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_9",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:55:31.088000+00:00",
+      "status": "SUCCESS",
+      "id": 9
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_10",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:55:31.088000+00:00",
+      "status": "SUCCESS",
+      "id": 10
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_11",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:55:39.974000+00:00",
+      "status": "SUCCESS",
+      "id": 11
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_12",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:55:39.974000+00:00",
+      "status": "SUCCESS",
+      "id": 12
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_13",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:55:59.447000+00:00",
+      "status": "SUCCESS",
+      "id": 13
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_14",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:55:59.449000+00:00",
+      "status": "SUCCESS",
+      "id": 14
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_15",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:56:14.766000+00:00",
+      "status": "SUCCESS",
+      "id": 15
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_16",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:56:14.769000+00:00",
+      "status": "SUCCESS",
+      "id": 16
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_17",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:57:31.961000+00:00",
+      "status": "SUCCESS",
+      "id": 17
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_18",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:57:31.964000+00:00",
+      "status": "SUCCESS",
+      "id": 18
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_19",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:58:04.972000+00:00",
+      "status": "SUCCESS",
+      "id": 19
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_20",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:58:04.975000+00:00",
+      "status": "SUCCESS",
+      "id": 20
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_21",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T22:59:07.380000+00:00",
+      "status": "SUCCESS",
+      "id": 21
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_22",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T22:59:07.384000+00:00",
+      "status": "SUCCESS",
+      "id": 22
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_23",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T23:00:01.402000+00:00",
+      "status": "SUCCESS",
+      "id": 23
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_24",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T23:00:01.406000+00:00",
+      "status": "SUCCESS",
+      "id": 24
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "DEP_25",
+      "transaction_type": "DEPOSIT",
+      "amount": 5000.0,
+      "timestamp": "2025-07-04T23:00:27.913000+00:00",
+      "status": "SUCCESS",
+      "id": 25
+    },
+    {
+      "account_id": 1,
+      "transaction_id": "WD_26",
+      "transaction_type": "WITHDRAWAL",
+      "amount": 2000.0,
+      "timestamp": "2025-07-04T23:00:27.916000+00:00",
+      "status": "SUCCESS",
+      "id": 26
+    }
+  ],
+  "account_processing_status": [
+    {
+      "account_id": 1,
+      "last_processed_timestamp": "2025-07-04T23:00:29.963543+00:00",
+      "updated_at": "2025-07-04T11:39:17.458056+00:00"
+    }
+  ]
+}

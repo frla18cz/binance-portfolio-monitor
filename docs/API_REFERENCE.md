@@ -2,7 +2,7 @@
 
 **Complete technical documentation for the Binance Portfolio Monitor API and functions.**
 
-## 🌐 HTTP API Endpoint
+## 🌐 HTTP API Endpoints
 
 ### Main Monitoring Endpoint
 
@@ -34,24 +34,197 @@ Content-Type: text/plain
 Error: [specific error message]
 ```
 
+### Dashboard API Endpoints
+
+#### System Status
+**`GET /api/dashboard/status`**
+
+Returns system status, mode information, and performance metrics.
+
+```json
+{
+  "mode": {
+    "mode": "DEMO",
+    "safe_testing": true,
+    "real_money": false,
+    "warning": "All data is simulated"
+  },
+  "system": {
+    "monitoring_active": true,
+    "database_connected": true,
+    "api_connected": true
+  },
+  "performance": {
+    "total_operations": 45,
+    "success_rate": 95.6,
+    "avg_duration_ms": 1250
+  }
+}
+```
+
+#### Logs API
+**`GET /api/dashboard/logs?limit=100&category=api_call&level=ERROR`**
+
+Returns structured logs with optional filtering.
+
+**Query Parameters:**
+- `limit` (int): Maximum number of logs to return (default: 100)
+- `category` (string): Filter by log category (system, account_processing, api_call, etc.)
+- `account_id` (int): Filter by specific account ID
+- `level` (string): Filter by log level (INFO, WARNING, ERROR, DEBUG)
+
+```json
+{
+  "logs": [
+    {
+      "timestamp": "2025-07-04T13:21:55.736280+00:00",
+      "level": "INFO",
+      "category": "account_processing",
+      "operation": "process_account",
+      "message": "Successfully processed account: Demo Trading Account",
+      "account_id": 1,
+      "success": true,
+      "duration_ms": 4.46
+    }
+  ],
+  "total_count": 1,
+  "filters": {
+    "limit": 100,
+    "category": "account_processing"
+  }
+}
+```
+
+#### Metrics API
+**`GET /api/dashboard/metrics`**
+
+Returns comprehensive performance and portfolio metrics.
+
+```json
+{
+  "portfolio": {
+    "current_nav": 13500.00,
+    "benchmark_value": 12800.00,
+    "vs_benchmark": 700.00,
+    "return_percentage": 35.00
+  },
+  "prices": {
+    "btc": 65420.50,
+    "eth": 3245.75
+  },
+  "performance": {
+    "total_operations": 45,
+    "success_rate": 95.6,
+    "operations_by_category": {
+      "account_processing": 12,
+      "api_call": 18,
+      "database": 15
+    }
+  }
+}
+```
+
+#### Manual Trigger
+**`POST /api/dashboard/run-monitoring`**
+
+Manually triggers the monitoring process.
+
+```json
+{
+  "success": true,
+  "message": "Monitoring process completed successfully",
+  "timestamp": "2025-07-04T13:21:55.736280+00:00"
+}
+```
+
+#### Transaction Simulation (Demo Mode)
+**`POST /api/dashboard/simulate-transaction`**
+
+```json
+{
+  "type": "DEPOSIT",
+  "amount": 5000.0,
+  "account_id": 1
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "transaction_id": "MOCK_DEPOSIT_5",
+  "new_balance": 21000.00,
+  "new_nav": 21000.00,
+  "performance_summary": {
+    "current_nav": 21000.00,
+    "total_return": 11000.00,
+    "return_percentage": 110.00
+  }
+}
+```
+
+#### Market Scenario Simulation (Demo Mode)
+**`POST /api/dashboard/simulate-scenario`**
+
+```json
+{
+  "scenario": "bull_run"
+}
+```
+
+**Available scenarios:** `bull_run`, `bear_market`, `btc_dominance`, `eth_surge`, `crash`, `sideways`
+
+#### Web Dashboard
+**`GET /dashboard`**
+
+Serves the web dashboard interface with real-time monitoring capabilities.
+
 #### Usage Examples
 
 **cURL**
 ```bash
+# Main monitoring
 curl https://your-app.vercel.app/api/
+
+# Dashboard status
+curl https://your-app.vercel.app/api/dashboard/status
+
+# Recent logs
+curl "https://your-app.vercel.app/api/dashboard/logs?limit=50&level=ERROR"
+
+# Trigger monitoring
+curl -X POST https://your-app.vercel.app/api/dashboard/run-monitoring
 ```
 
 **Python**
 ```python
 import requests
-response = requests.get("https://your-app.vercel.app/api/")
-print(response.status_code, response.text)
+
+# Get system status
+response = requests.get("https://your-app.vercel.app/api/dashboard/status")
+status = response.json()
+
+# Get recent logs
+response = requests.get("https://your-app.vercel.app/api/dashboard/logs", 
+                       params={"limit": 100, "category": "account_processing"})
+logs = response.json()
+
+# Simulate transaction (demo mode)
+response = requests.post("https://your-app.vercel.app/api/dashboard/simulate-transaction",
+                        json={"type": "DEPOSIT", "amount": 5000.0})
+result = response.json()
 ```
 
 **JavaScript**
 ```javascript
-fetch('https://your-app.vercel.app/api/')
-  .then(response => response.text())
+// Get metrics
+fetch('/api/dashboard/metrics')
+  .then(response => response.json())
+  .then(data => console.log(data));
+
+// Trigger monitoring
+fetch('/api/dashboard/run-monitoring', {method: 'POST'})
+  .then(response => response.json())
   .then(data => console.log(data));
 ```
 
@@ -60,7 +233,7 @@ fetch('https://your-app.vercel.app/api/')
 ### Account Processing Functions
 
 #### `process_all_accounts()`
-Main orchestration function that processes all registered accounts.
+Main orchestration function that processes all registered accounts with comprehensive logging.
 
 ```python
 def process_all_accounts() -> None
@@ -69,7 +242,14 @@ def process_all_accounts() -> None
 **Behavior:**
 - Fetches all accounts from `binance_accounts` table
 - Processes each account individually with error isolation
-- Logs progress and errors for each account
+- **Comprehensive logging** of all operations with timing
+- **Demo mode support** for safe testing
+
+**Logging Features:**
+- System-level operation timing
+- Account-specific progress tracking
+- Error details with full context
+- Performance metrics collection
 
 **Database Dependencies:**
 - `binance_accounts` table with valid API credentials
@@ -548,6 +728,125 @@ ON processed_transactions(account_id, timestamp DESC);
 - Use generators for large data sets
 - Clean up temporary variables
 - Limit historical data queries
+
+## 📋 Logging System Reference
+
+### Logger Classes
+
+#### `MonitorLogger`
+Advanced logging system with structured JSON output and performance monitoring.
+
+```python
+from api.logger import get_logger, LogCategory, OperationTimer
+
+logger = get_logger()
+```
+
+**Key Features:**
+- **Structured JSON logging** with searchable fields
+- **Performance timing** with millisecond precision
+- **Account-specific tracking** with context
+- **Category-based organization** of log entries
+- **File persistence** with rotation and memory management
+
+#### `LogCategory` Enum
+Predefined categories for organizing log entries:
+
+- `SYSTEM` - System-level operations
+- `ACCOUNT_PROCESSING` - Account processing workflows  
+- `API_CALL` - Binance API interactions
+- `DATABASE` - Database operations
+- `BENCHMARK` - Benchmark calculations
+- `TRANSACTION` - Deposit/withdrawal processing
+- `PRICE_UPDATE` - Price data fetching
+- `REBALANCING` - Portfolio rebalancing
+- `DEMO_MODE` - Demo mode operations
+
+#### `OperationTimer`
+Context manager for timing operations with automatic logging:
+
+```python
+with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
+    nav = get_futures_account_nav(client)
+    # Automatically logs duration and success/failure
+```
+
+### Demo Mode System
+
+#### `DemoModeController`
+Controls switching between live and demo modes:
+
+```python
+from api.demo_mode import get_demo_controller
+
+controller = get_demo_controller()
+if controller.is_demo_mode():
+    # Safe testing with mock data
+    binance_client = controller.get_binance_client(api_key, api_secret)
+    db_client = controller.get_supabase_client(real_supabase)
+```
+
+#### Demo Mode Functions
+
+**`simulate_transaction(type, amount, account_id)`**
+```python
+result = simulate_transaction("DEPOSIT", 5000.0, 1)
+# Returns: transaction details and updated portfolio state
+```
+
+**`simulate_market_scenario(scenario)`**
+```python
+result = simulate_market_scenario("bull_run")
+# Returns: price changes and portfolio impact
+```
+
+**`get_demo_dashboard_data()`**
+```python
+data = get_demo_dashboard_data()
+# Returns: comprehensive demo data for dashboard
+```
+
+### Logging Methods
+
+#### Basic Logging
+```python
+logger.info(LogCategory.SYSTEM, "operation_name", "Message", 
+           account_id=1, account_name="Demo Account", 
+           data={"key": "value"})
+
+logger.error(LogCategory.API_CALL, "binance_error", "API call failed",
+            account_id=1, error="Connection timeout")
+```
+
+#### Performance Metrics
+```python
+# Get overall performance metrics
+metrics = logger.get_performance_metrics()
+# Returns: operation counts, success rates, timing stats
+
+# Get recent logs with filtering
+logs = logger.get_recent_logs(limit=100, category="api_call", account_id=1)
+
+# Get error logs from last 24 hours
+errors = logger.get_error_logs(hours=24)
+
+# Get account-specific summary
+summary = logger.get_account_summary(account_id=1)
+```
+
+### Environment Variables
+
+#### Logging Configuration
+```bash
+# Log level (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL=INFO
+
+# Maximum log entries in memory
+MAX_LOG_ENTRIES=10000
+
+# Demo mode toggle
+DEMO_MODE=true  # Enables safe testing mode
+```
 
 ---
 

@@ -23,11 +23,24 @@
 - Real-time NAV tracking from Binance futures API
 - Benchmark calculation using live BTC/ETH prices
 - Historical data storage for comparative analysis
+- **📈 Web Dashboard** with real-time charts and monitoring
 
 ### Intelligent Deposit/Withdrawal Handling
 - **Deposits**: Automatically increases benchmark allocation (50% BTC, 50% ETH)
 - **Withdrawals**: Proportionally reduces benchmark allocation
 - **Idempotent Processing**: No duplicate transaction processing
+
+### Advanced Logging & Monitoring
+- **📋 Structured Logging** with JSON format and performance timing
+- **🎯 Real-time Dashboard** with live log streaming and filtering
+- **⚡ Operation Timing** for performance optimization
+- **🔍 Account-specific Tracking** with detailed audit trails
+
+### Safe Testing Environment
+- **🎮 Demo Mode** for risk-free testing with mock data
+- **💰 Transaction Simulation** (deposits, withdrawals)
+- **📈 Market Scenario Testing** (bull run, bear market, etc.)
+- **🔄 Complete System Testing** without real money
 
 ### Robust Architecture
 - Serverless design (Vercel-ready)
@@ -125,8 +138,25 @@ VALUES (1, 0, 12); -- Rebalance Mondays at 12:00
 ```
 
 ### 5. Test Run
+
+#### Safe Demo Mode Testing
+```bash
+# Enable demo mode for safe testing
+export DEMO_MODE=true
+python demo_test.py
+```
+
+#### Production Testing
 ```bash
 python api/index.py
+```
+
+#### Web Dashboard
+```bash
+# Start dashboard server
+python -m api.dashboard
+
+# Open browser to: http://localhost:8000/dashboard
 ```
 
 Expected output:
@@ -265,6 +295,20 @@ ALTER TABLE nav_history ENABLE ROW LEVEL SECURITY;
 - Use different keys for different environments
 - Consider using service role key for backend operations
 
+#### Available Environment Variables
+```bash
+# Database Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+
+# Demo Mode (for safe testing)
+DEMO_MODE=true  # Enables mock data and safe testing
+
+# Logging Configuration
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+MAX_LOG_ENTRIES=10000  # Maximum logs in memory
+```
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -299,9 +343,41 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
+### Logging & Dashboard Troubleshooting
+
+**"Dashboard not loading"**
+```bash
+# Check if dashboard server is running
+python -m api.dashboard
+
+# Check log files
+ls -la logs/
+tail -f logs/monitor.log
+```
+
+**"No logs showing"**
+```bash
+# Check if logging is enabled
+python -c "from api.logger import get_logger; print(get_logger().get_performance_metrics())"
+
+# Check log files exist
+cat logs/monitor_logs.jsonl | jq '.'
+```
+
+**"Demo mode not working"**
+```bash
+# Ensure demo mode is enabled
+export DEMO_MODE=true
+python demo_test.py
+
+# Check demo controller
+python -c "from api.demo_mode import get_demo_controller; print(get_demo_controller().is_demo_mode())"
+```
+
 ## 📚 Documentation
 
 - **[📖 Setup Guide](./docs/SETUP_GUIDE.md)** - Complete installation and configuration
+- **[📊 Dashboard & Logging Guide](./docs/DASHBOARD_GUIDE.md)** - Web dashboard, logging system, and demo mode
 - **[🔧 API Reference](./docs/API_REFERENCE.md)** - Technical documentation  
 - **[🚀 Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)** - Production deployment
 - **[📋 Project Roadmap](./PROJECT_ROADMAP.md)** - Development progress
