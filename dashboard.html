@@ -20,7 +20,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -58,63 +58,32 @@
             margin-top: 5px;
         }
 
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .card h3 {
-            margin-bottom: 15px;
-            color: #333;
-            font-size: 1.3em;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-
-        .metric {
+        .status-bar {
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-            text-align: center;
-            padding: 15px;
-            background: #f8f9fa;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
-        .metric-label {
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 0.9em;
-            color: #666;
-            margin-bottom: 5px;
         }
 
-        .metric-value {
-            font-size: 1.2em;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .positive {
-            color: #28a745;
-        }
-
-        .negative {
-            color: #dc3545;
-        }
+        .status-online { color: #28a745; }
+        .status-offline { color: #dc3545; }
 
         .controls {
+            display: flex;
+            gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -125,13 +94,144 @@
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            margin-right: 10px;
-            margin-bottom: 10px;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
         }
 
         .btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn.btn-auto-refresh.active {
+            background: linear-gradient(45deg, #28a745, #20c997);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .card.loading {
+            opacity: 0.7;
+        }
+
+        .card h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .accounts-grid {
+            display: grid;
+            gap: 15px;
+        }
+
+        .account-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .account-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .account-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .account-status {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .account-status.active { background: #d4edda; color: #155724; }
+        .account-status.inactive { background: #f8d7da; color: #721c24; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .metric-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+
+        .price-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .price-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .price-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .price-value {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .price-change {
+            font-size: 0.8em;
+            margin-top: 4px;
         }
 
         .chart-container {
@@ -140,7 +240,7 @@
             margin-top: 20px;
         }
 
-        .log-container {
+        .logs-container {
             max-height: 400px;
             overflow-y: auto;
             background: #f8f9fa;
@@ -154,83 +254,71 @@
             border-radius: 4px;
             font-family: 'Monaco', 'Menlo', monospace;
             font-size: 0.85em;
+            border-left: 3px solid #dee2e6;
         }
 
-        .log-info {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
+        .log-info { border-left-color: #007bff; background: #e3f2fd; }
+        .log-warning { border-left-color: #ffc107; background: #fff3e0; }
+        .log-error { border-left-color: #dc3545; background: #ffebee; }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
 
-        .log-warning {
-            background: #fff3e0;
-            border-left: 4px solid #ff9800;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
-        .log-error {
-            background: #ffebee;
-            border-left: 4px solid #f44336;
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
         }
 
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
-        .error {
+        .error-message {
             color: #dc3545;
             background: #ffebee;
             padding: 10px;
             border-radius: 4px;
             margin: 10px 0;
+            border-left: 4px solid #dc3545;
         }
 
-        .success {
+        .success-message {
             color: #28a745;
             background: #e8f5e8;
             padding: 10px;
             border-radius: 4px;
             margin: 10px 0;
+            border-left: 4px solid #28a745;
         }
 
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+        .wide-card {
+            grid-column: 1 / -1;
         }
 
-        .status-item {
+        @media (min-width: 1200px) {
+            .wide-card {
+                grid-column: span 2;
+            }
+        }
+
+        .refresh-indicator {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 6px;
-        }
-
-        .status-online {
-            color: #28a745;
-        }
-
-        .status-offline {
-            color: #dc3545;
-        }
-
-        .refresh-info {
-            text-align: center;
+            gap: 8px;
             color: #666;
             font-size: 0.9em;
-            margin-top: 20px;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        .loading {
-            animation: pulse 1.5s infinite;
         }
     </style>
 </head>
@@ -238,37 +326,75 @@
     <div class="container">
         <div class="header">
             <h1>🎯 Binance Portfolio Monitor</h1>
-            <span id="mode-indicator" class="mode-indicator">🔴 LIVE MODE</span>
+            <span class="mode-indicator">🔴 LIVE MODE</span>
             <div class="subtitle">Real-time portfolio monitoring with live Binance API data</div>
         </div>
 
+        <div class="status-bar">
+            <div class="status-item">
+                <span>🔌</span>
+                <span>Database:</span>
+                <span id="db-status" class="status-online">Connected</span>
+            </div>
+            <div class="status-item">
+                <span>📡</span>
+                <span>API:</span>
+                <span id="api-status" class="status-online">Active</span>
+            </div>
+            <div class="refresh-indicator">
+                <span>🕐</span>
+                <span>Last update:</span>
+                <span id="last-update">Never</span>
+                <span id="loading-indicator" style="display: none;" class="loading-spinner"></span>
+            </div>
+        </div>
+
         <div class="controls">
-            <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
-            <button class="btn" onclick="runMonitoring()">▶️ Run Monitoring</button>
-            <button class="btn" onclick="toggleAutoRefresh()">⏰ Auto Refresh</button>
+            <button class="btn" onclick="refreshData()" id="refresh-btn">
+                🔄 Refresh Data
+            </button>
+            <button class="btn" onclick="runMonitoring()" id="monitoring-btn">
+                ▶️ Run Monitoring
+            </button>
+            <button class="btn btn-auto-refresh" onclick="toggleAutoRefresh()" id="auto-refresh-btn">
+                ⏰ Auto Refresh: OFF
+            </button>
         </div>
 
         <div class="dashboard-grid">
-            <!-- Portfolio Metrics -->
-            <div class="card">
-                <h3>📊 Portfolio Performance</h3>
-                <div id="portfolio-metrics" class="loading">Loading portfolio data...</div>
+            <!-- Portfolio Accounts -->
+            <div class="card wide-card">
+                <h3>
+                    <span>📊</span>
+                    <span>Portfolio Accounts</span>
+                    <span id="accounts-count" style="margin-left: auto; font-size: 0.8em; color: #666;">(0)</span>
+                </h3>
+                <div id="accounts-container">
+                    <div class="loading-spinner"></div>
+                    <span style="margin-left: 10px;">Loading accounts...</span>
+                </div>
             </div>
 
             <!-- Market Prices -->
             <div class="card">
-                <h3>💰 Current Prices</h3>
-                <div id="price-data" class="loading">Loading price data...</div>
+                <h3>💰 Market Prices</h3>
+                <div id="prices-container">
+                    <div class="loading-spinner"></div>
+                    <span style="margin-left: 10px;">Loading prices...</span>
+                </div>
             </div>
 
             <!-- System Status -->
             <div class="card">
                 <h3>⚙️ System Status</h3>
-                <div id="system-status" class="loading">Loading system status...</div>
+                <div id="system-status-container">
+                    <div class="loading-spinner"></div>
+                    <span style="margin-left: 10px;">Loading system status...</span>
+                </div>
             </div>
 
             <!-- Performance Chart -->
-            <div class="card" style="grid-column: span 2;">
+            <div class="card wide-card">
                 <h3>📈 Performance Chart</h3>
                 <div class="chart-container">
                     <canvas id="performanceChart"></canvas>
@@ -276,27 +402,28 @@
             </div>
 
             <!-- Recent Logs -->
-            <div class="card" style="grid-column: span 2;">
+            <div class="card wide-card">
                 <h3>📋 Recent Logs</h3>
-                <div>
-                    <button class="btn" onclick="filterLogs('all')">All</button>
-                    <button class="btn" onclick="filterLogs('ERROR')">Errors</button>
-                    <button class="btn" onclick="filterLogs('INFO')">Info</button>
+                <div style="margin-bottom: 10px;">
+                    <button class="btn" onclick="filterLogs('all')" id="filter-all">All</button>
+                    <button class="btn" onclick="filterLogs('ERROR')" id="filter-error">Errors</button>
+                    <button class="btn" onclick="filterLogs('INFO')" id="filter-info">Info</button>
                 </div>
-                <div id="logs-container" class="log-container loading">Loading logs...</div>
+                <div id="logs-container" class="logs-container">
+                    <div class="loading-spinner"></div>
+                    <span style="margin-left: 10px;">Loading logs...</span>
+                </div>
             </div>
-        </div>
-
-        <div class="refresh-info">
-            <p>Last updated: <span id="last-update">Never</span></p>
-            <p>Auto-refresh: <span id="auto-refresh-status">Disabled</span></p>
         </div>
     </div>
 
     <script>
+        // Global state
         let autoRefreshInterval = null;
         let performanceChart = null;
         let currentLogFilter = 'all';
+        let isLoading = false;
+        let lastUpdateTime = null;
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
@@ -314,134 +441,177 @@
         }
 
         async function refreshData() {
+            if (isLoading) return; // Prevent concurrent requests
+            
+            isLoading = true;
+            setLoadingState(true);
+            
             try {
-                // Load real data from API endpoints
-                await loadPortfolioData();
-                await loadPriceData();
-                await loadSystemStatus();
-                await loadLogs();
+                // Load all data concurrently for better performance
+                await Promise.allSettled([
+                    loadAccountsData(),
+                    loadPricesData(),
+                    loadSystemStatus(),
+                    loadLogs()
+                ]);
                 
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-                showMessage('Data refreshed successfully', 'success');
+                lastUpdateTime = new Date();
+                document.getElementById('last-update').textContent = lastUpdateTime.toLocaleTimeString();
+                
             } catch (error) {
                 showMessage('Failed to refresh data: ' + error.message, 'error');
+            } finally {
+                isLoading = false;
+                setLoadingState(false);
             }
         }
 
-        async function loadPortfolioData() {
-            const container = document.getElementById('portfolio-metrics');
+        function setLoadingState(loading) {
+            const indicator = document.getElementById('loading-indicator');
+            const refreshBtn = document.getElementById('refresh-btn');
+            
+            if (loading) {
+                indicator.style.display = 'inline-block';
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '🔄 Loading...';
+            } else {
+                indicator.style.display = 'none';
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh Data';
+            }
+        }
+
+        async function loadAccountsData() {
+            const container = document.getElementById('accounts-container');
+            const countSpan = document.getElementById('accounts-count');
             
             try {
                 const response = await fetch('/api/dashboard/metrics');
+                if (!response.ok) throw new Error('Failed to load account data');
+                
                 const data = await response.json();
                 
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to load portfolio data');
+                // For now, we'll display single account, but structure for multiple
+                const accounts = data.portfolio ? [data.portfolio] : [];
+                
+                countSpan.textContent = `(${accounts.length})`;
+                
+                if (accounts.length === 0) {
+                    container.innerHTML = '<div class="error-message">No accounts found</div>';
+                    return;
                 }
                 
-                const portfolio = data.portfolio || {};
-                
-                container.innerHTML = `
-                    <div class="metrics-grid">
-                        <div class="metric">
-                            <span class="metric-label">Account</span>
-                            <span class="metric-value">${portfolio.account_name || 'N/A'}</span>
+                container.innerHTML = accounts.map(account => `
+                    <div class="account-card fade-in">
+                        <div class="account-header">
+                            <span class="account-name">${account.account_name || 'Unknown Account'}</span>
+                            <span class="account-status active">Active</span>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">Current NAV</span>
-                            <span class="metric-value">$${(portfolio.current_nav || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="metric-label">Benchmark</span>
-                            <span class="metric-value">$${(portfolio.benchmark_value || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                        </div>
-                        <div class="metric">
-                            <span class="metric-label">vs Benchmark</span>
-                            <span class="metric-value ${(portfolio.vs_benchmark || 0) >= 0 ? 'positive' : 'negative'}">
-                                ${(portfolio.vs_benchmark || 0) >= 0 ? '+' : ''}$${(portfolio.vs_benchmark || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} 
-                                (${(portfolio.vs_benchmark_pct || 0).toFixed(2)}%)
-                            </span>
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <div class="metric-label">Current NAV</div>
+                                <div class="metric-value">$${formatNumber(account.current_nav || 0)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Benchmark</div>
+                                <div class="metric-value">$${formatNumber(account.benchmark_value || 0)}</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">vs Benchmark</div>
+                                <div class="metric-value ${(account.vs_benchmark || 0) >= 0 ? 'positive' : 'negative'}">
+                                    ${(account.vs_benchmark || 0) >= 0 ? '+' : ''}$${formatNumber(account.vs_benchmark || 0)}
+                                </div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label">Performance</div>
+                                <div class="metric-value ${(account.vs_benchmark_pct || 0) >= 0 ? 'positive' : 'negative'}">
+                                    ${(account.vs_benchmark_pct || 0) >= 0 ? '+' : ''}${(account.vs_benchmark_pct || 0).toFixed(2)}%
+                                </div>
+                            </div>
                         </div>
                     </div>
-                `;
+                `).join('');
+                
             } catch (error) {
-                container.innerHTML = `<div class="error">Error loading portfolio data: ${error.message}</div>`;
+                container.innerHTML = `<div class="error-message">Error loading accounts: ${error.message}</div>`;
             }
         }
 
-        async function loadPriceData() {
-            const container = document.getElementById('price-data');
+        async function loadPricesData() {
+            const container = document.getElementById('prices-container');
             
             try {
                 const response = await fetch('/api/dashboard/metrics');
+                if (!response.ok) throw new Error('Failed to load price data');
+                
                 const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to load price data');
-                }
-                
                 const prices = data.prices || {};
                 
                 container.innerHTML = `
-                    <div class="metrics-grid">
-                        <div class="metric">
-                            <span class="metric-label">BTC Price</span>
-                            <span class="metric-value">$${(prices.btc || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    <div class="price-grid fade-in">
+                        <div class="price-item">
+                            <div class="price-label">Bitcoin</div>
+                            <div class="price-value">$${formatNumber(prices.btc || 0)}</div>
+                            <div class="price-change">BTC/USDT</div>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">ETH Price</span>
-                            <span class="metric-value">$${(prices.eth || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                        <div class="price-item">
+                            <div class="price-label">Ethereum</div>
+                            <div class="price-value">$${formatNumber(prices.eth || 0)}</div>
+                            <div class="price-change">ETH/USDT</div>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">Last Updated</span>
-                            <span class="metric-value">${prices.timestamp ? new Date(prices.timestamp).toLocaleTimeString() : 'N/A'}</span>
+                        <div class="price-item">
+                            <div class="price-label">Updated</div>
+                            <div class="price-value" style="font-size: 0.9em;">
+                                ${prices.timestamp ? new Date(prices.timestamp).toLocaleTimeString() : 'N/A'}
+                            </div>
+                            <div class="price-change">Live data</div>
                         </div>
                     </div>
                 `;
+                
             } catch (error) {
-                container.innerHTML = `<div class="error">Error loading price data: ${error.message}</div>`;
+                container.innerHTML = `<div class="error-message">Error loading prices: ${error.message}</div>`;
             }
         }
 
         async function loadSystemStatus() {
-            const container = document.getElementById('system-status');
+            const container = document.getElementById('system-status-container');
             
             try {
                 const response = await fetch('/api/dashboard/status');
+                if (!response.ok) throw new Error('Failed to load system status');
+                
                 const data = await response.json();
                 
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to load system status');
-                }
+                // Update status bar
+                document.getElementById('db-status').className = data.system?.database_connected ? 'status-online' : 'status-offline';
+                document.getElementById('db-status').textContent = data.system?.database_connected ? 'Connected' : 'Disconnected';
                 
+                document.getElementById('api-status').className = data.system?.api_connected ? 'status-online' : 'status-offline';
+                document.getElementById('api-status').textContent = data.system?.api_connected ? 'Active' : 'Inactive';
+                
+                // System status details
                 container.innerHTML = `
-                    <div class="status-grid">
-                        <div class="status-item">
-                            <span>Mode</span>
-                            <span class="status-online">${data.mode || 'LIVE'}</span>
+                    <div class="metrics-grid fade-in">
+                        <div class="metric">
+                            <div class="metric-label">Mode</div>
+                            <div class="metric-value">${data.mode || 'LIVE'}</div>
                         </div>
-                        <div class="status-item">
-                            <span>Database</span>
-                            <span class="${data.system?.database_connected ? 'status-online' : 'status-offline'}">
-                                ${data.system?.database_connected ? '✅ Connected' : '❌ Disconnected'}
-                            </span>
-                        </div>
-                        <div class="status-item">
-                            <span>API</span>
-                            <span class="${data.system?.api_connected ? 'status-online' : 'status-offline'}">
-                                ${data.system?.api_connected ? '✅ Connected' : '❌ Disconnected'}
-                            </span>
-                        </div>
-                        <div class="status-item">
-                            <span>Monitoring</span>
-                            <span class="${data.system?.monitoring_active ? 'status-online' : 'status-offline'}">
+                        <div class="metric">
+                            <div class="metric-label">Monitoring</div>
+                            <div class="metric-value ${data.system?.monitoring_active ? 'positive' : 'negative'}">
                                 ${data.system?.monitoring_active ? '🟢 Active' : '🔴 Inactive'}
-                            </span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Uptime</div>
+                            <div class="metric-value">${getUptime()}</div>
                         </div>
                     </div>
                 `;
+                
             } catch (error) {
-                container.innerHTML = `<div class="error">Error loading system status: ${error.message}</div>`;
+                container.innerHTML = `<div class="error-message">Error loading system status: ${error.message}</div>`;
             }
         }
 
@@ -449,13 +619,10 @@
             const container = document.getElementById('logs-container');
             
             try {
-                const response = await fetch(`/api/dashboard/logs?limit=50&level=${currentLogFilter !== 'all' ? currentLogFilter : ''}`);
+                const response = await fetch(`/api/dashboard/logs?limit=30&level=${currentLogFilter !== 'all' ? currentLogFilter : ''}`);
+                if (!response.ok) throw new Error('Failed to load logs');
+                
                 const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to load logs');
-                }
-                
                 const logs = data.logs || [];
                 
                 if (logs.length === 0) {
@@ -464,10 +631,10 @@
                 }
                 
                 container.innerHTML = logs.map(log => `
-                    <div class="log-entry log-${log.level?.toLowerCase() || 'info'}">
-                        <strong>${log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}</strong> 
-                        [${log.level || 'INFO'}] 
-                        ${log.category ? `[${log.category}] ` : ''}
+                    <div class="log-entry log-${log.level?.toLowerCase() || 'info'} fade-in">
+                        <strong>${log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}</strong>
+                        [${log.level || 'INFO'}]
+                        ${log.category ? `[${log.category}]` : ''}
                         ${log.message || 'No message'}
                         ${log.account_name ? ` (${log.account_name})` : ''}
                     </div>
@@ -475,49 +642,64 @@
                 
                 // Auto-scroll to bottom
                 container.scrollTop = container.scrollHeight;
+                
             } catch (error) {
-                container.innerHTML = `<div class="error">Error loading logs: ${error.message}</div>`;
+                container.innerHTML = `<div class="error-message">Error loading logs: ${error.message}</div>`;
             }
         }
 
         function filterLogs(level) {
             currentLogFilter = level;
+            
+            // Update button states
+            document.querySelectorAll('[id^="filter-"]').forEach(btn => {
+                btn.style.opacity = '0.7';
+            });
+            document.getElementById(`filter-${level}`).style.opacity = '1';
+            
             loadLogs();
         }
 
         async function runMonitoring() {
+            const btn = document.getElementById('monitoring-btn');
+            
             try {
-                showMessage('Running monitoring process...', 'info');
+                btn.disabled = true;
+                btn.textContent = '⏳ Running...';
                 
                 const response = await fetch('/api/dashboard/run-monitoring', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to run monitoring');
-                }
+                if (!response.ok) throw new Error('Failed to run monitoring');
                 
                 showMessage('Monitoring completed successfully', 'success');
-                await refreshData(); // Refresh data after monitoring
+                
+                // Refresh data after monitoring
+                setTimeout(refreshData, 1000);
+                
             } catch (error) {
                 showMessage('Failed to run monitoring: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '▶️ Run Monitoring';
             }
         }
 
         function toggleAutoRefresh() {
+            const btn = document.getElementById('auto-refresh-btn');
+            
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
                 autoRefreshInterval = null;
-                document.getElementById('auto-refresh-status').textContent = 'Disabled';
+                btn.textContent = '⏰ Auto Refresh: OFF';
+                btn.classList.remove('active');
                 showMessage('Auto-refresh disabled', 'info');
             } else {
                 autoRefreshInterval = setInterval(refreshData, 30000); // 30 seconds
-                document.getElementById('auto-refresh-status').textContent = 'Every 30s';
+                btn.textContent = '⏰ Auto Refresh: ON';
+                btn.classList.add('active');
                 showMessage('Auto-refresh enabled (30s)', 'success');
             }
         }
@@ -533,24 +715,32 @@
                         data: [],
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
                     }, {
                         label: 'Benchmark',
                         data: [],
                         borderColor: '#764ba2',
                         backgroundColor: 'rgba(118, 75, 162, 0.1)',
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
                     scales: {
                         y: {
                             beginAtZero: false,
                             ticks: {
                                 callback: function(value) {
-                                    return '$' + value.toLocaleString();
+                                    return '$' + formatNumber(value);
                                 }
                             }
                         }
@@ -562,7 +752,7 @@
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString();
+                                    return context.dataset.label + ': $' + formatNumber(context.parsed.y);
                                 }
                             }
                         }
@@ -571,10 +761,30 @@
             });
         }
 
-        function showMessage(message, type) {
-            // Simple message display - you could enhance this with a toast system
-            console.log(`[${type.toUpperCase()}] ${message}`);
+        function formatNumber(num) {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(num || 0);
         }
+
+        function getUptime() {
+            // Simple uptime calculation from page load
+            const now = new Date();
+            const start = window.dashboardStartTime || now;
+            const diff = now - start;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            return `${hours}h ${minutes}m`;
+        }
+
+        function showMessage(message, type) {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            // You could implement a toast notification system here
+        }
+
+        // Store dashboard start time
+        window.dashboardStartTime = new Date();
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
