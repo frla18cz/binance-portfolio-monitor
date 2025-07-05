@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from http.server import BaseHTTPRequestHandler
 from supabase import create_client, Client
 from binance.client import Client as BinanceClient
-from .demo_mode import get_demo_controller
 from .logger import get_logger, LogCategory, OperationTimer
 
 # Načtení proměnných z .env souboru
@@ -50,9 +49,8 @@ def process_all_accounts():
     logger = get_logger()
     
     with OperationTimer(logger, LogCategory.SYSTEM, "fetch_all_accounts"):
-        # Use demo controller to get appropriate database client
-        demo_controller = get_demo_controller()
-        db_client = demo_controller.get_supabase_client(supabase)
+        # Use real Supabase client
+        db_client = supabase
         
         response = db_client.table('binance_accounts').select('*, benchmark_configs(*)').execute()
     
@@ -109,10 +107,9 @@ def process_single_account(account):
                     account_id=account_id, account_name=account_name)
         return
 
-    # Use demo controller to get appropriate clients (real or mock)
-    demo_controller = get_demo_controller()
-    binance_client = demo_controller.get_binance_client(api_key, api_secret, tld='com')
-    db_client = demo_controller.get_supabase_client(supabase)
+    # Use real Binance client
+    binance_client = BinanceClient(api_key, api_secret, tld='com')
+    db_client = supabase
     
     with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
         prices = get_prices(binance_client, logger, account_id, account_name)

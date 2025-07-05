@@ -4,9 +4,9 @@
 
 ## 🎯 Overview
 
-The dashboard provides real-time monitoring capabilities with comprehensive logging and safe testing features:
+The dashboard provides real-time monitoring capabilities with comprehensive logging and safe testing features, supporting both **live data** and **simulated demo data**:
 
-- **📈 Real-time Portfolio Monitoring** - Live NAV vs benchmark tracking
+- **📈 Real-time Portfolio Monitoring** - Live NAV vs benchmark tracking (from real API/DB or simulated)
 - **📋 Structured Logging System** - Detailed operation logs with performance metrics  
 - **🎮 Demo Mode** - Safe testing environment with mock data
 - **⚡ Performance Analytics** - Success rates, timing, and error tracking
@@ -16,18 +16,25 @@ The dashboard provides real-time monitoring capabilities with comprehensive logg
 
 ### Starting the Dashboard
 
+To start the dashboard in **live mode** (with real data):
 ```bash
-# Start the dashboard server
-python -m api.dashboard
-
+python -m api.dashboard --mode live
 # Open browser to: http://localhost:8000/dashboard
 ```
+
+To start the dashboard in **demo mode** (with simulated data):
+```bash
+python -m api.dashboard --mode demo
+# Open browser to: http://localhost:8000/dashboard
+```
+
+If no `--mode` is specified, the dashboard will default to live mode unless `DEMO_MODE=true` is set in your environment variables.
 
 ### Dashboard Features
 
 #### 📊 Portfolio Overview
-- **Current NAV** - Real-time account value
-- **Benchmark Value** - 50/50 BTC/ETH portfolio value
+- **Current NAV** - Real-time account value (from DB in live mode, simulated in demo mode)
+- **Benchmark Value** - 50/50 BTC/ETH portfolio value (from DB in live mode, simulated in demo mode)
 - **Performance vs Benchmark** - Outperformance tracking
 - **Total Return** - Absolute and percentage returns
 
@@ -38,7 +45,7 @@ python -m api.dashboard
 - **Session Statistics** - Current monitoring session data
 
 #### 💰 Current Market Data
-- **BTC/ETH Prices** - Real-time cryptocurrency prices
+- **BTC/ETH Prices** - Real-time cryptocurrency prices (from Binance API in live mode, simulated in demo mode)
 - **Last Updated** - Data freshness indicators
 - **Price Change Indicators** - Market movement tracking
 
@@ -90,7 +97,17 @@ clearLogs()
 
 ## 🎮 Demo Mode
 
+Demo mode provides a safe and isolated environment for testing the monitoring system without interacting with real funds or live API endpoints. All data in demo mode is simulated.
+
 ### Enabling Demo Mode
+
+To enable demo mode, use the `--mode demo` argument when starting the dashboard:
+
+```bash
+python -m api.dashboard --mode demo
+```
+
+Alternatively, you can still use the `DEMO_MODE` environment variable:
 
 ```bash
 # Environment variable
@@ -99,6 +116,8 @@ export DEMO_MODE=true
 # Or in .env file
 DEMO_MODE=true
 ```
+
+To switch back to live mode, use `--mode live` or ensure `DEMO_MODE` is not set to `true`.
 
 ### Demo Mode Features
 
@@ -152,31 +171,25 @@ data = get_demo_dashboard_data()
 
 ### Demo Mode Testing Workflow
 
-1. **Enable Demo Mode**
+1. **Start Dashboard in Demo Mode**
    ```bash
-   export DEMO_MODE=true
-   python demo_test.py
-   ```
-
-2. **Access Dashboard**
-   ```bash
-   python -m api.dashboard
+   python -m api.dashboard --mode demo
    # Open: http://localhost:8000/dashboard
    ```
 
-3. **Test Transactions**
+2. **Test Transactions**
    - Use dashboard buttons to simulate deposits/withdrawals
    - Observe portfolio impact in real-time
    - Check logs for operation details
 
-4. **Test Market Scenarios**
+3. **Test Market Scenarios**
    - Apply different market conditions
    - Monitor benchmark adjustments
    - Analyze performance impact
 
-5. **Test Full Monitoring**
+4. **Test Full Monitoring**
    ```bash
-   # Run complete monitoring cycle
+   # Run complete monitoring cycle (will use demo mode if dashboard is in demo mode)
    python api/index.py
    ```
 

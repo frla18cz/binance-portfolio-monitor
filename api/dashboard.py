@@ -9,15 +9,8 @@ from datetime import datetime, UTC
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-from .demo_mode import (
-    get_demo_controller, 
-    simulate_transaction, 
-    simulate_market_scenario,
-    get_demo_dashboard_data,
-    reset_demo_data
-)
 from .logger import get_logger, LogCategory
-from .index import process_all_accounts
+from .index import process_all_accounts, supabase, get_prices
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -36,8 +29,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_logs(query_params)
             elif path == '/api/dashboard/metrics':
                 self._handle_metrics()
-            elif path == '/api/dashboard/demo-data':
-                self._handle_demo_data()
             elif path == '/dashboard':
                 self._serve_dashboard()
             else:
@@ -60,12 +51,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             
             if path == '/api/dashboard/run-monitoring':
                 self._handle_run_monitoring()
-            elif path == '/api/dashboard/simulate-transaction':
-                self._handle_simulate_transaction(data)
-            elif path == '/api/dashboard/simulate-scenario':
-                self._handle_simulate_scenario(data)
-            elif path == '/api/dashboard/reset-demo':
-                self._handle_reset_demo()
             else:
                 self._send_error(404, "Endpoint not found")
                 
@@ -77,16 +62,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _handle_status(self):
         """Get system and mode status."""
         logger = get_logger()
-        controller = get_demo_controller()
         
         # Get performance metrics
         metrics = logger.get_performance_metrics()
         
-        # Get mode status
-        mode_status = controller.get_mode_status()
-        
         status_data = {
-            "mode": mode_status,
+            "mode": "LIVE",
             "system": {
                 "monitoring_active": True,
                 "last_run": datetime.now(UTC).isoformat(),
@@ -142,56 +123,66 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _handle_metrics(self):
         """Get comprehensive metrics and performance data."""
         logger = get_logger()
-        controller = get_demo_controller()
         
         # Get logger metrics
         performance_metrics = logger.get_performance_metrics()
         
-        # Get demo data if in demo mode
-        demo_data = None
-        if controller.is_demo_mode():
-            demo_data = get_demo_dashboard_data()
-        
-        # Simulate portfolio data (in real implementation, this would come from database)
-        portfolio_data = {
-            "account_name": "Demo Trading Account" if controller.is_demo_mode() else "Live Trading Account",
-            "current_nav": 13500.00,
-            "benchmark_value": 12800.00,
-            "initial_balance": 10000.00,
-            "total_return": 3500.00,
-            "return_percentage": 35.00,
-            "vs_benchmark": 700.00,
-            "vs_benchmark_pct": 5.47
-        }
-        
-        # Current prices (simulated)
-        prices = {
-            "btc": 65420.50,
-            "eth": 3245.75,
-            "timestamp": datetime.now(UTC).isoformat()
-        }
+        # Get portfolio data and prices
+        portfolio_data = {}
+        prices = {}
+
+        # Fetch real data
+        try:
+            # Fetch latest NAV history for the first account
+            latest_nav_history = supabase.table('nav_history').select('*').order('timestamp', desc=True).limit(1).execute()
+            if latest_nav_history.data:
+                latest_data = latest_nav_history.data[0]
+                portfolio_data = {
+                    "account_name": "Live Trading Account",
+                    "current_nav": float(latest_data.get("nav", 0)),
+                    "benchmark_value": float(latest_data.get("benchmark_value", 0)),
+                    "initial_balance": 0.0, 
+                    "total_return": 0.0,
+                    "return_percentage": 0.0,
+                    "vs_benchmark": float(latest_data.get("nav", 0)) - float(latest_data.get("benchmark_value", 0)),
+                    "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_data.get("benchmark_value", 0))) / float(latest_data.get("benchmark_value", 0)) * 100 if float(latest_data.get("benchmark_value", 0)) != 0 else 0
+                }
+                # Fetch account name from binance_accounts
+                account_info = supabase.table('binance_accounts').select('account_name').eq('id', latest_data.get('account_id')).limit(1).execute()
+                if account_info.data:
+                    portfolio_data["account_name"] = account_info.data[0]["account_name"]
+
+            # Fetch real-time prices from a dummy client (we just need the get_prices function)
+            from binance.client import Client as BinanceClient
+            # Create a temporary client just for price fetching (public API)
+            temp_client = BinanceClient('', '')  # Empty keys for public endpoints
+            real_prices = get_prices(temp_client, logger)
+            if real_prices:
+                prices = {
+                    "btc": real_prices.get("BTCUSDT", 0.0),
+                    "eth": real_prices.get("ETHUSDT", 0.0),
+                    "timestamp": datetime.now(UTC).isoformat()
+                }
+        except Exception as e:
+            logger.error(LogCategory.SYSTEM, "dashboard_live_data_error", f"Failed to fetch live data for dashboard: {str(e)}", error=str(e))
+            # Fallback to default or empty data if fetching fails
+            portfolio_data = {
+                "account_name": "Live Trading Account (Error)",
+                "current_nav": 0.0, "benchmark_value": 0.0, "initial_balance": 0.0,
+                "total_return": 0.0, "return_percentage": 0.0, "vs_benchmark": 0.0, "vs_benchmark_pct": 0.0
+            }
+            prices = {"btc": 0.0, "eth": 0.0, "timestamp": datetime.now(UTC).isoformat()}
         
         metrics_data = {
             "portfolio": portfolio_data,
             "prices": prices,
             "performance": performance_metrics,
-            "demo_data": demo_data,
             "timestamp": datetime.now(UTC).isoformat()
         }
         
         logger.debug(LogCategory.SYSTEM, "dashboard_metrics", "Metrics requested")
         self._send_json_response(metrics_data)
     
-    def _handle_demo_data(self):
-        """Get comprehensive demo mode data."""
-        controller = get_demo_controller()
-        
-        if not controller.is_demo_mode():
-            self._send_error(400, "Demo data only available in demo mode")
-            return
-        
-        demo_data = get_demo_dashboard_data()
-        self._send_json_response(demo_data)
     
     def _handle_run_monitoring(self):
         """Trigger the monitoring process."""
@@ -216,89 +207,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             logger.error(LogCategory.SYSTEM, "manual_error", f"Manual monitoring failed: {str(e)}", error=str(e))
             self._send_error(500, f"Monitoring failed: {str(e)}")
     
-    def _handle_simulate_transaction(self, data):
-        """Handle transaction simulation for demo mode."""
-        logger = get_logger()
-        
-        try:
-            transaction_type = data.get('type')
-            amount = float(data.get('amount', 0))
-            account_id = int(data.get('account_id', 1))
-            
-            logger.info(LogCategory.DEMO_MODE, "simulate_transaction", 
-                       f"Simulating {transaction_type} of ${amount:,.2f}",
-                       account_id=account_id, 
-                       data={"transaction_type": transaction_type, "amount": amount})
-            
-            result = simulate_transaction(transaction_type, amount, account_id)
-            
-            if result.get('success'):
-                logger.info(LogCategory.DEMO_MODE, "simulate_transaction_success", 
-                           f"Transaction simulation successful: {result.get('transaction_id')}",
-                           account_id=account_id, data=result)
-            else:
-                logger.error(LogCategory.DEMO_MODE, "simulate_transaction_error", 
-                            f"Transaction simulation failed: {result.get('error')}",
-                            account_id=account_id, error=result.get('error'))
-            
-            self._send_json_response(result)
-            
-        except Exception as e:
-            logger.error(LogCategory.DEMO_MODE, "simulate_transaction_exception", 
-                        f"Transaction simulation exception: {str(e)}", error=str(e))
-            self._send_error(500, f"Transaction simulation failed: {str(e)}")
     
-    def _handle_simulate_scenario(self, data):
-        """Handle market scenario simulation for demo mode."""
-        logger = get_logger()
-        
-        try:
-            scenario = data.get('scenario')
-            
-            logger.info(LogCategory.DEMO_MODE, "simulate_scenario", 
-                       f"Simulating market scenario: {scenario}",
-                       data={"scenario": scenario})
-            
-            result = simulate_market_scenario(scenario)
-            
-            if result.get('success'):
-                logger.info(LogCategory.DEMO_MODE, "simulate_scenario_success", 
-                           f"Scenario simulation successful: {scenario}",
-                           data=result)
-            else:
-                logger.error(LogCategory.DEMO_MODE, "simulate_scenario_error", 
-                            f"Scenario simulation failed: {result.get('error')}",
-                            error=result.get('error'))
-            
-            self._send_json_response(result)
-            
-        except Exception as e:
-            logger.error(LogCategory.DEMO_MODE, "simulate_scenario_exception", 
-                        f"Scenario simulation exception: {str(e)}", error=str(e))
-            self._send_error(500, f"Scenario simulation failed: {str(e)}")
     
-    def _handle_reset_demo(self):
-        """Handle demo data reset."""
-        logger = get_logger()
-        
-        try:
-            logger.info(LogCategory.DEMO_MODE, "reset_demo", "Resetting demo data from dashboard")
-            
-            result = reset_demo_data()
-            
-            if result.get('success'):
-                logger.info(LogCategory.DEMO_MODE, "reset_demo_success", "Demo data reset successful")
-            else:
-                logger.error(LogCategory.DEMO_MODE, "reset_demo_error", 
-                            f"Demo data reset failed: {result.get('error')}",
-                            error=result.get('error'))
-            
-            self._send_json_response(result)
-            
-        except Exception as e:
-            logger.error(LogCategory.DEMO_MODE, "reset_demo_exception", 
-                        f"Demo reset exception: {str(e)}", error=str(e))
-            self._send_error(500, f"Demo reset failed: {str(e)}")
     
     def _serve_dashboard(self):
         """Serve the dashboard HTML file."""
@@ -360,21 +270,17 @@ def handler(request):
 if __name__ == "__main__":
     # Test the dashboard API locally
     from http.server import HTTPServer
-    import os
     
-    # Enable demo mode for testing
-    os.environ['DEMO_MODE'] = 'true'
-    
-    print("🌐 Starting Dashboard Server")
+    print("🟢 Starting Dashboard in LIVE MODE")
     print("=" * 50)
     print("Dashboard URL: http://localhost:8000/dashboard")
     print("API Status: http://localhost:8000/api/dashboard/status")
     print("API Logs: http://localhost:8000/api/dashboard/logs")
     print("API Metrics: http://localhost:8000/api/dashboard/metrics")
     print("=" * 50)
-    
+
     server = HTTPServer(('localhost', 8000), DashboardHandler)
-    
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:

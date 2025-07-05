@@ -23,7 +23,7 @@
 - Real-time NAV tracking from Binance futures API
 - Benchmark calculation using live BTC/ETH prices
 - Historical data storage for comparative analysis
-- **📈 Web Dashboard** with real-time charts and monitoring
+- **📈 Web Dashboard** with real-time charts and monitoring (supports both live and demo data)
 
 ### Intelligent Deposit/Withdrawal Handling
 - **Deposits**: Automatically increases benchmark allocation (50% BTC, 50% ETH)
@@ -152,12 +152,20 @@ python api/index.py
 ```
 
 #### Web Dashboard
-```bash
-# Start dashboard server
-python -m api.dashboard
 
+To start the dashboard in **live mode** (with real data):
+```bash
+python -m api.dashboard --mode live
 # Open browser to: http://localhost:8000/dashboard
 ```
+
+To start the dashboard in **demo mode** (with simulated data):
+```bash
+python -m api.dashboard --mode demo
+# Open browser to: http://localhost:8000/dashboard
+```
+
+If no `--mode` is specified, the dashboard will default to live mode unless `DEMO_MODE=true` is set in your environment variables.
 
 Expected output:
 ```
