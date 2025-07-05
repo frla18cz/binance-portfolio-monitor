@@ -5,7 +5,7 @@ Provides real-time data and controls for the web dashboard.
 
 import json
 import os
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -29,6 +29,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_logs(query_params)
             elif path == '/api/dashboard/metrics':
                 self._handle_metrics()
+            elif path == '/api/dashboard/chart-data':
+                self._handle_chart_data(query_params)
             elif path == '/dashboard':
                 self._serve_dashboard()
             else:
@@ -183,6 +185,111 @@ class DashboardHandler(BaseHTTPRequestHandler):
         logger.debug(LogCategory.SYSTEM, "dashboard_metrics", "Metrics requested")
         self._send_json_response(metrics_data)
     
+    def _handle_chart_data(self, query_params):
+        """Get NAV history data for chart with period filtering."""
+        logger = get_logger()
+        
+        # Parse query parameters
+        period = query_params.get('period', ['inception'])[0]
+        account_id = query_params.get('account_id', [None])[0]
+        start_date = query_params.get('start_date', [None])[0]
+        end_date = query_params.get('end_date', [None])[0]
+        
+        try:
+            # Calculate date range based on period
+            now = datetime.now(UTC)
+            
+            if period == 'inception':
+                # Get all data from the beginning
+                query = supabase.table('nav_history').select('*').order('timestamp', desc=False)
+            elif period == '1w':
+                start_time = now - timedelta(weeks=1)
+                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
+            elif period == '1m':
+                start_time = now - timedelta(days=30)
+                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
+            elif period == '1y':
+                start_time = now - timedelta(days=365)
+                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
+            elif period == 'ytd':
+                start_time = datetime(now.year, 1, 1, tzinfo=UTC)
+                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
+            elif period == 'custom' and start_date and end_date:
+                query = supabase.table('nav_history').select('*').gte('timestamp', start_date).lte('timestamp', end_date).order('timestamp', desc=False)
+            else:
+                # Default to last 30 days
+                start_time = now - timedelta(days=30)
+                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
+            
+            # Add account filter if specified
+            if account_id:
+                query = query.eq('account_id', account_id)
+            
+            # Execute query
+            result = query.execute()
+            nav_data = result.data
+            
+            # Format data for Chart.js
+            chart_data = {
+                "labels": [datetime.fromisoformat(item['timestamp'].replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M') for item in nav_data],
+                "datasets": [
+                    {
+                        "label": "Portfolio NAV",
+                        "data": [float(item['nav']) for item in nav_data],
+                        "borderColor": "#667eea",
+                        "backgroundColor": "rgba(102, 126, 234, 0.1)",
+                        "tension": 0.4,
+                        "pointRadius": 2,
+                        "pointHoverRadius": 5
+                    },
+                    {
+                        "label": "Benchmark",
+                        "data": [float(item['benchmark_value']) for item in nav_data],
+                        "borderColor": "#764ba2",
+                        "backgroundColor": "rgba(118, 75, 162, 0.1)",
+                        "tension": 0.4,
+                        "pointRadius": 2,
+                        "pointHoverRadius": 5
+                    }
+                ]
+            }
+            
+            # Calculate performance stats
+            stats = {}
+            if nav_data:
+                first_nav = float(nav_data[0]['nav'])
+                last_nav = float(nav_data[-1]['nav'])
+                first_benchmark = float(nav_data[0]['benchmark_value'])
+                last_benchmark = float(nav_data[-1]['benchmark_value'])
+                
+                nav_return = ((last_nav - first_nav) / first_nav * 100) if first_nav != 0 else 0
+                benchmark_return = ((last_benchmark - first_benchmark) / first_benchmark * 100) if first_benchmark != 0 else 0
+                
+                stats = {
+                    "period": period,
+                    "data_points": len(nav_data),
+                    "nav_return_pct": round(nav_return, 2),
+                    "benchmark_return_pct": round(benchmark_return, 2),
+                    "outperformance_pct": round(nav_return - benchmark_return, 2),
+                    "start_date": nav_data[0]['timestamp'] if nav_data else None,
+                    "end_date": nav_data[-1]['timestamp'] if nav_data else None
+                }
+            
+            response_data = {
+                "chart_data": chart_data,
+                "stats": stats,
+                "period": period,
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            
+            logger.debug(LogCategory.SYSTEM, "dashboard_chart_data", 
+                        f"Chart data requested for period: {period}, data points: {len(nav_data)}")
+            
+            self._send_json_response(response_data)
+            
+        except Exception as e:
+            logger.error(LogCategory.SYSTEM, "chart_data_error", f"Failed to fetch chart data: {str(e)}", error=str(e))
+            self._send_error(500, f"Failed to fetch chart data: {str(e)}")
     
     def _handle_run_monitoring(self):
         """Trigger the monitoring process."""

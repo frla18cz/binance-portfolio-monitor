@@ -320,6 +320,48 @@
             color: #666;
             font-size: 0.9em;
         }
+
+        .period-selector {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .period-btn {
+            padding: 6px 12px;
+            font-size: 0.8em;
+            border-radius: 4px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .period-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .period-btn:hover {
+            transform: none;
+            background: rgba(102, 126, 234, 0.2);
+        }
+
+        .period-btn.active:hover {
+            background: #5a6fd8;
+        }
+
+        .date-input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .chart-controls {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -396,6 +438,25 @@
             <!-- Performance Chart -->
             <div class="card wide-card">
                 <h3>📈 Performance Chart</h3>
+                <div class="chart-controls" style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <div class="period-selector">
+                        <button class="btn period-btn active" onclick="changePeriod('inception')" data-period="inception">Since Inception</button>
+                        <button class="btn period-btn" onclick="changePeriod('1w')" data-period="1w">1 Week</button>
+                        <button class="btn period-btn" onclick="changePeriod('1m')" data-period="1m">1 Month</button>
+                        <button class="btn period-btn" onclick="changePeriod('1y')" data-period="1y">1 Year</button>
+                        <button class="btn period-btn" onclick="changePeriod('ytd')" data-period="ytd">YTD</button>
+                        <button class="btn period-btn" onclick="toggleCustomPeriod()" data-period="custom">Custom</button>
+                    </div>
+                    <div id="custom-date-picker" style="display: none; gap: 10px; align-items: center;">
+                        <input type="date" id="start-date" class="date-input">
+                        <span>to</span>
+                        <input type="date" id="end-date" class="date-input">
+                        <button class="btn" onclick="applyCustomPeriod()">Apply</button>
+                    </div>
+                    <div id="chart-stats" style="margin-left: auto; font-size: 0.9em; color: #666;">
+                        <span id="period-return"></span>
+                    </div>
+                </div>
                 <div class="chart-container">
                     <canvas id="performanceChart"></canvas>
                 </div>
@@ -424,6 +485,8 @@
         let currentLogFilter = 'all';
         let isLoading = false;
         let lastUpdateTime = null;
+        let currentPeriod = 'inception';
+        let customDatePickerVisible = false;
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
@@ -452,7 +515,8 @@
                     loadAccountsData(),
                     loadPricesData(),
                     loadSystemStatus(),
-                    loadLogs()
+                    loadLogs(),
+                    loadChartData(currentPeriod)
                 ]);
                 
                 lastUpdateTime = new Date();
@@ -704,6 +768,120 @@
             }
         }
 
+        async function loadChartData(period = 'inception', startDate = null, endDate = null) {
+            try {
+                let url = `/api/dashboard/chart-data?period=${period}`;
+                if (period === 'custom' && startDate && endDate) {
+                    url += `&start_date=${startDate}&end_date=${endDate}`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to load chart data');
+                
+                const data = await response.json();
+                
+                // Update chart with new data
+                if (performanceChart && data.chart_data) {
+                    performanceChart.data = data.chart_data;
+                    performanceChart.update('active');
+                }
+                
+                // Update stats display
+                if (data.stats) {
+                    const statsElement = document.getElementById('period-return');
+                    const navReturn = data.stats.nav_return_pct || 0;
+                    const benchmarkReturn = data.stats.benchmark_return_pct || 0;
+                    const outperformance = data.stats.outperformance_pct || 0;
+                    
+                    statsElement.innerHTML = `
+                        <span class="${navReturn >= 0 ? 'positive' : 'negative'}">
+                            Portfolio: ${navReturn >= 0 ? '+' : ''}${navReturn}%
+                        </span>
+                        | 
+                        <span class="${benchmarkReturn >= 0 ? 'positive' : 'negative'}">
+                            Benchmark: ${benchmarkReturn >= 0 ? '+' : ''}${benchmarkReturn}%
+                        </span>
+                        | 
+                        <span class="${outperformance >= 0 ? 'positive' : 'negative'}">
+                            Outperformance: ${outperformance >= 0 ? '+' : ''}${outperformance}%
+                        </span>
+                        <br>
+                        <small>${data.stats.data_points} data points</small>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('Error loading chart data:', error);
+                const statsElement = document.getElementById('period-return');
+                if (statsElement) {
+                    statsElement.innerHTML = '<span class="error-message">Error loading chart data</span>';
+                }
+            }
+        }
+
+        function changePeriod(period) {
+            currentPeriod = period;
+            
+            // Update button states
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-period="${period}"]`).classList.add('active');
+            
+            // Hide custom date picker
+            if (period !== 'custom') {
+                document.getElementById('custom-date-picker').style.display = 'none';
+                customDatePickerVisible = false;
+            }
+            
+            // Load new chart data
+            loadChartData(period);
+        }
+
+        function toggleCustomPeriod() {
+            const customPicker = document.getElementById('custom-date-picker');
+            
+            if (customDatePickerVisible) {
+                customPicker.style.display = 'none';
+                customDatePickerVisible = false;
+            } else {
+                customPicker.style.display = 'flex';
+                customDatePickerVisible = true;
+                
+                // Set default dates (last 30 days)
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(endDate.getDate() - 30);
+                
+                document.getElementById('start-date').value = startDate.toISOString().split('T')[0];
+                document.getElementById('end-date').value = endDate.toISOString().split('T')[0];
+                
+                // Update button state
+                document.querySelectorAll('.period-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector('[data-period="custom"]').classList.add('active');
+            }
+        }
+
+        function applyCustomPeriod() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates');
+                return;
+            }
+            
+            if (new Date(startDate) >= new Date(endDate)) {
+                alert('Start date must be before end date');
+                return;
+            }
+            
+            currentPeriod = 'custom';
+            loadChartData('custom', startDate + 'T00:00:00Z', endDate + 'T23:59:59Z');
+        }
+
         function initializeChart() {
             const ctx = document.getElementById('performanceChart').getContext('2d');
             performanceChart = new Chart(ctx, {
@@ -716,16 +894,18 @@
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         tension: 0.4,
-                        pointRadius: 3,
-                        pointHoverRadius: 6
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        fill: false
                     }, {
                         label: 'Benchmark',
                         data: [],
                         borderColor: '#764ba2',
                         backgroundColor: 'rgba(118, 75, 162, 0.1)',
                         tension: 0.4,
-                        pointRadius: 3,
-                        pointHoverRadius: 6
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        fill: false
                     }]
                 },
                 options: {
