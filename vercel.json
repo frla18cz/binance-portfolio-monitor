@@ -1,0 +1,26 @@
+{
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.9"
+    },
+    "api/dashboard.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/index",
+      "schedule": "*/2 * * * *"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/dashboard",
+      "dest": "/api/dashboard"
+    },
+    {
+      "src": "/api/dashboard/(.*)",
+      "dest": "/api/dashboard"
+    }
+  ]
+}

@@ -117,13 +117,34 @@ Zobrazí:
 3. **Pravidelně kontrolujte logy** na podezřelé aktivity
 4. **Backup databáze** pravidelně
 
-## ⚙️ Cron Jobs
+## ⚙️ Automatické spouštění
 
-Pro automatické spouštění každých 5 minut:
+### 🔧 Lokálně (u vás na počítači):
 
+**Jednoduché nastavení cron jobu:**
+```bash
+python setup_cron.py
+# Vyberte možnost 1 pro automatické spouštění každé 2 minuty
+```
+
+**Nebo daemon pro development:**
+```bash
+python monitor_daemon.py --minutes 2
+# Běží kontinuálně, ukončení Ctrl+C
+```
+
+**Manuální crontab:**
 ```bash
 # Přidejte do crontab -e:
-*/5 * * * * /path/to/your/venv/bin/python /path/to/project/scrape_data.py >> /var/log/binance_monitor.log 2>&1
+*/2 * * * * /path/to/venv/bin/python /path/to/project/scrape_data.py >> /path/to/project/logs/cron.log 2>&1
+```
+
+### ☁️ Na Vercelu:
+
+**Automatické nasazení:**
+```bash
+# vercel.json už je připraven - data se budou stahovat každé 2 minuty
+vercel deploy
 ```
 
 ## 🚨 Troubleshooting
