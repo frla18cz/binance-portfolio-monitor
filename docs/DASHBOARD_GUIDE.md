@@ -1,14 +1,13 @@
 # 📊 Dashboard & Logging Guide
 
-**Complete guide to the web dashboard, advanced logging system, and demo mode for the Binance Portfolio Monitor.**
+**Complete guide to the web dashboard and advanced logging system for the Binance Portfolio Monitor.**
 
 ## 🎯 Overview
 
-The dashboard provides real-time monitoring capabilities with comprehensive logging and safe testing features, supporting both **live data** and **simulated demo data**:
+The dashboard provides real-time monitoring capabilities with comprehensive logging:
 
-- **📈 Real-time Portfolio Monitoring** - Live NAV vs benchmark tracking (from real API/DB or simulated)
+- **📈 Real-time Portfolio Monitoring** - Live NAV vs benchmark tracking
 - **📋 Structured Logging System** - Detailed operation logs with performance metrics  
-- **🎮 Demo Mode** - Safe testing environment with mock data
 - **⚡ Performance Analytics** - Success rates, timing, and error tracking
 - **🔍 Advanced Filtering** - Search logs by category, account, or level
 
@@ -16,25 +15,16 @@ The dashboard provides real-time monitoring capabilities with comprehensive logg
 
 ### Starting the Dashboard
 
-To start the dashboard in **live mode** (with real data):
 ```bash
-python -m api.dashboard --mode live
+python -m api.dashboard
 # Open browser to: http://localhost:8000/dashboard
 ```
-
-To start the dashboard in **demo mode** (with simulated data):
-```bash
-python -m api.dashboard --mode demo
-# Open browser to: http://localhost:8000/dashboard
-```
-
-If no `--mode` is specified, the dashboard will default to live mode unless `DEMO_MODE=true` is set in your environment variables.
 
 ### Dashboard Features
 
 #### 📊 Portfolio Overview
-- **Current NAV** - Real-time account value (from DB in live mode, simulated in demo mode)
-- **Benchmark Value** - 50/50 BTC/ETH portfolio value (from DB in live mode, simulated in demo mode)
+- **Current NAV** - Real-time account value from live Binance API
+- **Benchmark Value** - 50/50 BTC/ETH portfolio value
 - **Performance vs Benchmark** - Outperformance tracking
 - **Total Return** - Absolute and percentage returns
 
@@ -45,7 +35,7 @@ If no `--mode` is specified, the dashboard will default to live mode unless `DEM
 - **Session Statistics** - Current monitoring session data
 
 #### 💰 Current Market Data
-- **BTC/ETH Prices** - Real-time cryptocurrency prices (from Binance API in live mode, simulated in demo mode)
+- **BTC/ETH Prices** - Real-time cryptocurrency prices from Binance API
 - **Last Updated** - Data freshness indicators
 - **Price Change Indicators** - Market movement tracking
 
