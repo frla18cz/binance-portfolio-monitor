@@ -183,6 +183,17 @@ Benchmark initialized. Next rebalance: 2025-07-07 12:00:00
 4. **Benchmark Adjustment**: Updates allocation based on cashflow
 5. **Data Storage**: Saves snapshot for historical analysis
 
+### NAV Calculation Note
+The NAV (Net Asset Value) is calculated using the formula:
+`NAV = totalWalletBalance + totalUnrealizedProfit`
+
+This is a standard method for calculating the value of a futures account. However, you may notice a discrepancy between the NAV calculated by this tool and the value displayed in the Binance UI. This can be due to several factors, including:
+- **Bonuses and Vouchers**: The Binance UI may include promotional bonuses or vouchers in its total balance, which are not available via the API.
+- **Delayed Updates**: The API and UI may have slightly different update frequencies.
+- **Different Metrics**: The Binance UI may be displaying a different metric, such as "Total Balance" or "Margin Balance", which may not be equivalent to NAV.
+
+If you notice a significant difference, please verify which value you are comparing against in the Binance UI.
+
 ### Benchmark Logic
 ```python
 # Deposit: Add to benchmark proportionally

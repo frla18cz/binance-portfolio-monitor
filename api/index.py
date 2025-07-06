@@ -120,7 +120,7 @@ def process_single_account(account):
     save_price_history(prices, logger)
 
     with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
-        nav = get_futures_account_nav(binance_client, logger, account_id, account_name)
+        nav = get_comprehensive_nav(binance_client, logger, account_id, account_name)
     if nav is None:
         return
 
@@ -213,7 +213,118 @@ def save_price_history(prices, logger=None):
             logger.error(LogCategory.PRICE_UPDATE, "price_history_error", 
                         f"Failed to save price history: {str(e)}", error=str(e))
 
+def get_comprehensive_nav(client, logger=None, account_id=None, account_name=None):
+    """
+    Vypočítá kompletní NAV zahrnující:
+    1. Spot účet - všechny balances převedené na USD
+    2. Futures účet - raw asset balances převedené na USD (ne totalWalletBalance!)
+    Tento přístup odpovídá tomu, co ukazuje Binance dashboard.
+    """
+    try:
+        total_nav = 0.0
+        breakdown = {}
+        
+        # Získej aktuální BTC cenu pro konverze
+        btc_ticker = client.get_symbol_ticker(symbol="BTCUSDT")
+        btc_usd_price = float(btc_ticker['price'])
+        
+        # 1. SPOT ACCOUNT - všechny balances
+        spot_account = client.get_account()
+        spot_total = 0.0
+        spot_details = {}
+        
+        for balance in spot_account['balances']:
+            asset = balance['asset']
+            free = float(balance['free'])
+            locked = float(balance['locked'])
+            total_balance = free + locked
+            
+            if total_balance > 0.001:  # Ignoruj velmi malé balances
+                # Převeď na USD hodnotu
+                if asset in ['USDT', 'BUSD', 'USDC']:
+                    usdt_value = total_balance
+                elif asset == 'BTC':
+                    usdt_value = total_balance * btc_usd_price
+                else:
+                    try:
+                        # Získej cenu vůči USDT
+                        ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                        price = float(ticker['price'])
+                        usdt_value = total_balance * price
+                    except:
+                        try:
+                            # Zkus přes BTC pak na USDT
+                            btc_ticker_asset = client.get_symbol_ticker(symbol=f"{asset}BTC")
+                            btc_price = float(btc_ticker_asset['price'])
+                            usdt_value = total_balance * btc_price * btc_usd_price
+                        except:
+                            usdt_value = 0.0  # Nelze určit cenu
+                
+                if usdt_value > 0.1:  # Ignoruj hodnoty pod $0.1
+                    spot_total += usdt_value
+                    spot_details[asset] = {
+                        'balance': total_balance,
+                        'usdt_value': usdt_value
+                    }
+        
+        breakdown['spot_total'] = spot_total
+        breakdown['spot_details'] = spot_details
+        
+        # 2. FUTURES ACCOUNT - RAW ASSET KONVERZE (ne totalWalletBalance!)
+        futures_account = client.futures_account()
+        futures_total = 0.0
+        futures_details = {}
+        
+        for asset_info in futures_account.get('assets', []):
+            asset = asset_info['asset']
+            wallet_balance = float(asset_info['walletBalance'])
+            
+            if abs(wallet_balance) > 0.001:  # Zahrnuj i záporné balances
+                # Převeď na USD
+                if asset in ['USDT', 'BUSD', 'USDC', 'BNFCR']:
+                    usd_value = wallet_balance
+                elif asset == 'BTC':
+                    usd_value = wallet_balance * btc_usd_price
+                else:
+                    try:
+                        ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                        price = float(ticker['price'])
+                        usd_value = wallet_balance * price
+                    except:
+                        usd_value = 0.0
+                
+                futures_total += usd_value
+                futures_details[asset] = {
+                    'balance': wallet_balance,
+                    'usd_value': usd_value
+                }
+        
+        breakdown['futures_total'] = futures_total
+        breakdown['futures_details'] = futures_details
+        
+        # CELKOVÝ NAV = Spot + Futures (raw asset conversion)
+        total_nav = spot_total + futures_total
+        breakdown['total_nav'] = total_nav
+        breakdown['btc_usd_price'] = btc_usd_price
+        
+        if logger:
+            logger.info(LogCategory.API_CALL, "comprehensive_nav_fetched", 
+                       f"Comprehensive NAV: ${total_nav:.2f} (Spot: ${spot_total:.2f}, Futures: ${futures_total:.2f}) @ BTC ${btc_usd_price:.2f}",
+                       account_id=account_id, account_name=account_name, 
+                       data=breakdown)
+        
+        return total_nav
+        
+    except Exception as e:
+        if logger:
+            logger.error(LogCategory.API_CALL, "comprehensive_nav_error", 
+                        f"Failed to fetch comprehensive NAV: {str(e)}",
+                        account_id=account_id, account_name=account_name, error=str(e))
+        print(f"Error getting comprehensive NAV: {e}")
+        return None
+
 def get_futures_account_nav(client, logger=None, account_id=None, account_name=None):
+    """Starý způsob výpočtu NAV - zachován pro kompatibilitu"""
     try:
         info = client.futures_account()
         nav = float(info['totalWalletBalance']) + float(info['totalUnrealizedProfit'])

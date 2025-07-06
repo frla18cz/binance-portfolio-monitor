@@ -175,21 +175,26 @@ vercel deploy
 ## ⚠️ Známé problémy
 
 ### NAV calculation rozdíl
-Pokud vidíte rozdíl mezi naší NAV hodnotou a Binance UI:
+Můžete si všimnout rozdílu mezi NAV hodnotou vypočtenou tímto nástrojem a hodnotou zobrazenou v uživatelském rozhraní Binance.
 
-```bash
-python debug_nav.py    # Zkontroluje detailní breakdown
+**Jak počítáme NAV:**
+Náš systém používá standardní a nejběžnější metodu pro výpočet NAV (Net Asset Value) pro futures účty:
 ```
+NAV = totalWalletBalance + totalUnrealizedProfit
+```
+Tento výpočet se provádí pomocí dat získaných z oficiálního Binance API endpointu `futures_account()`.
 
-**Možné příčiny:**
-- 🔸 Binance UI zobrazuje Wallet Balance (~$402k) místo NAV
-- 🔸 Naše NAV = Wallet Balance + Unrealized PnL (~$399k) 
-- 🔸 Cross vs Isolated margin rozdíly
-- 🔸 Spot vs Futures účty
-- 🔸 Různé endpoints (USD-M vs COIN-M futures)
+**Proč může docházet k rozdílům:**
+- **Bonusy a Vouchery**: Binance UI může do celkového zůstatku započítávat i různé propagační bonusy nebo vouchery, které nejsou součástí standardního zůstatku v peněžence a nejsou dostupné přes API.
+- **Zobrazená metrika**: Ujistěte se, že v Binance UI porovnáváte správnou hodnotu. Binance může zobrazovat různé metriky jako "Total Balance", "Margin Balance" nebo "Wallet Balance", které se mohou lišit od skutečného NAV.
+- **Zpoždění aktualizace**: Může docházet k mírnému časovému posunu mezi aktualizací dat v API a v uživatelském rozhraní.
 
-**Náš systém používá:** `futures_account()` endpoint
-**Kalkulace:** `totalWalletBalance + totalUnrealizedProfit`
+**Jak ověřit výpočet:**
+Pokud chcete zkontrolovat podrobný rozpis výpočtu, použijte ladicí skript:
+```bash
+python debug_nav.py
+```
+Tento skript vám ukáže přesné hodnoty `totalWalletBalance` a `totalUnrealizedProfit` použité pro výpočet.
 
 ### Chart data s price columns
 Pokud chart nezobrazuje data správně:
