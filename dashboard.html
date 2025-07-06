@@ -362,6 +362,55 @@
             border-bottom: 1px solid #eee;
             padding-bottom: 15px;
         }
+
+        .chart-mode-selector {
+            display: flex;
+            gap: 5px;
+        }
+
+        .chart-mode-btn {
+            padding: 6px 12px;
+            font-size: 0.8em;
+            border-radius: 4px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .chart-mode-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .chart-mode-btn:hover {
+            transform: none;
+            background: rgba(102, 126, 234, 0.2);
+        }
+
+        .chart-mode-btn.active:hover {
+            background: #5a6fd8;
+        }
+
+        .dual-chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .chart-section h4 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        @media (max-width: 1200px) {
+            .dual-chart-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -453,12 +502,36 @@
                         <input type="date" id="end-date" class="date-input">
                         <button class="btn" onclick="applyCustomPeriod()">Apply</button>
                     </div>
-                    <div id="chart-stats" style="margin-left: auto; font-size: 0.9em; color: #666;">
-                        <span id="period-return"></span>
+                    <div class="chart-mode-selector" style="margin-left: auto;">
+                        <button class="btn chart-mode-btn active" onclick="changeChartMode('combined')" data-mode="combined">Combined</button>
+                        <button class="btn chart-mode-btn" onclick="changeChartMode('separate')" data-mode="separate">Separate</button>
                     </div>
                 </div>
-                <div class="chart-container">
+                <div id="chart-stats" style="margin-bottom: 10px; font-size: 0.9em; color: #666; text-align: center;">
+                    <span id="period-return"></span>
+                </div>
+                
+                <!-- Combined Chart Container -->
+                <div id="combined-chart-container" class="chart-container">
                     <canvas id="performanceChart"></canvas>
+                </div>
+                
+                <!-- Separate Charts Container -->
+                <div id="separate-charts-container" style="display: none;">
+                    <div class="dual-chart-grid">
+                        <div class="chart-section">
+                            <h4>Portfolio NAV</h4>
+                            <div class="chart-container">
+                                <canvas id="portfolioChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-section">
+                            <h4>50/50 BTC/ETH Benchmark</h4>
+                            <div class="chart-container">
+                                <canvas id="benchmarkChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -482,16 +555,19 @@
         // Global state
         let autoRefreshInterval = null;
         let performanceChart = null;
+        let portfolioChart = null;
+        let benchmarkChart = null;
         let currentLogFilter = 'all';
         let isLoading = false;
         let lastUpdateTime = null;
         let currentPeriod = 'inception';
         let customDatePickerVisible = false;
+        let chartMode = 'combined';
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             initializeDashboard();
-            initializeChart();
+            initializeCharts();
         });
 
         async function initializeDashboard() {
@@ -768,6 +844,31 @@
             }
         }
 
+        function changeChartMode(mode) {
+            chartMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('.chart-mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+            
+            // Toggle chart containers
+            const combinedContainer = document.getElementById('combined-chart-container');
+            const separateContainer = document.getElementById('separate-charts-container');
+            
+            if (mode === 'combined') {
+                combinedContainer.style.display = 'block';
+                separateContainer.style.display = 'none';
+            } else {
+                combinedContainer.style.display = 'none';
+                separateContainer.style.display = 'block';
+            }
+            
+            // Re-load chart data for current mode
+            loadChartData(currentPeriod);
+        }
+
         async function loadChartData(period = 'inception', startDate = null, endDate = null) {
             try {
                 let url = `/api/dashboard/chart-data?period=${period}`;
@@ -780,10 +881,31 @@
                 
                 const data = await response.json();
                 
-                // Update chart with new data
-                if (performanceChart && data.chart_data) {
+                // Update chart with new data based on mode
+                if (chartMode === 'combined' && performanceChart && data.chart_data) {
                     performanceChart.data = data.chart_data;
                     performanceChart.update('active');
+                } else if (chartMode === 'separate' && data.chart_data) {
+                    // Update separate charts
+                    const portfolioData = {
+                        labels: data.chart_data.labels,
+                        datasets: [data.chart_data.datasets[0]] // Portfolio NAV only
+                    };
+                    
+                    const benchmarkData = {
+                        labels: data.chart_data.labels,
+                        datasets: [data.chart_data.datasets[1]] // Benchmark only
+                    };
+                    
+                    if (portfolioChart) {
+                        portfolioChart.data = portfolioData;
+                        portfolioChart.update('active');
+                    }
+                    
+                    if (benchmarkChart) {
+                        benchmarkChart.data = benchmarkData;
+                        benchmarkChart.update('active');
+                    }
                 }
                 
                 // Update stats display
@@ -889,9 +1011,10 @@
             loadChartData('custom', startDate + 'T00:00:00Z', endDate + 'T23:59:59Z');
         }
 
-        function initializeChart() {
-            const ctx = document.getElementById('performanceChart').getContext('2d');
-            performanceChart = new Chart(ctx, {
+        function initializeCharts() {
+            // Initialize combined chart
+            const ctxCombined = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctxCombined, {
                 type: 'line',
                 data: {
                     labels: [],
@@ -935,6 +1058,103 @@
                     plugins: {
                         legend: {
                             position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Initialize separate charts
+            const ctxPortfolio = document.getElementById('portfolioChart').getContext('2d');
+            portfolioChart = new Chart(ctxPortfolio, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Portfolio NAV',
+                        data: [],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + formatNumber(value);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const ctxBenchmark = document.getElementById('benchmarkChart').getContext('2d');
+            benchmarkChart = new Chart(ctxBenchmark, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '50/50 BTC/ETH Benchmark',
+                        data: [],
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        tension: 0.4,
+                        pointRadius: 2,
+                        pointHoverRadius: 5,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + formatNumber(value);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
                         },
                         tooltip: {
                             callbacks: {

@@ -57,17 +57,20 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         start_time = nav_data[0]['timestamp']
         end_time = nav_data[-1]['timestamp']
         
-        # Pro jednoduchoucost zatím použijeme současné ceny pro celé období
-        # TODO: Implementovat skutečné historické ceny
-        from binance.client import Client as BinanceClient
-        temp_client = BinanceClient('', '')  # Public API
-        current_prices = get_prices(temp_client)
+        # Zkusit použít historické ceny z nav_data, pokud nejsou dostupné, fallback na současné
+        has_historical_prices = nav_data and all('btc_price' in item and 'eth_price' in item for item in nav_data)
         
-        if not current_prices:
-            return [float(item['benchmark_value']) for item in nav_data]  # Fallback na staré hodnoty
-        
-        btc_price = current_prices.get('BTCUSDT', 0)
-        eth_price = current_prices.get('ETHUSDT', 0)
+        if not has_historical_prices:
+            # Fallback na současné ceny pro celé období
+            from binance.client import Client as BinanceClient
+            temp_client = BinanceClient('', '')  # Public API
+            current_prices = get_prices(temp_client)
+            
+            if not current_prices:
+                return [float(item['benchmark_value']) for item in nav_data]  # Fallback na staré hodnoty
+            
+            fallback_btc_price = current_prices.get('BTCUSDT', 0)
+            fallback_eth_price = current_prices.get('ETHUSDT', 0)
         
         # Začínáme s NAV z prvního záznamu
         initial_nav = float(nav_data[0]['nav'])
@@ -79,16 +82,30 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         initial_btc_value = initial_nav * btc_allocation
         initial_eth_value = initial_nav * eth_allocation
         
-        btc_units = initial_btc_value / btc_price if btc_price > 0 else 0
-        eth_units = initial_eth_value / eth_price if eth_price > 0 else 0
+        # Získat ceny pro první záznam
+        if has_historical_prices:
+            first_btc_price = float(nav_data[0].get('btc_price', 0))
+            first_eth_price = float(nav_data[0].get('eth_price', 0))
+        else:
+            first_btc_price = fallback_btc_price
+            first_eth_price = fallback_eth_price
+        
+        btc_units = initial_btc_value / first_btc_price if first_btc_price > 0 else 0
+        eth_units = initial_eth_value / first_eth_price if first_eth_price > 0 else 0
         
         benchmark_values = []
         last_rebalance_week = None
         
         for i, record in enumerate(nav_data):
-            # Pro jednoduchost zatím použijeme konstantní ceny
-            # V produkci bychom zde používali historické ceny pro daný timestamp
-            current_benchmark_value = (btc_units * btc_price) + (eth_units * eth_price)
+            # Získat ceny pro aktuální záznam
+            if has_historical_prices:
+                current_btc_price = float(record.get('btc_price', 0))
+                current_eth_price = float(record.get('eth_price', 0))
+            else:
+                current_btc_price = fallback_btc_price
+                current_eth_price = fallback_eth_price
+            
+            current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
             
             # Rebalancing logika (jednou týdně v pondělí)
             if rebalance_frequency == 'weekly':
@@ -99,11 +116,11 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
                     # Rebalancovat pokud je pondělí nebo první záznam
                     if record_time.weekday() == 0 or i == 0:  # 0 = pondělí
                         total_value = current_benchmark_value
-                        btc_units = (total_value * btc_allocation) / btc_price if btc_price > 0 else 0
-                        eth_units = (total_value * eth_allocation) / eth_price if eth_price > 0 else 0
+                        btc_units = (total_value * btc_allocation) / current_btc_price if current_btc_price > 0 else 0
+                        eth_units = (total_value * eth_allocation) / current_eth_price if current_eth_price > 0 else 0
                         last_rebalance_week = week_number
                         
-                        current_benchmark_value = (btc_units * btc_price) + (eth_units * eth_price)
+                        current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
             
             benchmark_values.append(current_benchmark_value)
         

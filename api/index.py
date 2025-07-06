@@ -149,7 +149,7 @@ def process_single_account(account):
             config = rebalance_benchmark(db_client, config, account_id, benchmark_value, prices, logger)
 
     benchmark_value = calculate_benchmark_value(config, prices)
-    save_history(db_client, account_id, nav, benchmark_value, logger, account_name)
+    save_history(db_client, account_id, nav, benchmark_value, logger, account_name, prices)
 
 # --- Pomocné funkce ---
 
@@ -568,7 +568,7 @@ def update_last_processed_time(db_client, account_id):
     except Exception as e:
         print(f"Error updating last processed time: {e}")
 
-def save_history(db_client, account_id, nav, benchmark_value, logger=None, account_name=None):
+def save_history(db_client, account_id, nav, benchmark_value, logger=None, account_name=None, prices=None):
     timestamp = datetime.now(UTC).isoformat()
     
     history_data = {
@@ -577,6 +577,11 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
         'nav': f'{nav:.2f}',
         'benchmark_value': f'{benchmark_value:.2f}'
     }
+    
+    # Přidat historické ceny pokud jsou dostupné
+    if prices:
+        history_data['btc_price'] = f"{prices.get('BTCUSDT', 0):.2f}"
+        history_data['eth_price'] = f"{prices.get('ETHUSDT', 0):.2f}"
     
     if logger:
         vs_benchmark = nav - benchmark_value
@@ -588,7 +593,23 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
                    data={"nav": nav, "benchmark_value": benchmark_value, "vs_benchmark": vs_benchmark, "vs_benchmark_pct": vs_benchmark_pct})
     
     with OperationTimer(logger, LogCategory.DATABASE, "insert_nav_history", account_id, account_name) if logger else nullcontext():
-        db_client.table('nav_history').insert(history_data).execute()
+        try:
+            db_client.table('nav_history').insert(history_data).execute()
+        except Exception as e:
+            # Fallback: pokud sloupce btc_price/eth_price neexistují, uložíme jen základní data
+            if 'btc_price' in str(e) or 'eth_price' in str(e):
+                basic_data = {
+                    'account_id': account_id,
+                    'timestamp': history_data['timestamp'],
+                    'nav': history_data['nav'],
+                    'benchmark_value': history_data['benchmark_value']
+                }
+                db_client.table('nav_history').insert(basic_data).execute()
+                if logger:
+                    logger.debug(LogCategory.DATABASE, "nav_history_fallback", 
+                               "Saved basic data without price columns", account_id=account_id)
+            else:
+                raise e
     
     print(f"{timestamp} | NAV: {nav:.2f} | Benchmark: {benchmark_value:.2f}")
 
