@@ -25,7 +25,7 @@ python api/dashboard.py
 **Kompletní monitoring s dashboardem:**
 ```bash
 python run_live.py                    # Jednorázové spuštění
-python api/dashboard.py              # Dashboard na http://localhost:8000/dashboard
+python -m api.dashboard              # Dashboard na http://localhost:8001/dashboard
 ```
 
 **Jen scraping dat (bez dashboardu):**
@@ -66,15 +66,16 @@ Dashboard zobrazuje:
 - 📊 Portfolio performance historie
 
 ```bash
-python api/dashboard.py
+python -m api.dashboard
 ```
 
-URL: http://localhost:8000/dashboard
+URL: http://localhost:8001/dashboard
 
 ### API Endpoints:
 - `/api/dashboard/status` - System status
 - `/api/dashboard/logs` - Recent logs
 - `/api/dashboard/metrics` - Portfolio metrics
+- `/api/dashboard/chart-data` - NAV chart data with period filtering
 - `/api/dashboard/run-monitoring` - Trigger monitoring
 
 ## 📊 Jen scraping dat (bez dashboardu)
@@ -109,6 +110,30 @@ Zobrazí:
 - 📈 Poslední NAV záznamy
 - ⚙️ Benchmark konfigurace
 - 💰 Recent transactions
+
+## 📊 Clean Benchmark System
+
+Systém používá "clean start" přístup pro přesné benchmark kalkulace:
+
+**Klíčové vlastnosti:**
+- ✅ Ukládá historické BTC/ETH ceny s každým NAV záznamem
+- ✅ Dynamický 50/50 BTC/ETH benchmark s weekly rebalancing (pondělí)
+- ✅ Používá skutečné historické ceny místo současných cen
+- ✅ Přesné porovnání výkonnosti od inception bodu
+
+**Test a debug nástroje:**
+```bash
+python test_clean_benchmark.py    # Test databázové struktury
+python debug_nav.py               # Debug NAV kalkulace s detaily
+```
+
+**SQL migrace (pokud potřeba):**
+```sql
+-- Přidat price columns do nav_history tabulky
+ALTER TABLE nav_history 
+ADD COLUMN btc_price NUMERIC(10,2),
+ADD COLUMN eth_price NUMERIC(10,2);
+```
 
 ## 🛡️ Bezpečnostní poznámky
 
@@ -147,6 +172,31 @@ python monitor_daemon.py --minutes 2
 vercel deploy
 ```
 
+## ⚠️ Známé problémy
+
+### NAV calculation rozdíl
+Pokud vidíte rozdíl mezi naší NAV hodnotou a Binance UI:
+
+```bash
+python debug_nav.py    # Zkontroluje detailní breakdown
+```
+
+**Možné příčiny:**
+- 🔸 Binance UI zobrazuje Wallet Balance (~$402k) místo NAV
+- 🔸 Naše NAV = Wallet Balance + Unrealized PnL (~$399k) 
+- 🔸 Cross vs Isolated margin rozdíly
+- 🔸 Spot vs Futures účty
+- 🔸 Různé endpoints (USD-M vs COIN-M futures)
+
+**Náš systém používá:** `futures_account()` endpoint
+**Kalkulace:** `totalWalletBalance + totalUnrealizedProfit`
+
+### Chart data s price columns
+Pokud chart nezobrazuje data správně:
+```bash
+python test_clean_benchmark.py    # Ověří price columns
+```
+
 ## 🚨 Troubleshooting
 
 ### Chyby API klíčů:
@@ -160,8 +210,8 @@ python check_data.py
 
 ### Dashboard nefunguje:
 ```bash
-# Zkontrolujte port 8000
-lsof -i :8000
+# Zkontrolujte port 8001 
+lsof -i :8001
 
 # Zkontrolujte logy
 tail -f logs/monitor.log
@@ -191,6 +241,9 @@ binance_monitor_playground/
 ├── run_live.py              # Live mode runner
 ├── scrape_data.py           # Data scraping script
 ├── check_data.py            # Database check script
+├── test_clean_benchmark.py  # Clean benchmark test script
+├── debug_nav.py             # NAV calculation debug script
+├── add_price_columns.sql    # SQL migration for price columns
 ├── dashboard.html           # Dashboard frontend
 ├── .env                     # Environment variables
 └── USAGE.md                 # Tento soubor

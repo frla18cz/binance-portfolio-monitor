@@ -57,38 +57,29 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         start_time = nav_data[0]['timestamp']
         end_time = nav_data[-1]['timestamp']
         
-        # Zkusit použít historické ceny z nav_data, pokud nejsou dostupné, fallback na současné
-        has_historical_prices = nav_data and all('btc_price' in item and 'eth_price' in item for item in nav_data)
-        
-        if not has_historical_prices:
-            # Fallback na současné ceny pro celé období
-            from binance.client import Client as BinanceClient
-            temp_client = BinanceClient('', '')  # Public API
-            current_prices = get_prices(temp_client)
+        # Všechny záznamy musí mít historické ceny (clean start approach)
+        if not nav_data:
+            return []
             
-            if not current_prices:
-                return [float(item['benchmark_value']) for item in nav_data]  # Fallback na staré hodnoty
-            
-            fallback_btc_price = current_prices.get('BTCUSDT', 0)
-            fallback_eth_price = current_prices.get('ETHUSDT', 0)
+        # Ověřit že všechny záznamy mají ceny
+        missing_prices = [item for item in nav_data if 'btc_price' not in item or 'eth_price' not in item]
+        if missing_prices:
+            print(f"Warning: {len(missing_prices)} records missing price data, using old benchmark values")
+            return [float(item['benchmark_value']) for item in nav_data]
         
         # Začínáme s NAV z prvního záznamu
         initial_nav = float(nav_data[0]['nav'])
         
-        # Virtuální nákup podle alokace
+        # Virtuální nákup podle alokace s cenami z prvního záznamu
         btc_allocation = allocation.get('BTC', 0.5)
         eth_allocation = allocation.get('ETH', 0.5)
         
         initial_btc_value = initial_nav * btc_allocation
         initial_eth_value = initial_nav * eth_allocation
         
-        # Získat ceny pro první záznam
-        if has_historical_prices:
-            first_btc_price = float(nav_data[0].get('btc_price', 0))
-            first_eth_price = float(nav_data[0].get('eth_price', 0))
-        else:
-            first_btc_price = fallback_btc_price
-            first_eth_price = fallback_eth_price
+        # Ceny z prvního záznamu období
+        first_btc_price = float(nav_data[0]['btc_price'])
+        first_eth_price = float(nav_data[0]['eth_price'])
         
         btc_units = initial_btc_value / first_btc_price if first_btc_price > 0 else 0
         eth_units = initial_eth_value / first_eth_price if first_eth_price > 0 else 0
@@ -97,13 +88,9 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         last_rebalance_week = None
         
         for i, record in enumerate(nav_data):
-            # Získat ceny pro aktuální záznam
-            if has_historical_prices:
-                current_btc_price = float(record.get('btc_price', 0))
-                current_eth_price = float(record.get('eth_price', 0))
-            else:
-                current_btc_price = fallback_btc_price
-                current_eth_price = fallback_eth_price
+            # Ceny z aktuálního záznamu (skutečné historické ceny)
+            current_btc_price = float(record['btc_price'])
+            current_eth_price = float(record['eth_price'])
             
             current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
             
@@ -521,14 +508,14 @@ if __name__ == "__main__":
     
     print("🟢 Starting Dashboard in LIVE MODE")
     print("=" * 50)
-    print("Dashboard URL: http://localhost:8000/dashboard")
-    print("API Status: http://localhost:8000/api/dashboard/status")
-    print("API Logs: http://localhost:8000/api/dashboard/logs")
-    print("API Metrics: http://localhost:8000/api/dashboard/metrics")
-    print("API Chart Data: http://localhost:8000/api/dashboard/chart-data")
+    print("Dashboard URL: http://localhost:8001/dashboard")
+    print("API Status: http://localhost:8001/api/dashboard/status")
+    print("API Logs: http://localhost:8001/api/dashboard/logs")
+    print("API Metrics: http://localhost:8001/api/dashboard/metrics")
+    print("API Chart Data: http://localhost:8001/api/dashboard/chart-data")
     print("=" * 50)
 
-    server = HTTPServer(('localhost', 8000), DashboardHandler)
+    server = HTTPServer(('localhost', 8001), DashboardHandler)
 
     try:
         server.serve_forever()

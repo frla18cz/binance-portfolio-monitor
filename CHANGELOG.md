@@ -1,195 +1,62 @@
-# 📋 Changelog - Binance Portfolio Monitor
+# Changelog
 
-## 🎯 Latest Release - Advanced Monitoring & Dashboard System
+All notable changes to this project will be documented in this file.
 
-### ✨ New Features Added
+## [2025-07-06] - Clean Benchmark System Implementation
 
-#### 📊 Web Dashboard & Real-time Monitoring
-- **Interactive Web Dashboard** at `http://localhost:8000/dashboard`
-- **Real-time portfolio tracking** with NAV vs benchmark comparison
-- **Live performance charts** with historical data visualization
-- **System status monitoring** with connection health indicators
-- **Manual operation triggers** from web interface
-- **Auto-refresh capabilities** with configurable intervals
+### ✅ Added
+- **Clean Start Benchmark System**: Implemented accurate historical price-based benchmark calculation
+- **Price Columns**: Added `btc_price` and `eth_price` columns to `nav_history` table for historical price storage
+- **Dynamic Benchmark Calculation**: Uses actual historical prices instead of current prices for realistic benchmark comparisons
+- **Interactive NAV Chart**: Added period selector (Since Inception, 1 Week, 1 Month, 1 Year, YTD, Custom) with dual chart system
+- **Weekly Rebalancing**: Proper 50/50 BTC/ETH allocation rebalancing every Monday at 17:00 UTC
+- **Debug Tools**: 
+  - `test_clean_benchmark.py` - Database structure validation
+  - `debug_nav.py` - Detailed NAV calculation breakdown
+- **SQL Migration**: `add_price_columns.sql` for database schema updates
 
-#### 📋 Advanced Logging System
-- **Structured JSON logging** with searchable fields and metadata
-- **Performance timing** for all operations with millisecond precision
-- **Category-based organization** (system, account_processing, api_call, database, etc.)
-- **Account-specific tracking** with detailed operation context
-- **File persistence** with rotation and memory management (`logs/` directory)
-- **Real-time log streaming** in dashboard with filtering capabilities
+### 🔄 Changed
+- **save_history() Function**: Now requires BTC/ETH prices as mandatory parameters
+- **calculate_dynamic_benchmark()**: Rewritten to use historical prices from database records
+- **Dashboard Port**: Changed from 8000 to 8001 to avoid conflicts
+- **Chart Data API**: Enhanced `/api/dashboard/chart-data` endpoint with period filtering
+- **Database Schema**: Extended nav_history table to include historical price data
 
-#### 🎮 Safe Demo Mode
-- **Complete mock environment** for risk-free testing
-- **Transaction simulation** (deposits, withdrawals) without real money
-- **Market scenario testing** (bull run, bear market, BTC dominance, etc.)
-- **Full system workflow testing** with realistic data
-- **Dedicated demo testing script** (`demo_test.py`) for comprehensive validation
+### 🗑️ Removed
+- **Fallback Logic**: Removed compatibility code for old database structure without price columns
+- **Current Price Benchmark**: Eliminated unrealistic benchmark using today's prices for historical periods
+- **Old NAV History**: Deleted 461 existing records for clean start approach
 
-#### ⚡ Performance Analytics
-- **Success rate tracking** across all operations
-- **Operation timing statistics** with average, min, max durations
-- **Error tracking and analysis** with detailed context
-- **Account-specific performance metrics** and summaries
-- **Category breakdown** of operations for optimization insights
+### 🐛 Fixed
+- **Benchmark Calculation Accuracy**: Fixed issue where benchmark used current BTC/ETH prices for entire historical period
+- **Import Errors**: Fixed relative import issues in dashboard standalone execution
+- **Chart Period Logic**: Improved period-based data filtering for accurate performance calculations
 
-#### 🔍 Advanced Monitoring Features
-- **Operation timing** for every function with context managers
-- **Atomic transaction processing** with detailed logging
-- **Error recovery tracking** with success/failure analysis
-- **Real-time dashboard API** for external integrations
-- **Log export functionality** for compliance and analysis
+### ⚠️ Known Issues
+- **NAV Calculation Discrepancy**: ~$20k difference between our calculated NAV and Binance UI values
+  - Our system: `totalWalletBalance + totalUnrealizedProfit` = ~$399k
+  - Binance UI may show: `totalWalletBalance` only = ~$402k
+  - Investigation ongoing - see `debug_nav.py` for detailed breakdown
 
-### 🛠️ Technical Improvements
+### 📊 Technical Details
+- **Database Migration**: Added price columns to nav_history table
+- **Clean Data Approach**: Started fresh data collection with proper historical price tracking
+- **Benchmark Strategy**: 50/50 BTC/ETH allocation with weekly Monday rebalancing
+- **Performance Tracking**: Accurate inception-to-date performance comparison
 
-#### Enhanced Core System
-- **Integrated logging** throughout entire monitoring pipeline
-- **Demo mode controller** for safe testing environment
-- **Mock data management** with realistic simulation
-- **Performance optimization** with operation timing
-- **Error handling improvements** with detailed context
-
-#### New API Endpoints
-- `GET /dashboard` - Web dashboard interface
-- `GET /api/dashboard/status` - System status and metrics
-- `GET /api/dashboard/logs` - Structured logs with filtering
-- `GET /api/dashboard/metrics` - Performance and portfolio metrics
-- `POST /api/dashboard/run-monitoring` - Manual monitoring trigger
-- `POST /api/dashboard/simulate-transaction` - Transaction simulation (demo mode)
-- `POST /api/dashboard/simulate-scenario` - Market scenario simulation (demo mode)
-
-#### New Configuration Options
-```bash
-# Demo Mode
-DEMO_MODE=true  # Enables safe testing with mock data
-
-# Logging Configuration  
-LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
-MAX_LOG_ENTRIES=10000  # Maximum logs in memory
-```
-
-### 📁 New Files & Structure
-
-#### Core System Files
-- `api/logger.py` - Advanced logging system with JSON output
-- `api/dashboard.py` - Dashboard API server and endpoints
-- `api/mock_mode.py` - Mock data management for demo mode
-- `api/mock_supabase.py` - Mock database client for testing
-- `api/demo_mode.py` - Demo mode controller and integration
-- `dashboard.html` - Web dashboard interface
-- `demo_test.py` - Comprehensive demo mode testing script
-
-#### Documentation Updates
-- `docs/DASHBOARD_GUIDE.md` - Complete dashboard and logging guide
-- Enhanced `docs/SETUP_GUIDE.md` with demo mode and dashboard setup
-- Enhanced `docs/API_REFERENCE.md` with logging and dashboard APIs
-- Enhanced `README.md` with new features and capabilities
-
-#### Log Files (Auto-created)
-- `logs/monitor.log` - Standard formatted logs
-- `logs/monitor_logs.jsonl` - Structured JSON logs
-
-### 🎯 Key Benefits
-
-#### For Developers
-- **Comprehensive visibility** into all system operations
-- **Safe testing environment** without financial risk
-- **Performance optimization** insights with detailed timing
-- **Easy debugging** with structured logs and filtering
-- **Real-time monitoring** with web dashboard
-
-#### For Operations
-- **System health monitoring** with success rate tracking
-- **Error detection and analysis** with detailed context
-- **Performance trending** and optimization opportunities
-- **Compliance logging** with audit trail capabilities
-- **Manual operation controls** via web interface
-
-#### For Testing
-- **Complete mock environment** for development
-- **Transaction simulation** for workflow testing
-- **Market scenario testing** for edge case validation
-- **Performance benchmarking** with real metrics
-- **Safe experimentation** without production impact
-
-### 🚀 Usage Examples
-
-#### Quick Start with Demo Mode
-```bash
-# Enable safe testing mode
-export DEMO_MODE=true
-
-# Run comprehensive demo test
-python demo_test.py
-
-# Start web dashboard
-python -m api.dashboard
-# Open: http://localhost:8000/dashboard
-```
-
-#### Logging System Usage
-```python
-from api.logger import get_logger, LogCategory, OperationTimer
-
-logger = get_logger()
-
-# Structured logging
-logger.info(LogCategory.ACCOUNT_PROCESSING, "start_processing", 
-           "Starting account processing", account_id=1, 
-           data={"initial_nav": 10000.0})
-
-# Performance timing
-with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id=1):
-    nav = get_futures_account_nav(client)
-
-# Get metrics
-metrics = logger.get_performance_metrics()
-print(f"Success rate: {metrics['success_rate']:.1f}%")
-```
-
-#### Dashboard API Usage
-```bash
-# Get system status
-curl http://localhost:8000/api/dashboard/status
-
-# Get recent logs
-curl "http://localhost:8000/api/dashboard/logs?limit=50&category=api_call"
-
-# Simulate transaction (demo mode)
-curl -X POST http://localhost:8000/api/dashboard/simulate-transaction \
-  -H "Content-Type: application/json" \
-  -d '{"type":"DEPOSIT","amount":5000}'
-```
-
-### ⚠️ Breaking Changes
-- None - All new features are additive and backward compatible
-- Existing functionality remains unchanged
-- New environment variables are optional with sensible defaults
-
-### 🔧 Migration Guide
-No migration required - simply update your environment:
-
-1. **Update Dependencies** (if any new ones added)
-2. **Optional**: Add new environment variables to `.env`
-3. **Optional**: Enable demo mode for testing
-4. **Optional**: Start using the web dashboard
-
-### 🎉 What's Next?
-The system now provides enterprise-grade monitoring capabilities with:
-- ✅ Comprehensive logging and audit trails
-- ✅ Real-time web dashboard for monitoring
-- ✅ Safe testing environment with demo mode
-- ✅ Performance analytics and optimization insights
-- ✅ Complete API documentation and guides
-
-Future enhancements could include:
-- Alert system for performance degradation
-- Advanced analytics and reporting
-- Multi-user dashboard with authentication
-- Custom notification channels
-- Advanced charting and visualization options
+### 🚀 Usage Updates
+- Dashboard now runs on port 8001: `http://localhost:8001/dashboard`
+- Use `python -m api.dashboard` for proper module import
+- Run `python debug_nav.py` to investigate NAV calculation details
+- Run `python test_clean_benchmark.py` to verify database structure
 
 ---
 
-**🎯 This release transforms the Binance Portfolio Monitor into a production-ready system with enterprise-grade monitoring, logging, and testing capabilities.**
+## Previous Versions
+
+### [2025-07-05] - Initial Benchmark Implementation
+- Basic 50/50 BTC/ETH benchmark system
+- Real-time data collection every 2 minutes
+- Dashboard with basic NAV tracking
+- Supabase database integration
+- Binance API futures account monitoring
