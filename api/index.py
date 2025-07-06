@@ -270,7 +270,7 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
         breakdown['spot_total'] = spot_total
         breakdown['spot_details'] = spot_details
         
-        # 2. FUTURES ACCOUNT - RAW ASSET KONVERZE (ne totalWalletBalance!)
+        # 2. FUTURES ACCOUNT - MARGIN BALANCE (wallet + unrealized P&L)
         futures_account = client.futures_account()
         futures_total = 0.0
         futures_details = {}
@@ -278,24 +278,28 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
         for asset_info in futures_account.get('assets', []):
             asset = asset_info['asset']
             wallet_balance = float(asset_info['walletBalance'])
+            unrealized_pnl = float(asset_info['unrealizedProfit'])
+            margin_balance = float(asset_info['marginBalance'])  # wallet + unrealized
             
-            if abs(wallet_balance) > 0.001:  # Zahrnuj i záporné balances
+            if abs(margin_balance) > 0.001:  # Používáme marginBalance místo walletBalance
                 # Převeď na USD
                 if asset in ['USDT', 'BUSD', 'USDC', 'BNFCR']:
-                    usd_value = wallet_balance
+                    usd_value = margin_balance
                 elif asset == 'BTC':
-                    usd_value = wallet_balance * btc_usd_price
+                    usd_value = margin_balance * btc_usd_price
                 else:
                     try:
                         ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
                         price = float(ticker['price'])
-                        usd_value = wallet_balance * price
+                        usd_value = margin_balance * price
                     except:
                         usd_value = 0.0
                 
                 futures_total += usd_value
                 futures_details[asset] = {
-                    'balance': wallet_balance,
+                    'wallet_balance': wallet_balance,
+                    'unrealized_pnl': unrealized_pnl,
+                    'margin_balance': margin_balance,
                     'usd_value': usd_value
                 }
         
