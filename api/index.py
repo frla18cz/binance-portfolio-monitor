@@ -115,6 +115,9 @@ def process_single_account(account):
         prices = get_prices(binance_client, logger, account_id, account_name)
     if not prices:
         return
+    
+    # Uložit historické ceny (pro dynamický benchmark)
+    save_price_history(prices, logger)
 
     with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
         nav = get_futures_account_nav(binance_client, logger, account_id, account_name)
@@ -169,6 +172,46 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
                         account_id=account_id, account_name=account_name, error=str(e))
         print(f"Error getting prices: {e}")
         return None
+
+def save_price_history(prices, logger=None):
+    """Uloží historické ceny BTC a ETH do price_history tabulky."""
+    if not prices:
+        return
+        
+    try:
+        from datetime import datetime, UTC
+        
+        # Připravit data pro uložení
+        price_records = []
+        timestamp = datetime.now(UTC).isoformat()
+        
+        for symbol, price in prices.items():
+            if symbol in ['BTCUSDT', 'ETHUSDT']:
+                asset = symbol.replace('USDT', '')  # BTC nebo ETH
+                price_records.append({
+                    'timestamp': timestamp,
+                    'asset': asset,
+                    'price': float(price)
+                })
+        
+        if price_records:
+            # Pokusit se uložit do price_history (tabulka možná neexistuje)
+            try:
+                result = supabase.table('price_history').insert(price_records).execute()
+                if logger:
+                    logger.debug(LogCategory.PRICE_UPDATE, "price_history_saved", 
+                               f"Saved {len(price_records)} price records")
+            except Exception as table_error:
+                # Tabulka pravděpodobně neexistuje, vytvoříme ji manuálně později
+                if logger:
+                    logger.debug(LogCategory.PRICE_UPDATE, "price_history_table_missing", 
+                               f"Price history table not found: {str(table_error)}")
+                pass
+                
+    except Exception as e:
+        if logger:
+            logger.error(LogCategory.PRICE_UPDATE, "price_history_error", 
+                        f"Failed to save price history: {str(e)}", error=str(e))
 
 def get_futures_account_nav(client, logger=None, account_id=None, account_name=None):
     try:

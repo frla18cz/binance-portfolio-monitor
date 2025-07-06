@@ -793,20 +793,27 @@
                     const benchmarkReturn = data.stats.benchmark_return_pct || 0;
                     const outperformance = data.stats.outperformance_pct || 0;
                     
+                    const startNav = data.stats.start_nav || 0;
+                    const endNav = data.stats.end_nav || 0;
+                    const startBenchmark = data.stats.start_benchmark || 0;
+                    const endBenchmark = data.stats.end_benchmark || 0;
+                    
                     statsElement.innerHTML = `
-                        <span class="${navReturn >= 0 ? 'positive' : 'negative'}">
-                            Portfolio: ${navReturn >= 0 ? '+' : ''}${navReturn}%
-                        </span>
-                        | 
-                        <span class="${benchmarkReturn >= 0 ? 'positive' : 'negative'}">
-                            Benchmark: ${benchmarkReturn >= 0 ? '+' : ''}${benchmarkReturn}%
-                        </span>
-                        | 
-                        <span class="${outperformance >= 0 ? 'positive' : 'negative'}">
-                            Outperformance: ${outperformance >= 0 ? '+' : ''}${outperformance}%
-                        </span>
-                        <br>
-                        <small>${data.stats.data_points} data points</small>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+                            <span class="${navReturn >= 0 ? 'positive' : 'negative'}">
+                                📊 Portfolio: ${navReturn >= 0 ? '+' : ''}${navReturn}%
+                            </span>
+                            <span class="${benchmarkReturn >= 0 ? 'positive' : 'negative'}">
+                                📈 50/50 BTC/ETH: ${benchmarkReturn >= 0 ? '+' : ''}${benchmarkReturn}%
+                            </span>
+                            <span class="${outperformance >= 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
+                                ⚡ Outperformance: ${outperformance >= 0 ? '+' : ''}${outperformance}%
+                            </span>
+                            <small style="color: #666;">
+                                ${data.stats.data_points} data points | 
+                                Start: $${formatNumber(startNav)} vs $${formatNumber(startBenchmark)}
+                            </small>
+                        </div>
                     `;
                 }
                 

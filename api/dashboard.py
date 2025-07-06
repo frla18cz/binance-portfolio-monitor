@@ -13,6 +13,108 @@ from .logger import get_logger, LogCategory
 from .index import process_all_accounts, supabase, get_prices
 
 
+def get_historical_prices(start_time, end_time):
+    """Získá historické ceny BTC a ETH z price_history tabulky nebo z Binance API."""
+    try:
+        # Pokusit se získat z price_history tabulky
+        result = supabase.table('price_history').select('*').gte('timestamp', start_time).lte('timestamp', end_time).order('timestamp').execute()
+        
+        if result.data:
+            # Uspořádat ceny podle času
+            prices_by_time = {}
+            for record in result.data:
+                timestamp = record['timestamp']
+                if timestamp not in prices_by_time:
+                    prices_by_time[timestamp] = {}
+                prices_by_time[timestamp][record['asset']] = record['price']
+            return prices_by_time
+        else:
+            # Fallback: použít current prices pro všechny timestamp (jednoduchá implementace)
+            return None
+            
+    except Exception as e:
+        print(f"Error getting historical prices: {e}")
+        return None
+
+
+def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, rebalance_frequency='weekly'):
+    """
+    Vypočítá dynamický benchmark na základě NAV historie.
+    
+    Args:
+        nav_data: List of nav_history records
+        allocation: Dict s alokačními váhami {'BTC': 0.5, 'ETH': 0.5}
+        rebalance_frequency: 'weekly', 'monthly', 'never'
+    
+    Returns:
+        List of benchmark values corresponding to nav_data timestamps
+    """
+    if not nav_data:
+        return []
+    
+    try:
+        # Získat historické ceny pro celé období
+        start_time = nav_data[0]['timestamp']
+        end_time = nav_data[-1]['timestamp']
+        
+        # Pro jednoduchoucost zatím použijeme současné ceny pro celé období
+        # TODO: Implementovat skutečné historické ceny
+        from binance.client import Client as BinanceClient
+        temp_client = BinanceClient('', '')  # Public API
+        current_prices = get_prices(temp_client)
+        
+        if not current_prices:
+            return [float(item['benchmark_value']) for item in nav_data]  # Fallback na staré hodnoty
+        
+        btc_price = current_prices.get('BTCUSDT', 0)
+        eth_price = current_prices.get('ETHUSDT', 0)
+        
+        # Začínáme s NAV z prvního záznamu
+        initial_nav = float(nav_data[0]['nav'])
+        
+        # Virtuální nákup podle alokace
+        btc_allocation = allocation.get('BTC', 0.5)
+        eth_allocation = allocation.get('ETH', 0.5)
+        
+        initial_btc_value = initial_nav * btc_allocation
+        initial_eth_value = initial_nav * eth_allocation
+        
+        btc_units = initial_btc_value / btc_price if btc_price > 0 else 0
+        eth_units = initial_eth_value / eth_price if eth_price > 0 else 0
+        
+        benchmark_values = []
+        last_rebalance_week = None
+        
+        for i, record in enumerate(nav_data):
+            # Pro jednoduchost zatím použijeme konstantní ceny
+            # V produkci bychom zde používali historické ceny pro daný timestamp
+            current_benchmark_value = (btc_units * btc_price) + (eth_units * eth_price)
+            
+            # Rebalancing logika (jednou týdně v pondělí)
+            if rebalance_frequency == 'weekly':
+                record_time = datetime.fromisoformat(record['timestamp'].replace('Z', '+00:00'))
+                week_number = record_time.isocalendar()[1]  # ISO week number
+                
+                if last_rebalance_week is None or week_number != last_rebalance_week:
+                    # Rebalancovat pokud je pondělí nebo první záznam
+                    if record_time.weekday() == 0 or i == 0:  # 0 = pondělí
+                        total_value = current_benchmark_value
+                        btc_units = (total_value * btc_allocation) / btc_price if btc_price > 0 else 0
+                        eth_units = (total_value * eth_allocation) / eth_price if eth_price > 0 else 0
+                        last_rebalance_week = week_number
+                        
+                        current_benchmark_value = (btc_units * btc_price) + (eth_units * eth_price)
+            
+            benchmark_values.append(current_benchmark_value)
+        
+        return benchmark_values
+        
+    except Exception as e:
+        print(f"Error calculating dynamic benchmark: {e}")
+        # Fallback na původní benchmark hodnoty
+        return [float(item['benchmark_value']) for item in nav_data]
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
     """HTTP handler for dashboard API endpoints."""
     
@@ -229,6 +331,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
             result = query.execute()
             nav_data = result.data
             
+            # Vypočítat dynamický benchmark
+            dynamic_benchmark_values = calculate_dynamic_benchmark(
+                nav_data, 
+                allocation={'BTC': 0.5, 'ETH': 0.5}, 
+                rebalance_frequency='weekly'
+            )
+            
             # Format data for Chart.js
             chart_data = {
                 "labels": [datetime.fromisoformat(item['timestamp'].replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M') for item in nav_data],
@@ -240,27 +349,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "backgroundColor": "rgba(102, 126, 234, 0.1)",
                         "tension": 0.4,
                         "pointRadius": 2,
-                        "pointHoverRadius": 5
+                        "pointHoverRadius": 5,
+                        "fill": False
                     },
                     {
-                        "label": "Benchmark",
-                        "data": [float(item['benchmark_value']) for item in nav_data],
+                        "label": "50/50 BTC/ETH Benchmark",
+                        "data": dynamic_benchmark_values,
                         "borderColor": "#764ba2",
                         "backgroundColor": "rgba(118, 75, 162, 0.1)",
                         "tension": 0.4,
                         "pointRadius": 2,
-                        "pointHoverRadius": 5
+                        "pointHoverRadius": 5,
+                        "fill": False
                     }
                 ]
             }
             
-            # Calculate performance stats
+            # Calculate performance stats using dynamic benchmark
             stats = {}
-            if nav_data:
+            if nav_data and dynamic_benchmark_values:
                 first_nav = float(nav_data[0]['nav'])
                 last_nav = float(nav_data[-1]['nav'])
-                first_benchmark = float(nav_data[0]['benchmark_value'])
-                last_benchmark = float(nav_data[-1]['benchmark_value'])
+                first_benchmark = dynamic_benchmark_values[0] if dynamic_benchmark_values else first_nav
+                last_benchmark = dynamic_benchmark_values[-1] if dynamic_benchmark_values else first_nav
                 
                 nav_return = ((last_nav - first_nav) / first_nav * 100) if first_nav != 0 else 0
                 benchmark_return = ((last_benchmark - first_benchmark) / first_benchmark * 100) if first_benchmark != 0 else 0
@@ -272,7 +383,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "benchmark_return_pct": round(benchmark_return, 2),
                     "outperformance_pct": round(nav_return - benchmark_return, 2),
                     "start_date": nav_data[0]['timestamp'] if nav_data else None,
-                    "end_date": nav_data[-1]['timestamp'] if nav_data else None
+                    "end_date": nav_data[-1]['timestamp'] if nav_data else None,
+                    "start_nav": round(first_nav, 2),
+                    "end_nav": round(last_nav, 2),
+                    "start_benchmark": round(first_benchmark, 2),
+                    "end_benchmark": round(last_benchmark, 2)
                 }
             
             response_data = {
@@ -375,6 +490,15 @@ def handler(request):
 
 
 if __name__ == "__main__":
+    # Fix relative imports when running standalone
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    
+    # Re-import with fixed paths
+    from api.logger import get_logger, LogCategory
+    from api.index import process_all_accounts, supabase, get_prices
+    
     # Test the dashboard API locally
     from http.server import HTTPServer
     
@@ -384,6 +508,7 @@ if __name__ == "__main__":
     print("API Status: http://localhost:8000/api/dashboard/status")
     print("API Logs: http://localhost:8000/api/dashboard/logs")
     print("API Metrics: http://localhost:8000/api/dashboard/metrics")
+    print("API Chart Data: http://localhost:8000/api/dashboard/chart-data")
     print("=" * 50)
 
     server = HTTPServer(('localhost', 8000), DashboardHandler)
