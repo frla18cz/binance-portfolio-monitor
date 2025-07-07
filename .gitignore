@@ -84,4 +84,4 @@ tmp/
 temp/
 
 # Dočasné skripty (legacy)
-seed_db.py
+seed_db.py.idea/
