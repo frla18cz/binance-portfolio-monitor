@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-07] - UI Consistency and Bug Fixes
+
+### 🐛 Fixed
+- **Benchmark Display Discrepancy**: Fixed a bug where the main dashboard metric for "vs Benchmark" showed a different value than the chart. The metric now uses the same dynamic calculation as the chart, ensuring UI consistency.
+
+### 🔄 Changed
+- **Dashboard Port**: Changed the default dashboard port from `8001` to `8000` to align with common development standards.
+
 ## [2025-07-06] - Clean Benchmark System Implementation
 
 ### ✅ Added
