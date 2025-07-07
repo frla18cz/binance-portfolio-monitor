@@ -54,7 +54,7 @@
   
   "dashboard": {
     "host": "localhost",
-    "port": 8001,
+    "port": 8000,
     "title": "Binance Portfolio Monitor",
     "cors_allowed_origins": ["*"],
     "chart_colors": {

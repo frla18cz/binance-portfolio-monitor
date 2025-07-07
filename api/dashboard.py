@@ -247,19 +247,32 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         # Fetch real data
         try:
-            # Fetch latest NAV history for the first account
-            latest_nav_history = supabase.table('nav_history').select('*').order('timestamp', desc=True).limit(1).execute()
-            if latest_nav_history.data:
-                latest_data = latest_nav_history.data[0]
+            # Fetch all NAV history for the first account to calculate dynamic benchmark
+            all_nav_history = supabase.table('nav_history').select('*').order('timestamp', desc=False).execute()
+            
+            if all_nav_history.data:
+                nav_data = all_nav_history.data
+                latest_data = nav_data[-1]
+
+                # Calculate dynamic benchmark for all data points
+                dynamic_benchmark_values = calculate_dynamic_benchmark(
+                    nav_data,
+                    allocation=settings.get_benchmark_allocation(),
+                    rebalance_frequency=settings.financial.rebalance_frequency
+                )
+                
+                # Use the latest dynamic benchmark value for metrics
+                latest_benchmark_value = dynamic_benchmark_values[-1] if dynamic_benchmark_values else 0
+
                 portfolio_data = {
                     "account_name": "Live Trading Account",
                     "current_nav": float(latest_data.get("nav", 0)),
-                    "benchmark_value": float(latest_data.get("benchmark_value", 0)),
+                    "benchmark_value": float(latest_benchmark_value),
                     "initial_balance": 0.0, 
                     "total_return": 0.0,
                     "return_percentage": 0.0,
-                    "vs_benchmark": float(latest_data.get("nav", 0)) - float(latest_data.get("benchmark_value", 0)),
-                    "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_data.get("benchmark_value", 0))) / float(latest_data.get("benchmark_value", 0)) * 100 if float(latest_data.get("benchmark_value", 0)) != 0 else 0
+                    "vs_benchmark": float(latest_data.get("nav", 0)) - float(latest_benchmark_value),
+                    "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_benchmark_value)) / float(latest_benchmark_value) * 100 if float(latest_benchmark_value) != 0 else 0
                 }
                 # Fetch account name from binance_accounts
                 account_info = supabase.table('binance_accounts').select('account_name').eq('id', latest_data.get('account_id')).limit(1).execute()
