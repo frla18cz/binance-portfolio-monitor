@@ -5,7 +5,12 @@ Quick Cron Checker - Rychlá kontrola stavu cron jobů
 
 import subprocess
 import os
+import sys
 from pathlib import Path
+
+# Add project root to path for config import
+sys.path.insert(0, os.path.dirname(__file__))
+from config import settings
 
 def check_cron_status():
     """Zkontroluje stav cron jobů."""
@@ -40,7 +45,7 @@ def check_cron_status():
             print("\n💡 Spusťte: python setup_cron.py → možnost 4 (odebrat) → možnost 1 (přidat)")
         
         # Zkontroluj log soubor
-        log_path = project_dir / 'logs' / 'cron.log'
+        log_path = project_dir / settings.get_log_file_path('cron_log')
         if log_path.exists():
             print(f"\n📝 Log soubor existuje: {log_path}")
             print(f"📏 Velikost: {log_path.stat().st_size} bytů")
@@ -50,8 +55,9 @@ def check_cron_status():
                 with open(log_path, 'r') as f:
                     lines = f.readlines()
                     if lines:
-                        print("📄 Posledních 5 řádků logu:")
-                        for line in lines[-5:]:
+                        tail_lines = settings.logging.tail_lines
+                        print(f"📄 Posledních {tail_lines} řádků logu:")
+                        for line in lines[-tail_lines:]:
                             print(f"   {line.rstrip()}")
                     else:
                         print("📄 Log soubor je prázdný")

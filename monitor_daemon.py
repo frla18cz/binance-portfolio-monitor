@@ -14,9 +14,12 @@ from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))
+from config import settings
 
 class MonitorDaemon:
-    def __init__(self, interval_seconds=120):  # Default 2 minuty
+    def __init__(self, interval_seconds=None):  # Default from config
+        if interval_seconds is None:
+            interval_seconds = settings.scheduling.daemon_interval_seconds
         self.interval_seconds = interval_seconds
         self.running = False
         self.thread = None
@@ -52,7 +55,7 @@ class MonitorDaemon:
         print("\n🛑 Zastavuji monitor daemon...")
         self.running = False
         if self.thread:
-            self.thread.join(timeout=5)
+            self.thread.join(timeout=settings.scheduling.thread_join_timeout_seconds)
         print("✅ Daemon zastaven")
     
     def _signal_handler(self, signum, frame):
@@ -89,8 +92,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Monitor Daemon pro kontinuální data scraping")
-    parser.add_argument('--interval', type=int, default=120, 
-                       help='Interval mezi spuštěními v sekundách (default: 120)')
+    parser.add_argument('--interval', type=int, default=settings.scheduling.daemon_interval_seconds, 
+                       help=f'Interval mezi spuštěními v sekundách (default: {settings.scheduling.daemon_interval_seconds})')
     parser.add_argument('--minutes', type=int, 
                        help='Interval v minutách (alternativa k --interval)')
     

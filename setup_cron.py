@@ -9,6 +9,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+# Add project root to path for config import
+sys.path.insert(0, os.path.dirname(__file__))
+from config import settings
+
 def get_project_info():
     """Získá informace o projektu a prostředí."""
     project_dir = Path(__file__).parent.absolute()
@@ -18,14 +22,16 @@ def get_project_info():
         'project_dir': str(project_dir),
         'venv_python': venv_python,
         'script_path': str(project_dir / 'scrape_data.py'),
-        'log_path': str(project_dir / 'logs' / 'cron.log')
+        'log_path': str(project_dir / settings.get_log_file_path('cron_log'))
     }
 
-def create_cron_entry(info, interval_minutes=2):
+def create_cron_entry(info, interval_minutes=None):
     """Vytvoří cron entry pro automatické spouštění."""
+    if interval_minutes is None:
+        interval_minutes = settings.scheduling.cron_interval_minutes
     return f"*/{interval_minutes} * * * * {info['venv_python']} {info['script_path']} >> {info['log_path']} 2>&1"
 
-def setup_cron_local(interval_minutes=2):
+def setup_cron_local(interval_minutes=None):
     """Nastaví cron job pro lokální spuštění."""
     print("🔧 Nastavuji lokální cron job...")
     
@@ -71,7 +77,7 @@ def setup_cron_local(interval_minutes=2):
             os.unlink(temp_file.name)
             
             print("✅ Cron job úspěšně nastaven!")
-            print(f"📊 Data se budou stahovat každé {interval_minutes} minuty")
+            print(f"📊 Data se budou stahovat každé {interval_minutes or settings.scheduling.cron_interval_minutes} minuty")
             print(f"📝 Logy: {info['log_path']}")
             print(f"🔧 Cron entry: {cron_entry}")
             
@@ -141,16 +147,16 @@ def create_vercel_json():
     vercel_config = {
         "functions": {
             "api/index.py": {
-                "runtime": "python3.9"
+                "runtime": settings.raw_config.get('runtime', {}).get('python_version', 'python3.9')
             },
             "api/dashboard.py": {
-                "runtime": "python3.9"
+                "runtime": settings.raw_config.get('runtime', {}).get('python_version', 'python3.9')
             }
         },
         "crons": [
             {
                 "path": "/api/index",
-                "schedule": "*/2 * * * *"
+                "schedule": settings.scheduling.vercel_schedule
             }
         ]
     }
@@ -160,7 +166,7 @@ def create_vercel_json():
         json.dump(vercel_config, f, indent=2)
     
     print("✅ vercel.json vytvořen pro automatické spouštění na Vercelu!")
-    print("📊 Data se budou stahovat každé 2 minuty")
+    print(f"📊 Data se budou stahovat podle schedule: {settings.scheduling.vercel_schedule}")
 
 def main():
     """Hlavní menu pro nastavení."""
@@ -169,7 +175,7 @@ def main():
     
     while True:
         print("\nVyberte možnost:")
-        print("1. 🔧 Nastavit lokální cron job (každé 2 minuty)")
+        print(f"1. 🔧 Nastavit lokální cron job (každé {settings.scheduling.cron_interval_minutes} minuty)")
         print("2. ⚙️  Nastavit lokální cron job (vlastní interval)")
         print("3. 📋 Zobrazit stav cron jobů")
         print("4. 🗑️  Odebrat cron job")
@@ -179,7 +185,7 @@ def main():
         choice = input("\nVaše volba (1-6): ").strip()
         
         if choice == '1':
-            setup_cron_local(2)
+            setup_cron_local()
         elif choice == '2':
             try:
                 interval = int(input("Zadejte interval v minutách: "))

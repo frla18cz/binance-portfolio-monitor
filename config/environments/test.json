@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "environment": "test",
+    "description": "Test environment overrides"
+  },
+  
+  "scheduling": {
+    "cron_interval_minutes": 1,
+    "daemon_interval_seconds": 30,
+    "log_retention_hours": 1,
+    "log_retention_entries": 100,
+    "historical_period_days": 7
+  },
+  
+  "financial": {
+    "minimum_balance_threshold": 0.01,
+    "minimum_usd_value_threshold": 1.0,
+    "performance_alert_thresholds": {
+      "nav_difference_warning": 100,
+      "nav_difference_critical": 500
+    }
+  },
+  
+  "dashboard": {
+    "host": "localhost",
+    "port": 8002
+  },
+  
+  "logging": {
+    "level": "DEBUG",
+    "destination": "database",
+    "recent_logs_limit": 20,
+    "file_paths": {
+      "main_log": "logs/test_monitor.log",
+      "cron_log": "logs/test_cron.log",
+      "error_log": "logs/test_error.log"
+    },
+    "database_logging": {
+      "enabled": true,
+      "table_name": "system_logs",
+      "max_entries": 1000,
+      "retention_days": 7,
+      "log_levels": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    }
+  },
+  
+  "api": {
+    "binance": {
+      "timeout_seconds": 10,
+      "max_retries": 1
+    }
+  },
+  
+  "development": {
+    "debug_mode": true,
+    "verbose_logging": true,
+    "mock_api_calls": true,
+    "test_data_enabled": true
+  }
+}

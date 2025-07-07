@@ -5,9 +5,14 @@ Provides real-time data and controls for the web dashboard.
 
 import json
 import os
+import sys
 from datetime import datetime, UTC, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+# Add project root to path for config import
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from config import settings
 
 from .logger import get_logger, LogCategory
 from .index import process_all_accounts, supabase, get_prices
@@ -71,8 +76,9 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         initial_nav = float(nav_data[0]['nav'])
         
         # Virtuální nákup podle alokace s cenami z prvního záznamu
-        btc_allocation = allocation.get('BTC', 0.5)
-        eth_allocation = allocation.get('ETH', 0.5)
+        benchmark_allocation = settings.get_benchmark_allocation()
+        btc_allocation = allocation.get('BTC', benchmark_allocation['BTC'])
+        eth_allocation = allocation.get('ETH', benchmark_allocation['ETH'])
         
         initial_btc_value = initial_nav * btc_allocation
         initial_eth_value = initial_nav * eth_allocation
@@ -338,19 +344,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             # Vypočítat dynamický benchmark
             dynamic_benchmark_values = calculate_dynamic_benchmark(
                 nav_data, 
-                allocation={'BTC': 0.5, 'ETH': 0.5}, 
-                rebalance_frequency='weekly'
+                allocation=settings.get_benchmark_allocation(), 
+                rebalance_frequency=settings.financial.rebalance_frequency
             )
             
             # Format data for Chart.js
+            chart_config = settings.get_chart_config()
             chart_data = {
                 "labels": [datetime.fromisoformat(item['timestamp'].replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M') for item in nav_data],
                 "datasets": [
                     {
                         "label": "Portfolio NAV",
                         "data": [float(item['nav']) for item in nav_data],
-                        "borderColor": "#667eea",
-                        "backgroundColor": "rgba(102, 126, 234, 0.1)",
+                        "borderColor": chart_config['colors']['portfolio'],
+                        "backgroundColor": chart_config['colors']['portfolio_fill'],
                         "tension": 0.4,
                         "pointRadius": 2,
                         "pointHoverRadius": 5,
@@ -359,8 +366,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     {
                         "label": "50/50 BTC/ETH Benchmark",
                         "data": dynamic_benchmark_values,
-                        "borderColor": "#764ba2",
-                        "backgroundColor": "rgba(118, 75, 162, 0.1)",
+                        "borderColor": chart_config['colors']['benchmark'],
+                        "backgroundColor": chart_config['colors']['benchmark_fill'],
                         "tension": 0.4,
                         "pointRadius": 2,
                         "pointHoverRadius": 5,
@@ -461,7 +468,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', settings.dashboard.cors_allowed_origins[0])
         self.send_header('Content-length', str(len(json_data.encode('utf-8'))))
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
@@ -479,7 +486,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         
         self.send_response(code)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', settings.dashboard.cors_allowed_origins[0])
         self.send_header('Content-length', str(len(json_data.encode('utf-8'))))
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
@@ -508,14 +515,14 @@ if __name__ == "__main__":
     
     print("🟢 Starting Dashboard in LIVE MODE")
     print("=" * 50)
-    print("Dashboard URL: http://localhost:8001/dashboard")
-    print("API Status: http://localhost:8001/api/dashboard/status")
-    print("API Logs: http://localhost:8001/api/dashboard/logs")
-    print("API Metrics: http://localhost:8001/api/dashboard/metrics")
-    print("API Chart Data: http://localhost:8001/api/dashboard/chart-data")
+    print(f"Dashboard URL: {settings.get_dashboard_url()}/dashboard")
+    print(f"API Status: {settings.get_dashboard_url()}/api/dashboard/status")
+    print(f"API Logs: {settings.get_dashboard_url()}/api/dashboard/logs")
+    print(f"API Metrics: {settings.get_dashboard_url()}/api/dashboard/metrics")
+    print(f"API Chart Data: {settings.get_dashboard_url()}/api/dashboard/chart-data")
     print("=" * 50)
 
-    server = HTTPServer(('localhost', 8001), DashboardHandler)
+    server = HTTPServer((settings.dashboard.host, settings.dashboard.port), DashboardHandler)
 
     try:
         server.serve_forever()

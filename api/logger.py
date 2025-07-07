@@ -1,10 +1,12 @@
 """
 Advanced logging system for Binance Portfolio Monitor.
 Provides structured logging, real-time monitoring, and audit trails.
+Supports both file-based (local) and database-based (Vercel) logging.
 """
 
 import json
 import os
+import sys
 import logging
 import time
 from datetime import datetime, UTC
@@ -12,6 +14,15 @@ from typing import Dict, List, Any, Optional
 from enum import Enum
 from dataclasses import dataclass, asdict
 from pathlib import Path
+
+# Add project root to path for config import
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+try:
+    from config import settings
+    CONFIG_LOADED = True
+except ImportError:
+    CONFIG_LOADED = False
 
 
 class LogLevel(Enum):
@@ -111,12 +122,94 @@ class MonitorLogger:
                 logging.error(f"Failed to load existing logs: {e}")
     
     def _save_log_entry(self, entry: LogEntry):
+        """Save log entry to file and/or database."""
+        # Save to file (local development)
+        self._save_to_file(entry)
+        
+        # Save to database (Vercel/production) if configured
+        if self._should_use_database_logging():
+            self._save_to_database(entry)
+    
+    def _save_to_file(self, entry: LogEntry):
         """Save log entry to file."""
         try:
             with open(self.file_path, 'a') as f:
                 f.write(json.dumps(entry.to_dict()) + '\n')
         except Exception as e:
             logging.error(f"Failed to save log entry: {e}")
+    
+    def _should_use_database_logging(self) -> bool:
+        """Determine if database logging should be used."""
+        if not CONFIG_LOADED:
+            return False
+        
+        # Use database logging if:
+        # 1. Explicitly configured in settings
+        # 2. Running in serverless environment (Vercel)
+        # 3. No persistent file system available
+        
+        database_enabled = False
+        try:
+            database_enabled = settings.logging.database_logging.get('enabled', False)
+        except (AttributeError, KeyError):
+            pass
+        
+        # Detect Vercel environment
+        is_vercel = os.environ.get('VERCEL') == '1' or os.environ.get('NOW_REGION') is not None
+        
+        # Detect if file system is read-only (serverless indicator)
+        try:
+            test_file = Path("logs") / ".write_test"
+            test_file.parent.mkdir(exist_ok=True)
+            test_file.touch()
+            test_file.unlink()
+            has_writable_fs = True
+        except (OSError, PermissionError):
+            has_writable_fs = False
+        
+        return database_enabled or is_vercel or not has_writable_fs
+    
+    def _save_to_database(self, entry: LogEntry):
+        """Save log entry to database."""
+        try:
+            # Import here to avoid circular imports
+            from supabase import create_client
+            
+            if not CONFIG_LOADED:
+                return
+            
+            # Get database client
+            supabase = create_client(
+                settings.database.supabase_url,
+                settings.database.supabase_key
+            )
+            
+            # Check if log level should be saved
+            log_levels = settings.logging.database_logging.get('log_levels', ['INFO', 'WARNING', 'ERROR', 'CRITICAL'])
+            if entry.level not in log_levels:
+                return
+            
+            # Prepare data for database
+            log_data = {
+                'timestamp': entry.timestamp,
+                'level': entry.level,
+                'category': entry.category,
+                'account_id': entry.account_id,
+                'account_name': entry.account_name,
+                'operation': entry.operation,
+                'message': entry.message,
+                'data': entry.data,
+                'duration_ms': entry.duration_ms,
+                'session_id': self.session_id
+            }
+            
+            # Save to database
+            table_name = settings.logging.database_logging.get('table_name', 'system_logs')
+            supabase.table(table_name).insert(log_data).execute()
+            
+        except Exception as e:
+            # Fallback to standard logging if database fails
+            logging.error(f"Failed to save log to database: {e}")
     
     def log(self, 
             level: LogLevel, 

@@ -1,0 +1,164 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Centralized configuration for Binance Portfolio Monitor",
+    "last_updated": "2025-01-07"
+  },
+  
+  "database": {
+    "supabase_url_env": "SUPABASE_URL",
+    "supabase_key_env": "SUPABASE_ANON_KEY",
+    "timeout_seconds": 10,
+    "max_retries": 3
+  },
+  
+  "scheduling": {
+    "cron_interval_minutes": 2,
+    "cron_schedule": "*/2 * * * *",
+    "daemon_interval_seconds": 120,
+    "vercel_schedule": "*/2 * * * *",
+    "log_retention_hours": 876000,
+    "log_retention_entries": 10000000,
+    "historical_period_days": 90,
+    "max_historical_period_days": 36500,
+    "thread_join_timeout_seconds": 5
+  },
+  
+  "financial": {
+    "minimum_balance_threshold": 0.001,
+    "minimum_usd_value_threshold": 0.1,
+    "benchmark_allocation": {
+      "BTC": 0.5,
+      "ETH": 0.5
+    },
+    "rebalance_frequency": "weekly",
+    "performance_alert_thresholds": {
+      "nav_difference_warning": 5000,
+      "nav_difference_critical": 10000
+    }
+  },
+  
+  "api": {
+    "binance": {
+      "tld": "com",
+      "supported_symbols": ["BTCUSDT", "ETHUSDT"],
+      "supported_stablecoins": ["USDT", "BUSD", "USDC", "BNFCR"],
+      "timeout_seconds": 30,
+      "max_retries": 3
+    },
+    "rate_limiting": {
+      "requests_per_minute": 100,
+      "period_seconds": 60
+    }
+  },
+  
+  "dashboard": {
+    "host": "localhost",
+    "port": 8001,
+    "title": "Binance Portfolio Monitor",
+    "cors_allowed_origins": ["*"],
+    "chart_colors": {
+      "portfolio": "#667eea",
+      "benchmark": "#764ba2",
+      "portfolio_fill": "rgba(102, 126, 234, 0.1)",
+      "benchmark_fill": "rgba(118, 75, 162, 0.1)"
+    },
+    "chart_periods": {
+      "inception": "Od začátku",
+      "1w": "1 týden",
+      "1m": "1 měsíc",
+      "1y": "1 rok",
+      "ytd": "Tento rok",
+      "custom": "Vlastní"
+    }
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "destination": "database",
+    "file_paths": {
+      "main_log": "logs/monitor.log",
+      "cron_log": "logs/cron.log",
+      "error_log": "logs/error.log",
+      "performance_log": "logs/performance.log"
+    },
+    "rotation": {
+      "max_size_mb": 1000,
+      "backup_count": 1000
+    },
+    "recent_logs_limit": 500,
+    "tail_lines": 10,
+    "database_logging": {
+      "enabled": true,
+      "table_name": "system_logs",
+      "max_entries": 1000000,
+      "retention_days": 365,
+      "log_levels": ["INFO", "WARNING", "ERROR", "CRITICAL"]
+    }
+  },
+  
+  "file_system": {
+    "directories": {
+      "logs": "logs",
+      "data": "data",
+      "temp": "temp"
+    },
+    "scripts": {
+      "scrape_data": "scrape_data.py",
+      "api_index": "api/index.py",
+      "dashboard": "api/dashboard.py"
+    },
+    "dashboard_html": "dashboard.html"
+  },
+  
+  "notifications": {
+    "webhook_url_env": "WEBHOOK_URL",
+    "enabled_env": "NOTIFICATION_ENABLED",
+    "default_enabled": false
+  },
+  
+  "security": {
+    "cors_origins": ["*"],
+    "api_rate_limit": {
+      "requests": 100,
+      "period_seconds": 60
+    }
+  },
+  
+  "runtime": {
+    "python_version": "python3.9",
+    "environment": "development"
+  },
+  
+  "chart_configuration": {
+    "default_tension": 0.4,
+    "point_radius": 2,
+    "point_hover_radius": 5,
+    "fill_enabled": false,
+    "responsive": true,
+    "animation_duration": 1000
+  },
+  
+  "data_processing": {
+    "batch_size": 100,
+    "transaction_lookback_days": 30,
+    "price_cache_seconds": 60,
+    "nav_calculation_precision": 2,
+    "benchmark_calculation_precision": 6
+  },
+  
+  "monitoring": {
+    "health_check_interval_seconds": 30,
+    "performance_metrics_enabled": true,
+    "error_threshold_count": 5,
+    "restart_delay_seconds": 10
+  },
+  
+  "development": {
+    "debug_mode": false,
+    "verbose_logging": false,
+    "mock_api_calls": false,
+    "test_data_enabled": false
+  }
+}

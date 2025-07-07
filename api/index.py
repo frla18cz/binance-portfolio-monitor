@@ -1,20 +1,19 @@
 import os
+import sys
 import traceback
 from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
-from dotenv import load_dotenv
 from http.server import BaseHTTPRequestHandler
 from supabase import create_client, Client
 from binance.client import Client as BinanceClient
 from .logger import get_logger, LogCategory, OperationTimer
 
-# Načtení proměnných z .env souboru
-load_dotenv()
+# Add project root to path for config import
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from config import settings
 
 # --- Globální klienti ---
-supabase_url = os.environ.get("SUPABASE_URL")
-supabase_key = os.environ.get("SUPABASE_ANON_KEY")
-supabase: Client = create_client(supabase_url, supabase_key)
+supabase: Client = create_client(settings.database.supabase_url, settings.database.supabase_key)
 
 # --- Hlavní handler pro Vercel ---
 class handler(BaseHTTPRequestHandler):
@@ -108,7 +107,7 @@ def process_single_account(account):
         return
 
     # Use real Binance client
-    binance_client = BinanceClient(api_key, api_secret, tld='com')
+    binance_client = BinanceClient(api_key, api_secret, tld=settings.api.binance.tld)
     db_client = supabase
     
     with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
@@ -156,7 +155,7 @@ def process_single_account(account):
 def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
         prices = {}
-        for symbol in ["BTCUSDT", "ETHUSDT"]:
+        for symbol in settings.get_supported_symbols():
             ticker = client.get_symbol_ticker(symbol=symbol)
             prices[symbol] = float(ticker['price'])
         
@@ -186,7 +185,7 @@ def save_price_history(prices, logger=None):
         timestamp = datetime.now(UTC).isoformat()
         
         for symbol, price in prices.items():
-            if symbol in ['BTCUSDT', 'ETHUSDT']:
+            if symbol in settings.get_supported_symbols():
                 asset = symbol.replace('USDT', '')  # BTC nebo ETH
                 price_records.append({
                     'timestamp': timestamp,
@@ -239,9 +238,9 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
             locked = float(balance['locked'])
             total_balance = free + locked
             
-            if total_balance > 0.001:  # Ignoruj velmi malé balances
+            if total_balance > settings.financial.minimum_balance_threshold:  # Ignoruj velmi malé balances
                 # Převeď na USD hodnotu
-                if asset in ['USDT', 'BUSD', 'USDC']:
+                if asset in settings.get_supported_stablecoins():
                     usdt_value = total_balance
                 elif asset == 'BTC':
                     usdt_value = total_balance * btc_usd_price
@@ -260,7 +259,7 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
                         except:
                             usdt_value = 0.0  # Nelze určit cenu
                 
-                if usdt_value > 0.1:  # Ignoruj hodnoty pod $0.1
+                if usdt_value > settings.financial.minimum_usd_value_threshold:  # Ignoruj hodnoty pod $0.1
                     spot_total += usdt_value
                     spot_details[asset] = {
                         'balance': total_balance,
@@ -281,9 +280,9 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
             unrealized_pnl = float(asset_info['unrealizedProfit'])
             margin_balance = float(asset_info['marginBalance'])  # wallet + unrealized
             
-            if abs(margin_balance) > 0.001:  # Používáme marginBalance místo walletBalance
+            if abs(margin_balance) > settings.financial.minimum_balance_threshold:  # Používáme marginBalance místo walletBalance
                 # Převeď na USD
-                if asset in ['USDT', 'BUSD', 'USDC', 'BNFCR']:
+                if asset in settings.get_supported_stablecoins():
                     usd_value = margin_balance
                 elif asset == 'BTC':
                     usd_value = margin_balance * btc_usd_price
@@ -522,9 +521,9 @@ def get_last_processed_time(db_client, account_id):
             return response.data[0]['last_processed_timestamp']
         else:
             # První spuštění - začneme od před 30 dny
-            return (datetime.now(UTC) - timedelta(days=30)).isoformat()
+            return (datetime.now(UTC) - timedelta(days=settings.scheduling.historical_period_days)).isoformat()
     except:
-        return (datetime.now(UTC) - timedelta(days=30)).isoformat()
+        return (datetime.now(UTC) - timedelta(days=settings.scheduling.historical_period_days)).isoformat()
 
 def fetch_new_transactions(binance_client, start_time, logger=None, account_id=None):
     """

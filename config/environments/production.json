@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "environment": "production",
+    "description": "Production environment overrides"
+  },
+  
+  "scheduling": {
+    "cron_interval_minutes": 2,
+    "daemon_interval_seconds": 120,
+    "log_retention_hours": 48,
+    "log_retention_entries": 50000
+  },
+  
+  "dashboard": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "cors_allowed_origins": ["https://your-domain.com"]
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "destination": "database",
+    "recent_logs_limit": 200,
+    "rotation": {
+      "max_size_mb": 50,
+      "backup_count": 10
+    },
+    "database_logging": {
+      "enabled": true,
+      "table_name": "system_logs",
+      "max_entries": 10000000,
+      "retention_days": 1095,
+      "log_levels": ["INFO", "WARNING", "ERROR", "CRITICAL"]
+    }
+  },
+  
+  "api": {
+    "binance": {
+      "timeout_seconds": 45,
+      "max_retries": 5
+    }
+  },
+  
+  "monitoring": {
+    "performance_metrics_enabled": true,
+    "error_threshold_count": 10
+  },
+  
+  "development": {
+    "debug_mode": false,
+    "verbose_logging": false,
+    "mock_api_calls": false,
+    "test_data_enabled": false
+  }
+}
