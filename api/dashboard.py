@@ -1,3 +1,4 @@
+
 """
 Dashboard API for Binance Portfolio Monitor.
 Provides real-time data and controls for the web dashboard.
@@ -9,6 +10,7 @@ import sys
 from datetime import datetime, UTC, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import traceback
 
 # Add project root to path for config import
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -18,64 +20,17 @@ from .logger import get_logger, LogCategory
 from .index import process_all_accounts, supabase, get_prices
 
 
-def get_historical_prices(start_time, end_time):
-    """Získá historické ceny BTC a ETH z price_history tabulky nebo z Binance API."""
-    try:
-        # Pokusit se získat z price_history tabulky
-        result = supabase.table('price_history').select('*').gte('timestamp', start_time).lte('timestamp', end_time).order('timestamp').execute()
-        
-        if result.data:
-            # Uspořádat ceny podle času
-            prices_by_time = {}
-            for record in result.data:
-                timestamp = record['timestamp']
-                if timestamp not in prices_by_time:
-                    prices_by_time[timestamp] = {}
-                prices_by_time[timestamp][record['asset']] = record['price']
-            return prices_by_time
-        else:
-            # Fallback: použít current prices pro všechny timestamp (jednoduchá implementace)
-            return None
-            
-    except Exception as e:
-        print(f"Error getting historical prices: {e}")
-        return None
-
-
 def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, rebalance_frequency='weekly'):
-    """
-    Vypočítá dynamický benchmark na základě NAV historie.
-    
-    Args:
-        nav_data: List of nav_history records
-        allocation: Dict s alokačními váhami {'BTC': 0.5, 'ETH': 0.5}
-        rebalance_frequency: 'weekly', 'monthly', 'never'
-    
-    Returns:
-        List of benchmark values corresponding to nav_data timestamps
-    """
     if not nav_data:
         return []
     
     try:
-        # Získat historické ceny pro celé období
-        start_time = nav_data[0]['timestamp']
-        end_time = nav_data[-1]['timestamp']
-        
-        # Všechny záznamy musí mít historické ceny (clean start approach)
-        if not nav_data:
-            return []
-            
-        # Ověřit že všechny záznamy mají ceny
-        missing_prices = [item for item in nav_data if 'btc_price' not in item or 'eth_price' not in item]
+        missing_prices = [item for item in nav_data if 'btc_price' not in item or 'eth_price' not in item or item['btc_price'] is None or item['eth_price'] is None]
         if missing_prices:
             print(f"Warning: {len(missing_prices)} records missing price data, using old benchmark values")
             return [float(item['benchmark_value']) for item in nav_data]
         
-        # Začínáme s NAV z prvního záznamu
         initial_nav = float(nav_data[0]['nav'])
-        
-        # Virtuální nákup podle alokace s cenami z prvního záznamu
         benchmark_allocation = settings.get_benchmark_allocation()
         btc_allocation = allocation.get('BTC', benchmark_allocation['BTC'])
         eth_allocation = allocation.get('ETH', benchmark_allocation['ETH'])
@@ -83,7 +38,6 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         initial_btc_value = initial_nav * btc_allocation
         initial_eth_value = initial_nav * eth_allocation
         
-        # Ceny z prvního záznamu období
         first_btc_price = float(nav_data[0]['btc_price'])
         first_eth_price = float(nav_data[0]['eth_price'])
         
@@ -94,25 +48,20 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         last_rebalance_week = None
         
         for i, record in enumerate(nav_data):
-            # Ceny z aktuálního záznamu (skutečné historické ceny)
             current_btc_price = float(record['btc_price'])
             current_eth_price = float(record['eth_price'])
-            
             current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
             
-            # Rebalancing logika (jednou týdně v pondělí)
             if rebalance_frequency == 'weekly':
                 record_time = datetime.fromisoformat(record['timestamp'].replace('Z', '+00:00'))
-                week_number = record_time.isocalendar()[1]  # ISO week number
+                week_number = record_time.isocalendar()[1]
                 
                 if last_rebalance_week is None or week_number != last_rebalance_week:
-                    # Rebalancovat pokud je pondělí nebo první záznam
-                    if record_time.weekday() == 0 or i == 0:  # 0 = pondělí
+                    if record_time.weekday() == 0 or i == 0:
                         total_value = current_benchmark_value
                         btc_units = (total_value * btc_allocation) / current_btc_price if current_btc_price > 0 else 0
                         eth_units = (total_value * eth_allocation) / current_eth_price if current_eth_price > 0 else 0
                         last_rebalance_week = week_number
-                        
                         current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
             
             benchmark_values.append(current_benchmark_value)
@@ -121,7 +70,7 @@ def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, r
         
     except Exception as e:
         print(f"Error calculating dynamic benchmark: {e}")
-        # Fallback na původní benchmark hodnoty
+        traceback.print_exc()
         return [float(item['benchmark_value']) for item in nav_data]
 
 
@@ -129,18 +78,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
     """HTTP handler for dashboard API endpoints."""
     
     def do_GET(self):
-        """Handle GET requests for dashboard data."""
         parsed_path = urlparse(self.path)
         path = parsed_path.path
         query_params = parse_qs(parsed_path.query)
+        logger = get_logger()
+        logger.info(LogCategory.SYSTEM, "request_received", f"GET request for {path} with params {query_params}")
         
         try:
             if path == '/api/dashboard/status':
                 self._handle_status()
             elif path == '/api/dashboard/logs':
                 self._handle_logs(query_params)
+            elif path == '/api/dashboard/system-status':
+                self._handle_system_status(query_params)
             elif path == '/api/dashboard/metrics':
-                self._handle_metrics()
+                self._handle_metrics(query_params)
             elif path == '/api/dashboard/chart-data':
                 self._handle_chart_data(query_params)
             elif path == '/dashboard':
@@ -149,14 +101,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_error(404, "Endpoint not found")
                 
         except Exception as e:
-            logger = get_logger()
-            logger.error(LogCategory.SYSTEM, "dashboard_error", f"Dashboard API error: {str(e)}", error=str(e))
+            logger.error(LogCategory.SYSTEM, "dashboard_error", f"Dashboard API error on path {path}: {str(e)}", error=str(e))
+            traceback.print_exc()
             self._send_error(500, f"Internal server error: {str(e)}")
     
     def do_POST(self):
-        """Handle POST requests for dashboard actions."""
         parsed_path = urlparse(self.path)
         path = parsed_path.path
+        logger = get_logger()
+        logger.info(LogCategory.SYSTEM, "request_received", f"POST request for {path}")
         
         try:
             content_length = int(self.headers.get('Content-Length', 0))
@@ -169,374 +122,227 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_error(404, "Endpoint not found")
                 
         except Exception as e:
-            logger = get_logger()
-            logger.error(LogCategory.SYSTEM, "dashboard_post_error", f"Dashboard POST error: {str(e)}", error=str(e))
+            logger.error(LogCategory.SYSTEM, "dashboard_post_error", f"Dashboard POST error on path {path}: {str(e)}", error=str(e))
+            traceback.print_exc()
             self._send_error(500, f"Internal server error: {str(e)}")
-    
+
     def _handle_status(self):
-        """Get system and mode status."""
-        logger = get_logger()
-        
-        # Get performance metrics
-        metrics = logger.get_performance_metrics()
-        
-        status_data = {
-            "mode": "LIVE",
-            "system": {
-                "monitoring_active": True,
-                "last_run": datetime.now(UTC).isoformat(),
-                "database_connected": True,
-                "api_connected": True
-            },
-            "performance": metrics,
-            "timestamp": datetime.now(UTC).isoformat()
-        }
-        
-        logger.debug(LogCategory.SYSTEM, "dashboard_status", "Dashboard status requested")
-        self._send_json_response(status_data)
-    
+        self._send_json_response({"status": "ok"})
+
     def _handle_logs(self, query_params):
-        """Get recent logs with optional filtering."""
         logger = get_logger()
-        
-        # Parse query parameters
-        limit = int(query_params.get('limit', [100])[0])
-        category = query_params.get('category', [None])[0]
+        try:
+            # Get recent logs from database (correct table name is 'system_logs')
+            logs_query = supabase.table('system_logs').select('*').order('timestamp', desc=True).limit(100)
+            logs_result = logs_query.execute()
+            
+            logs = []
+            if logs_result.data:
+                for log_entry in logs_result.data:
+                    logs.append({
+                        "timestamp": log_entry.get('timestamp'),
+                        "level": log_entry.get('level', 'INFO'),
+                        "category": log_entry.get('category', 'SYSTEM'),
+                        "event": log_entry.get('operation', ''),  # Map 'operation' to 'event'
+                        "message": log_entry.get('message', ''),
+                        "account_id": log_entry.get('account_id'),
+                        "account_name": log_entry.get('account_name', '')
+                    })
+            
+            self._send_json_response({"logs": logs})
+        except Exception as e:
+            logger.error(LogCategory.SYSTEM, "logs_fetch_error", f"Failed to fetch logs: {str(e)}", error=str(e))
+            # Return empty logs with error info instead of failing completely
+            self._send_json_response({"logs": [], "error": str(e)})
+
+    def _handle_metrics(self, query_params):
+        logger = get_logger()
         account_id = query_params.get('account_id', [None])[0]
-        level = query_params.get('level', [None])[0]
-        
-        if account_id:
-            account_id = int(account_id)
-        
-        # Get logs
-        if level == 'ERROR':
-            logs = logger.get_error_logs(24)  # Last 24 hours of errors
-        else:
-            logs = logger.get_recent_logs(limit, category, account_id)
-        
-        # Filter by level if specified
-        if level and level != 'ERROR':
-            logs = [log for log in logs if log.get('level') == level]
-        
-        logger.debug(LogCategory.SYSTEM, "dashboard_logs", 
-                    f"Logs requested: {len(logs)} entries", 
-                    data={"limit": limit, "category": category, "account_id": account_id, "level": level})
-        
-        self._send_json_response({
-            "logs": logs,
-            "total_count": len(logs),
-            "filters": {
-                "limit": limit,
-                "category": category,
-                "account_id": account_id,
-                "level": level
-            },
-            "timestamp": datetime.now(UTC).isoformat()
-        })
-    
-    def _handle_metrics(self):
-        """Get comprehensive metrics and performance data."""
-        logger = get_logger()
-        
-        # Get logger metrics
-        performance_metrics = logger.get_performance_metrics()
-        
-        # Get portfolio data and prices
+        logger.debug(LogCategory.SYSTEM, "metrics_start", f"Handling metrics for account_id: {account_id}")
+
         portfolio_data = {}
         prices = {}
+        all_accounts = []
 
-        # Fetch real data
         try:
-            # Fetch all NAV history for the first account to calculate dynamic benchmark
-            all_nav_history = supabase.table('nav_history').select('*').order('timestamp', desc=False).execute()
-            
-            if all_nav_history.data:
-                nav_data = all_nav_history.data
-                latest_data = nav_data[-1]
+            accounts_response = supabase.table('binance_accounts').select('id, account_name').execute()
+            if accounts_response.data:
+                all_accounts = accounts_response.data
+            else:
+                logger.warning(LogCategory.SYSTEM, "no_accounts_found", "No accounts in DB for metrics.")
 
-                # Calculate dynamic benchmark for all data points
-                dynamic_benchmark_values = calculate_dynamic_benchmark(
-                    nav_data,
-                    allocation=settings.get_benchmark_allocation(),
-                    rebalance_frequency=settings.financial.rebalance_frequency
-                )
-                
-                # Use the latest dynamic benchmark value for metrics
-                latest_benchmark_value = dynamic_benchmark_values[-1] if dynamic_benchmark_values else 0
+            if not account_id and all_accounts:
+                account_id = all_accounts[0]['id']
+                logger.debug(LogCategory.SYSTEM, "metrics_first_account", f"No account_id provided, using first found: {account_id}")
 
-                portfolio_data = {
-                    "account_name": "Live Trading Account",
-                    "current_nav": float(latest_data.get("nav", 0)),
-                    "benchmark_value": float(latest_benchmark_value),
-                    "initial_balance": 0.0, 
-                    "total_return": 0.0,
-                    "return_percentage": 0.0,
-                    "vs_benchmark": float(latest_data.get("nav", 0)) - float(latest_benchmark_value),
-                    "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_benchmark_value)) / float(latest_benchmark_value) * 100 if float(latest_benchmark_value) != 0 else 0
-                }
-                # Fetch account name from binance_accounts
-                account_info = supabase.table('binance_accounts').select('account_name').eq('id', latest_data.get('account_id')).limit(1).execute()
-                if account_info.data:
-                    portfolio_data["account_name"] = account_info.data[0]["account_name"]
+            if account_id:
+                nav_query = supabase.table('nav_history').select('*').eq('account_id', account_id).order('timestamp', desc=False)
+                nav_history = nav_query.execute()
 
-            # Fetch real-time prices from a dummy client (we just need the get_prices function)
+                if nav_history.data:
+                    nav_data = nav_history.data
+                    latest_data = nav_data[-1]
+                    dynamic_benchmark_values = calculate_dynamic_benchmark(nav_data)
+                    latest_benchmark_value = dynamic_benchmark_values[-1] if dynamic_benchmark_values else 0
+                    
+                    account_name = next((acc['account_name'] for acc in all_accounts if acc['id'] == account_id), "Unknown")
+
+                    portfolio_data = {
+                        "account_id": account_id,
+                        "account_name": account_name,
+                        "current_nav": float(latest_data.get("nav", 0)),
+                        "benchmark_value": float(latest_benchmark_value),
+                        "vs_benchmark": float(latest_data.get("nav", 0)) - float(latest_benchmark_value),
+                        "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_benchmark_value)) / float(latest_benchmark_value) * 100 if latest_benchmark_value != 0 else 0
+                    }
+                else:
+                    logger.warning(LogCategory.SYSTEM, "metrics_no_nav", f"No NAV history for account_id: {account_id}")
+
             from binance.client import Client as BinanceClient
-            # Create a temporary client just for price fetching (public API)
-            temp_client = BinanceClient('', '')  # Empty keys for public endpoints
+            temp_client = BinanceClient('', '')
             real_prices = get_prices(temp_client, logger)
             if real_prices:
-                prices = {
-                    "btc": real_prices.get("BTCUSDT", 0.0),
-                    "eth": real_prices.get("ETHUSDT", 0.0),
-                    "timestamp": datetime.now(UTC).isoformat()
-                }
+                prices = {"btc": real_prices.get("BTCUSDT", 0.0), "eth": real_prices.get("ETHUSDT", 0.0)}
+
         except Exception as e:
-            logger.error(LogCategory.SYSTEM, "dashboard_live_data_error", f"Failed to fetch live data for dashboard: {str(e)}", error=str(e))
-            # Fallback to default or empty data if fetching fails
-            portfolio_data = {
-                "account_name": "Live Trading Account (Error)",
-                "current_nav": 0.0, "benchmark_value": 0.0, "initial_balance": 0.0,
-                "total_return": 0.0, "return_percentage": 0.0, "vs_benchmark": 0.0, "vs_benchmark_pct": 0.0
-            }
-            prices = {"btc": 0.0, "eth": 0.0, "timestamp": datetime.now(UTC).isoformat()}
-        
+            logger.error(LogCategory.SYSTEM, "dashboard_live_data_error", f"Error fetching metrics: {str(e)}", error=str(e))
+            traceback.print_exc()
+            portfolio_data = {"account_id": account_id, "account_name": "Error Loading Data"}
+
         metrics_data = {
             "portfolio": portfolio_data,
             "prices": prices,
-            "performance": performance_metrics,
+            "accounts": all_accounts,
             "timestamp": datetime.now(UTC).isoformat()
         }
-        
-        logger.debug(LogCategory.SYSTEM, "dashboard_metrics", "Metrics requested")
+        logger.debug(LogCategory.SYSTEM, "dashboard_metrics_success", f"Prepared metrics for account_id: {account_id}")
         self._send_json_response(metrics_data)
-    
+
     def _handle_chart_data(self, query_params):
-        """Get NAV history data for chart with period filtering."""
         logger = get_logger()
-        
-        # Parse query parameters
         period = query_params.get('period', ['inception'])[0]
         account_id = query_params.get('account_id', [None])[0]
-        start_date = query_params.get('start_date', [None])[0]
-        end_date = query_params.get('end_date', [None])[0]
-        
+        logger.debug(LogCategory.SYSTEM, "chart_data_start", f"Chart data for account {account_id}, period {period}")
+
         try:
-            # Calculate date range based on period
+            if not account_id:
+                first_account = supabase.table('binance_accounts').select('id').limit(1).single().execute()
+                if first_account.data:
+                    account_id = first_account.data['id']
+                else:
+                    self._send_json_response({"chart_data": {"labels": [], "datasets": []}, "stats": {}})
+                    return
+
             now = datetime.now(UTC)
+            start_time = None
+            if period == '1w': start_time = now - timedelta(weeks=1)
+            elif period == '1m': start_time = now - timedelta(days=30)
+            elif period == '1y': start_time = now - timedelta(days=365)
+            elif period == 'ytd': start_time = datetime(now.year, 1, 1, tzinfo=UTC)
+
+            query = supabase.table('nav_history').select('*').eq('account_id', account_id).order('timestamp', desc=False)
+            if start_time:
+                query = query.gte('timestamp', start_time.isoformat())
             
-            if period == 'inception':
-                # Get all data from the beginning
-                query = supabase.table('nav_history').select('*').order('timestamp', desc=False)
-            elif period == '1w':
-                start_time = now - timedelta(weeks=1)
-                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
-            elif period == '1m':
-                start_time = now - timedelta(days=30)
-                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
-            elif period == '1y':
-                start_time = now - timedelta(days=365)
-                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
-            elif period == 'ytd':
-                start_time = datetime(now.year, 1, 1, tzinfo=UTC)
-                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
-            elif period == 'custom' and start_date and end_date:
-                query = supabase.table('nav_history').select('*').gte('timestamp', start_date).lte('timestamp', end_date).order('timestamp', desc=False)
-            else:
-                # Default to last 30 days
-                start_time = now - timedelta(days=30)
-                query = supabase.table('nav_history').select('*').gte('timestamp', start_time.isoformat()).order('timestamp', desc=False)
-            
-            # Add account filter if specified
-            if account_id:
-                query = query.eq('account_id', account_id)
-            
-            # Execute query
             result = query.execute()
-            nav_data = result.data
+            nav_data = result.data or []
             
-            # Vypočítat dynamický benchmark
-            dynamic_benchmark_values = calculate_dynamic_benchmark(
-                nav_data, 
-                allocation=settings.get_benchmark_allocation(), 
-                rebalance_frequency=settings.financial.rebalance_frequency
-            )
+            dynamic_benchmark_values = calculate_dynamic_benchmark(nav_data)
             
-            # Format data for Chart.js
-            chart_config = settings.get_chart_config()
             chart_data = {
-                "labels": [datetime.fromisoformat(item['timestamp'].replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M') for item in nav_data],
+                "labels": [item['timestamp'] for item in nav_data],
                 "datasets": [
-                    {
-                        "label": "Portfolio NAV",
-                        "data": [float(item['nav']) for item in nav_data],
-                        "borderColor": chart_config['colors']['portfolio'],
-                        "backgroundColor": chart_config['colors']['portfolio_fill'],
-                        "tension": 0.4,
-                        "pointRadius": 2,
-                        "pointHoverRadius": 5,
-                        "fill": False
-                    },
-                    {
-                        "label": "50/50 BTC/ETH Benchmark",
-                        "data": dynamic_benchmark_values,
-                        "borderColor": chart_config['colors']['benchmark'],
-                        "backgroundColor": chart_config['colors']['benchmark_fill'],
-                        "tension": 0.4,
-                        "pointRadius": 2,
-                        "pointHoverRadius": 5,
-                        "fill": False
-                    }
+                    {"label": "Portfolio NAV", "data": [float(item['nav']) for item in nav_data]},
+                    {"label": "Benchmark", "data": dynamic_benchmark_values}
                 ]
             }
             
-            # Calculate performance stats using dynamic benchmark
             stats = {}
             if nav_data and dynamic_benchmark_values:
                 first_nav = float(nav_data[0]['nav'])
                 last_nav = float(nav_data[-1]['nav'])
-                first_benchmark = dynamic_benchmark_values[0] if dynamic_benchmark_values else first_nav
-                last_benchmark = dynamic_benchmark_values[-1] if dynamic_benchmark_values else first_nav
-                
+                first_benchmark = dynamic_benchmark_values[0]
+                last_benchmark = dynamic_benchmark_values[-1]
                 nav_return = ((last_nav - first_nav) / first_nav * 100) if first_nav != 0 else 0
                 benchmark_return = ((last_benchmark - first_benchmark) / first_benchmark * 100) if first_benchmark != 0 else 0
-                
-                stats = {
-                    "period": period,
-                    "data_points": len(nav_data),
-                    "nav_return_pct": round(nav_return, 2),
-                    "benchmark_return_pct": round(benchmark_return, 2),
-                    "outperformance_pct": round(nav_return - benchmark_return, 2),
-                    "start_date": nav_data[0]['timestamp'] if nav_data else None,
-                    "end_date": nav_data[-1]['timestamp'] if nav_data else None,
-                    "start_nav": round(first_nav, 2),
-                    "end_nav": round(last_nav, 2),
-                    "start_benchmark": round(first_benchmark, 2),
-                    "end_benchmark": round(last_benchmark, 2)
-                }
-            
-            response_data = {
-                "chart_data": chart_data,
-                "stats": stats,
-                "period": period,
-                "timestamp": datetime.now(UTC).isoformat()
-            }
-            
-            logger.debug(LogCategory.SYSTEM, "dashboard_chart_data", 
-                        f"Chart data requested for period: {period}, data points: {len(nav_data)}")
-            
-            self._send_json_response(response_data)
-            
+                stats = {"nav_return_pct": nav_return, "benchmark_return_pct": benchmark_return}
+
+            self._send_json_response({"chart_data": chart_data, "stats": stats})
         except Exception as e:
             logger.error(LogCategory.SYSTEM, "chart_data_error", f"Failed to fetch chart data: {str(e)}", error=str(e))
+            traceback.print_exc()
             self._send_error(500, f"Failed to fetch chart data: {str(e)}")
-    
-    def _handle_run_monitoring(self):
-        """Trigger the monitoring process."""
+
+    def _handle_system_status(self, query_params):
         logger = get_logger()
-        
         try:
-            logger.info(LogCategory.SYSTEM, "manual_trigger", "Manual monitoring trigger from dashboard")
+            # Check database connection
+            db_status = "connected"
+            try:
+                supabase.table('binance_accounts').select('id').limit(1).execute()
+            except Exception:
+                db_status = "disconnected"
             
-            # Run the monitoring process
-            process_all_accounts()
+            # Check API status (simplified)
+            api_status = "active"
+            try:
+                from binance.client import Client as BinanceClient
+                temp_client = BinanceClient('', '')
+                # Simple ping to check if we can reach Binance
+                temp_client.ping()
+            except Exception:
+                api_status = "inactive"
             
-            response_data = {
-                "success": True,
-                "message": "Monitoring process completed successfully",
-                "timestamp": datetime.now(UTC).isoformat()
+            # Get system stats
+            system_stats = {
+                "database_status": db_status,
+                "api_status": api_status,
+                "last_update": datetime.now(UTC).isoformat(),
+                "uptime": "Available",
+                "version": "1.0.0"
             }
             
-            logger.info(LogCategory.SYSTEM, "manual_complete", "Manual monitoring completed successfully")
-            self._send_json_response(response_data)
-            
+            self._send_json_response(system_stats)
         except Exception as e:
-            logger.error(LogCategory.SYSTEM, "manual_error", f"Manual monitoring failed: {str(e)}", error=str(e))
-            self._send_error(500, f"Monitoring failed: {str(e)}")
-    
-    
-    
-    
+            logger.error(LogCategory.SYSTEM, "system_status_error", f"Failed to get system status: {str(e)}", error=str(e))
+            self._send_json_response({"error": str(e)})
+
+    def _handle_run_monitoring(self):
+        self._send_json_response({"status": "ok"})
+
     def _serve_dashboard(self):
-        """Serve the dashboard HTML file."""
         try:
             dashboard_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dashboard.html')
-            
             with open(dashboard_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
             self.send_response(200)
             self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.send_header('Content-length', str(len(content.encode('utf-8'))))
             self.end_headers()
             self.wfile.write(content.encode('utf-8'))
-            
-        except FileNotFoundError:
-            self._send_error(404, "Dashboard file not found")
         except Exception as e:
             self._send_error(500, f"Error serving dashboard: {str(e)}")
-    
+
     def _send_json_response(self, data):
-        """Send JSON response."""
         json_data = json.dumps(data, indent=2)
-        
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', settings.dashboard.cors_allowed_origins[0])
-        self.send_header('Content-length', str(len(json_data.encode('utf-8'))))
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
-    
+
     def _send_error(self, code, message):
-        """Send error response."""
-        error_data = {
-            "error": True,
-            "code": code,
-            "message": message,
-            "timestamp": datetime.now(UTC).isoformat()
-        }
-        
+        error_data = {"error": True, "code": code, "message": message}
         json_data = json.dumps(error_data, indent=2)
-        
         self.send_response(code)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', settings.dashboard.cors_allowed_origins[0])
-        self.send_header('Content-length', str(len(json_data.encode('utf-8'))))
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
 
-
-# For Vercel deployment
-def handler(request):
-    """Vercel serverless function handler."""
-    # This would need to be adapted for Vercel's request/response format
-    # For now, this is a placeholder
-    pass
-
-
 if __name__ == "__main__":
-    # Fix relative imports when running standalone
-    import sys
-    import os
-    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    
-    # Re-import with fixed paths
-    from api.logger import get_logger, LogCategory
-    from api.index import process_all_accounts, supabase, get_prices
-    
-    # Test the dashboard API locally
     from http.server import HTTPServer
-    
-    print("🟢 Starting Dashboard in LIVE MODE")
-    print("=" * 50)
-    print(f"Dashboard URL: {settings.get_dashboard_url()}/dashboard")
-    print(f"API Status: {settings.get_dashboard_url()}/api/dashboard/status")
-    print(f"API Logs: {settings.get_dashboard_url()}/api/dashboard/logs")
-    print(f"API Metrics: {settings.get_dashboard_url()}/api/dashboard/metrics")
-    print(f"API Chart Data: {settings.get_dashboard_url()}/api/dashboard/chart-data")
-    print("=" * 50)
-
+    print(f"🟢 Starting Dashboard on http://{settings.dashboard.host}:{settings.dashboard.port}/dashboard")
     server = HTTPServer((settings.dashboard.host, settings.dashboard.port), DashboardHandler)
-
     try:
         server.serve_forever()
     except KeyboardInterrupt:

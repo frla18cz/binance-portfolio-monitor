@@ -23,7 +23,7 @@
 - Real-time NAV tracking from Binance futures API
 - Benchmark calculation using live BTC/ETH prices
 - Historical data storage for comparative analysis
-- **📈 Web Dashboard** with real-time charts and monitoring
+- **📈 Enhanced Web Dashboard** with premium UI, real-time charts, and seamless account switching
 
 ### Intelligent Deposit/Withdrawal Handling
 - **Deposits**: Automatically increases benchmark allocation (50% BTC, 50% ETH)
@@ -32,7 +32,7 @@
 
 ### Advanced Logging & Monitoring
 - **📋 Structured Logging** with JSON format and performance timing
-- **🎯 Real-time Dashboard** with live log streaming and filtering
+- **🎯 Premium Dashboard** with enhanced account selector, live log streaming, and modern UI animations
 - **⚡ Operation Timing** for performance optimization
 - **🔍 Account-specific Tracking** with detailed audit trails
 

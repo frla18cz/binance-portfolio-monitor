@@ -392,6 +392,314 @@
             background: #5a6fd8;
         }
 
+        .account-selector-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
+            border-radius: 16px;
+            padding: 0;
+            margin-bottom: 25px;
+            box-shadow: 
+                0 8px 32px rgba(102, 126, 234, 0.12),
+                0 2px 8px rgba(0, 0, 0, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(102, 126, 234, 0.08);
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            position: relative;
+        }
+
+        .account-selector-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+            background-size: 200% 100%;
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { background-position: 200% 0; }
+            50% { background-position: -200% 0; }
+        }
+
+        .account-selector-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 12px 40px rgba(102, 126, 234, 0.18),
+                0 4px 12px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+
+        .account-selector-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px 24px 16px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.02) 100%);
+        }
+
+        .account-selector-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4em;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            position: relative;
+        }
+
+        .account-selector-icon::after {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+            border-radius: 10px;
+            pointer-events: none;
+        }
+
+        .account-selector-content h3 {
+            margin: 0 0 4px 0;
+            font-size: 1.3em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #333 0%, #555 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .account-selector-content p {
+            margin: 0;
+            color: #666;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+
+        .account-selector-body {
+            padding: 0 24px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .enhanced-account-selector {
+            display: inline-block;
+            min-width: 200px;
+            max-width: 400px;
+            width: auto;
+            padding: 16px 48px 16px 20px;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            background: linear-gradient(white, white) padding-box,
+                       linear-gradient(135deg, #667eea, #764ba2) border-box;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23667eea' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 16px center;
+            background-repeat: no-repeat;
+            background-size: 16px;
+        }
+
+        .enhanced-account-selector:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .enhanced-account-selector:focus {
+            outline: none;
+            transform: translateY(-1px);
+            box-shadow: 
+                0 8px 25px rgba(102, 126, 234, 0.2),
+                0 0 0 4px rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+        }
+
+        .enhanced-account-selector.loading {
+            opacity: 0.7;
+            pointer-events: none;
+            background-image: none;
+        }
+
+        .enhanced-account-selector.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 16px;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Mobile responsiveness for account selector */
+        @media (max-width: 768px) {
+            .account-selector-header {
+                padding: 16px 20px 12px;
+                gap: 12px;
+            }
+            
+            .account-selector-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2em;
+            }
+            
+            .account-selector-content h3 {
+                font-size: 1.2em;
+            }
+            
+            .account-selector-content p {
+                font-size: 0.9em;
+            }
+            
+            .account-selector-body {
+                padding: 0 20px 20px;
+            }
+            
+            .enhanced-account-selector {
+                padding: 14px 40px 14px 16px;
+                font-size: 1em;
+                min-width: 180px;
+            }
+        }
+
+        /* Enhanced controls section spacing */
+        .controls {
+            margin-bottom: 25px;
+        }
+
+        /* Improved visual hierarchy */
+        .account-selector-card {
+            position: relative;
+            z-index: 1;
+        }
+
+        .account-selector-card.active-switching {
+            z-index: 2;
+            transform: scale(1.02);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            max-width: 300px;
+        }
+
+        .loading-content h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .loading-content .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            margin: 0 auto 15px;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .card.skeleton-loading {
+            pointer-events: none;
+        }
+
+        .card.skeleton-loading * {
+            color: transparent !important;
+        }
+
+        .card.skeleton-loading h3::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1001;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
         .dual-chart-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -417,7 +725,9 @@
     <div class="container">
         <div class="header">
             <h1>🎯 Binance Portfolio Monitor</h1>
-            <span class="mode-indicator">🔴 LIVE MODE</span>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="mode-indicator">🔴 LIVE MODE</span>
+            </div>
             <div class="subtitle">Real-time portfolio monitoring with live Binance API data</div>
         </div>
 
@@ -452,17 +762,34 @@
             </button>
         </div>
 
+        <!-- Enhanced Account Selector -->
+        <div class="account-selector-card" id="account-selector-container" style="display: none;">
+            <div class="account-selector-header">
+                <div class="account-selector-icon">
+                    <span>📊</span>
+                </div>
+                <div class="account-selector-content">
+                    <h3>Portfolio Account</h3>
+                    <p>Select which account to monitor</p>
+                </div>
+            </div>
+            <div class="account-selector-body">
+                <select id="account-selector" class="enhanced-account-selector">
+                    <option value="">🔄 Loading accounts...</option>
+                </select>
+            </div>
+        </div>
+
         <div class="dashboard-grid">
             <!-- Portfolio Accounts -->
             <div class="card wide-card">
                 <h3>
                     <span>📊</span>
-                    <span>Portfolio Accounts</span>
-                    <span id="accounts-count" style="margin-left: auto; font-size: 0.8em; color: #666;">(0)</span>
+                    <span id="account-name-header">Portfolio Account</span>
                 </h3>
                 <div id="accounts-container">
                     <div class="loading-spinner"></div>
-                    <span style="margin-left: 10px;">Loading accounts...</span>
+                    <span style="margin-left: 10px;">Loading account data...</span>
                 </div>
             </div>
 
@@ -494,44 +821,14 @@
                         <button class="btn period-btn" onclick="changePeriod('1m')" data-period="1m">1 Month</button>
                         <button class="btn period-btn" onclick="changePeriod('1y')" data-period="1y">1 Year</button>
                         <button class="btn period-btn" onclick="changePeriod('ytd')" data-period="ytd">YTD</button>
-                        <button class="btn period-btn" onclick="toggleCustomPeriod()" data-period="custom">Custom</button>
-                    </div>
-                    <div id="custom-date-picker" style="display: none; gap: 10px; align-items: center;">
-                        <input type="date" id="start-date" class="date-input">
-                        <span>to</span>
-                        <input type="date" id="end-date" class="date-input">
-                        <button class="btn" onclick="applyCustomPeriod()">Apply</button>
-                    </div>
-                    <div class="chart-mode-selector" style="margin-left: auto;">
-                        <button class="btn chart-mode-btn active" onclick="changeChartMode('combined')" data-mode="combined">Combined</button>
-                        <button class="btn chart-mode-btn" onclick="changeChartMode('separate')" data-mode="separate">Separate</button>
                     </div>
                 </div>
                 <div id="chart-stats" style="margin-bottom: 10px; font-size: 0.9em; color: #666; text-align: center;">
                     <span id="period-return"></span>
                 </div>
                 
-                <!-- Combined Chart Container -->
                 <div id="combined-chart-container" class="chart-container">
                     <canvas id="performanceChart"></canvas>
-                </div>
-                
-                <!-- Separate Charts Container -->
-                <div id="separate-charts-container" style="display: none;">
-                    <div class="dual-chart-grid">
-                        <div class="chart-section">
-                            <h4>Portfolio NAV</h4>
-                            <div class="chart-container">
-                                <canvas id="portfolioChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-section">
-                            <h4>50/50 BTC/ETH Benchmark</h4>
-                            <div class="chart-container">
-                                <canvas id="benchmarkChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -551,654 +848,378 @@
         </div>
     </div>
 
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h3>Switching Account</h3>
+            <p>Loading data for selected account...</p>
+        </div>
+    </div>
+
     <script>
-        // Global state
-        let autoRefreshInterval = null;
-        let performanceChart = null;
-        let portfolioChart = null;
-        let benchmarkChart = null;
-        let currentLogFilter = 'all';
-        let isLoading = false;
-        let lastUpdateTime = null;
-        let currentPeriod = 'inception';
-        let customDatePickerVisible = false;
-        let chartMode = 'combined';
+    // Global state
+    let autoRefreshInterval = null;
+    let performanceChart = null;
+    let currentAccountId = null;
+    let currentPeriod = 'inception';
 
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeDashboard();
-            initializeCharts();
+    // Initialize dashboard
+    document.addEventListener('DOMContentLoaded', initializeDashboard);
+
+    async function initializeDashboard() {
+        initializeCharts();
+        await loadMetricsAndAccounts(); // Load accounts and initial metrics
+        await refreshData(false); // Load the rest of the data
+        setupAutoRefresh();
+    }
+
+    function setupAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(() => refreshData(false), 60000); // Refresh every 60 seconds
+    }
+
+    async function refreshData(showLoading = true) {
+        if (showLoading) console.log('Refreshing data...');
+        await Promise.allSettled([
+            loadMetricsAndAccounts(),
+            loadPrices(),
+            loadSystemStatus(),
+            loadLogs(),
+            loadChartData(currentPeriod)
+        ]);
+        
+        // Update last update time
+        document.getElementById('last-update').textContent = new Date().toLocaleString();
+        
+        if (showLoading) console.log('Refresh complete.');
+    }
+
+    async function refreshDataWithAccountSwitch() {
+        try {
+            // Add skeleton loading to cards
+            addSkeletonLoading();
+            
+            // Disable account selector during loading
+            const selector = document.getElementById('account-selector');
+            selector.classList.add('loading');
+            
+            // Add visual feedback
+            updateAccountSelectorStatus('loading');
+            
+            // Load data with staggered timing for smooth UX
+            await loadMetricsAndAccounts();
+            await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for smooth transition
+            
+            await Promise.allSettled([
+                loadPrices(),
+                loadSystemStatus(),
+                loadLogs(),
+                loadChartData(currentPeriod)
+            ]);
+            
+            // Update last update time
+            document.getElementById('last-update').textContent = new Date().toLocaleString();
+            
+        } catch (error) {
+            console.error('Error during account switch:', error);
+        } finally {
+            // Re-enable account selector
+            const selector = document.getElementById('account-selector');
+            selector.classList.remove('loading');
+            
+            // Remove skeleton loading
+            removeSkeletonLoading();
+            
+            // Hide loading overlay
+            hideLoadingOverlay();
+            
+            // Reset card state
+            updateAccountSelectorStatus('ready');
+            
+            // Show success toast
+            showToast('Account switched successfully! ✨', 'success');
+            
+            console.log('Account switch complete.');
+        }
+    }
+
+    function showLoadingOverlay() {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.classList.add('active');
+    }
+
+    function hideLoadingOverlay() {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.classList.remove('active');
+    }
+
+    function addSkeletonLoading() {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            card.classList.add('skeleton-loading');
         });
+    }
 
-        async function initializeDashboard() {
-            try {
-                await refreshData();
-                showMessage('Dashboard initialized successfully', 'success');
-            } catch (error) {
-                showMessage('Failed to initialize dashboard: ' + error.message, 'error');
+    function removeSkeletonLoading() {
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            card.classList.remove('skeleton-loading');
+        });
+    }
+
+    async function loadMetricsAndAccounts() {
+        const selector = document.getElementById('account-selector');
+        try {
+            let url = '/api/dashboard/metrics';
+            if (currentAccountId) {
+                url += `?account_id=${currentAccountId}`;
             }
-        }
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to load metrics');
+            const data = await response.json();
 
-        async function refreshData() {
-            if (isLoading) return; // Prevent concurrent requests
-            
-            isLoading = true;
-            setLoadingState(true);
-            
-            try {
-                // Load all data concurrently for better performance
-                await Promise.allSettled([
-                    loadAccountsData(),
-                    loadPricesData(),
-                    loadSystemStatus(),
-                    loadLogs(),
-                    loadChartData(currentPeriod)
-                ]);
-                
-                lastUpdateTime = new Date();
-                document.getElementById('last-update').textContent = lastUpdateTime.toLocaleTimeString();
-                
-            } catch (error) {
-                showMessage('Failed to refresh data: ' + error.message, 'error');
-            } finally {
-                isLoading = false;
-                setLoadingState(false);
+            // Populate account selector only if needed
+            if (selector.options.length !== data.accounts.length) {
+                selector.innerHTML = data.accounts.map(acc =>
+                    `<option value="${acc.id}">${acc.account_name}</option>`
+                ).join('');
             }
-        }
 
-        function setLoadingState(loading) {
-            const indicator = document.getElementById('loading-indicator');
-            const refreshBtn = document.getElementById('refresh-btn');
-            
-            if (loading) {
-                indicator.style.display = 'inline-block';
-                refreshBtn.disabled = true;
-                refreshBtn.textContent = '🔄 Loading...';
-            } else {
-                indicator.style.display = 'none';
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = '🔄 Refresh Data';
+            if (!currentAccountId && data.accounts.length > 0) {
+                currentAccountId = data.accounts[0].id;
             }
-        }
+            selector.value = currentAccountId;
+            
+            selector.onchange = () => {
+                currentAccountId = selector.value;
+                updateAccountSelectorStatus('switching');
+                showLoadingOverlay();
+                refreshDataWithAccountSwitch();
+            };
+            document.getElementById('account-selector-container').style.display = 'block';
 
-        async function loadAccountsData() {
+            // Update metrics display
+            const account = data.portfolio;
             const container = document.getElementById('accounts-container');
-            const countSpan = document.getElementById('accounts-count');
-            
-            try {
-                const response = await fetch('/api/dashboard/metrics');
-                if (!response.ok) throw new Error('Failed to load account data');
-                
-                const data = await response.json();
-                
-                // For now, we'll display single account, but structure for multiple
-                const accounts = data.portfolio ? [data.portfolio] : [];
-                
-                countSpan.textContent = `(${accounts.length})`;
-                
-                if (accounts.length === 0) {
-                    container.innerHTML = '<div class="error-message">No accounts found</div>';
-                    return;
-                }
-                
-                container.innerHTML = accounts.map(account => `
-                    <div class="account-card fade-in">
-                        <div class="account-header">
-                            <span class="account-name">${account.account_name || 'Unknown Account'}</span>
-                            <span class="account-status active">Active</span>
+            if (account && account.account_id) {
+                document.getElementById('account-name-header').textContent = account.account_name;
+                container.innerHTML = `
+                    <div class="metrics-grid">
+                        <div>NAV: <strong>${formatNumber(account.current_nav)}</strong></div>
+                        <div>Benchmark: <strong>${formatNumber(account.benchmark_value)}</strong></div>
+                        <div class="${(account.vs_benchmark || 0) >= 0 ? 'positive' : 'negative'}">
+                            vs Bench: <strong>${formatNumber(account.vs_benchmark, true)}</strong>
                         </div>
-                        <div class="metrics-grid">
-                            <div class="metric">
-                                <div class="metric-label">Current NAV</div>
-                                <div class="metric-value">$${formatNumber(account.current_nav || 0)}</div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">Benchmark</div>
-                                <div class="metric-value">$${formatNumber(account.benchmark_value || 0)}</div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">vs Benchmark</div>
-                                <div class="metric-value ${(account.vs_benchmark || 0) >= 0 ? 'positive' : 'negative'}">
-                                    ${(account.vs_benchmark || 0) >= 0 ? '+' : ''}$${formatNumber(account.vs_benchmark || 0)}
-                                </div>
-                            </div>
-                            <div class="metric">
-                                <div class="metric-label">Performance</div>
-                                <div class="metric-value ${(account.vs_benchmark_pct || 0) >= 0 ? 'positive' : 'negative'}">
-                                    ${(account.vs_benchmark_pct || 0) >= 0 ? '+' : ''}${(account.vs_benchmark_pct || 0).toFixed(2)}%
-                                </div>
-                            </div>
+                        <div class="${(account.vs_benchmark_pct || 0) >= 0 ? 'positive' : 'negative'}">
+                            vs Bench %: <strong>${formatNumber(account.vs_benchmark_pct, true)}%</strong>
                         </div>
-                    </div>
-                `).join('');
-                
-            } catch (error) {
-                container.innerHTML = `<div class="error-message">Error loading accounts: ${error.message}</div>`;
+                    </div>`;
+            } else {
+                container.innerHTML = '<div class="error-message">No data for this account.</div>';
             }
-        }
 
-        async function loadPricesData() {
+        } catch (error) {
+            console.error('Error loading metrics:', error);
+            document.getElementById('accounts-container').innerHTML = `<div class="error-message">${error.message}</div>`;
+        }
+    }
+
+    async function loadChartData(period) {
+        currentPeriod = period;
+        document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`[data-period="${period}"]`).classList.add('active');
+
+        try {
+            if (!currentAccountId) {
+                console.log("Waiting for account ID to load chart...");
+                return;
+            }
+            let url = `/api/dashboard/chart-data?period=${period}&account_id=${currentAccountId}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to load chart data');
+            const data = await response.json();
+
+            if (performanceChart && data.chart_data) {
+                performanceChart.data.labels = data.chart_data.labels.map(ts => new Date(ts).toLocaleString());
+                performanceChart.data.datasets[0].data = data.chart_data.datasets[0].data;
+                performanceChart.data.datasets[1].data = data.chart_data.datasets[1].data;
+                performanceChart.update('none');
+            }
+        } catch (error) {
+            console.error('Error loading chart data:', error);
+        }
+    }
+
+    function changePeriod(period) {
+        loadChartData(period);
+    }
+
+    function initializeCharts() {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        performanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Portfolio NAV', data: [], borderColor: '#667eea', fill: false },
+                    { label: 'Benchmark', data: [], borderColor: '#764ba2', fill: false }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    async function loadPrices() {
+        try {
+            const response = await fetch('/api/dashboard/metrics');
+            if (!response.ok) throw new Error('Failed to load prices');
+            const data = await response.json();
+            
             const container = document.getElementById('prices-container');
-            
-            try {
-                const response = await fetch('/api/dashboard/metrics');
-                if (!response.ok) throw new Error('Failed to load price data');
-                
-                const data = await response.json();
-                const prices = data.prices || {};
-                
+            if (data.prices && (data.prices.btc || data.prices.eth)) {
                 container.innerHTML = `
-                    <div class="price-grid fade-in">
+                    <div class="price-grid">
                         <div class="price-item">
-                            <div class="price-label">Bitcoin</div>
-                            <div class="price-value">$${formatNumber(prices.btc || 0)}</div>
-                            <div class="price-change">BTC/USDT</div>
+                            <div class="price-label">Bitcoin (BTC)</div>
+                            <div class="price-value">$${formatNumber(data.prices.btc)}</div>
                         </div>
                         <div class="price-item">
-                            <div class="price-label">Ethereum</div>
-                            <div class="price-value">$${formatNumber(prices.eth || 0)}</div>
-                            <div class="price-change">ETH/USDT</div>
+                            <div class="price-label">Ethereum (ETH)</div>
+                            <div class="price-value">$${formatNumber(data.prices.eth)}</div>
                         </div>
-                        <div class="price-item">
-                            <div class="price-label">Updated</div>
-                            <div class="price-value" style="font-size: 0.9em;">
-                                ${prices.timestamp ? new Date(prices.timestamp).toLocaleTimeString() : 'N/A'}
-                            </div>
-                            <div class="price-change">Live data</div>
-                        </div>
-                    </div>
-                `;
-                
-            } catch (error) {
-                container.innerHTML = `<div class="error-message">Error loading prices: ${error.message}</div>`;
+                    </div>`;
+            } else {
+                container.innerHTML = '<div class="error-message">No price data available</div>';
             }
+        } catch (error) {
+            console.error('Error loading prices:', error);
+            document.getElementById('prices-container').innerHTML = `<div class="error-message">${error.message}</div>`;
         }
+    }
 
-        async function loadSystemStatus() {
+    async function loadSystemStatus() {
+        try {
+            const response = await fetch('/api/dashboard/system-status');
+            if (!response.ok) throw new Error('Failed to load system status');
+            const data = await response.json();
+            
             const container = document.getElementById('system-status-container');
-            
-            try {
-                const response = await fetch('/api/dashboard/status');
-                if (!response.ok) throw new Error('Failed to load system status');
+            if (data.database_status || data.api_status) {
+                const dbStatusClass = data.database_status === 'connected' ? 'status-online' : 'status-offline';
+                const apiStatusClass = data.api_status === 'active' ? 'status-online' : 'status-offline';
                 
-                const data = await response.json();
-                
-                // Update status bar
-                document.getElementById('db-status').className = data.system?.database_connected ? 'status-online' : 'status-offline';
-                document.getElementById('db-status').textContent = data.system?.database_connected ? 'Connected' : 'Disconnected';
-                
-                document.getElementById('api-status').className = data.system?.api_connected ? 'status-online' : 'status-offline';
-                document.getElementById('api-status').textContent = data.system?.api_connected ? 'Active' : 'Inactive';
-                
-                // System status details
                 container.innerHTML = `
-                    <div class="metrics-grid fade-in">
-                        <div class="metric">
-                            <div class="metric-label">Mode</div>
-                            <div class="metric-value">${data.mode || 'LIVE'}</div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Database:</span>
+                            <span class="${dbStatusClass}">${data.database_status}</span>
                         </div>
-                        <div class="metric">
-                            <div class="metric-label">Monitoring</div>
-                            <div class="metric-value ${data.system?.monitoring_active ? 'positive' : 'negative'}">
-                                ${data.system?.monitoring_active ? '🟢 Active' : '🔴 Inactive'}
-                            </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Binance API:</span>
+                            <span class="${apiStatusClass}">${data.api_status}</span>
                         </div>
-                        <div class="metric">
-                            <div class="metric-label">Uptime</div>
-                            <div class="metric-value">${getUptime()}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Version:</span>
+                            <span>${data.version || 'Unknown'}</span>
                         </div>
-                    </div>
-                `;
-                
-            } catch (error) {
-                container.innerHTML = `<div class="error-message">Error loading system status: ${error.message}</div>`;
+                    </div>`;
+            } else {
+                container.innerHTML = '<div class="error-message">No system status data available</div>';
             }
+        } catch (error) {
+            console.error('Error loading system status:', error);
+            document.getElementById('system-status-container').innerHTML = `<div class="error-message">${error.message}</div>`;
         }
+    }
 
-        async function loadLogs() {
+    async function loadLogs() {
+        try {
+            const response = await fetch('/api/dashboard/logs');
+            if (!response.ok) throw new Error('Failed to load logs');
+            const data = await response.json();
+            
             const container = document.getElementById('logs-container');
-            
-            try {
-                const response = await fetch(`/api/dashboard/logs?limit=30&level=${currentLogFilter !== 'all' ? currentLogFilter : ''}`);
-                if (!response.ok) throw new Error('Failed to load logs');
-                
-                const data = await response.json();
-                const logs = data.logs || [];
-                
-                if (logs.length === 0) {
-                    container.innerHTML = '<div class="log-entry">No logs found</div>';
-                    return;
-                }
-                
-                container.innerHTML = logs.map(log => `
-                    <div class="log-entry log-${log.level?.toLowerCase() || 'info'} fade-in">
-                        <strong>${log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A'}</strong>
-                        [${log.level || 'INFO'}]
-                        ${log.category ? `[${log.category}]` : ''}
-                        ${log.message || 'No message'}
-                        ${log.account_name ? ` (${log.account_name})` : ''}
-                    </div>
-                `).join('');
-                
-                // Auto-scroll to bottom
-                container.scrollTop = container.scrollHeight;
-                
-            } catch (error) {
-                container.innerHTML = `<div class="error-message">Error loading logs: ${error.message}</div>`;
-            }
-        }
-
-        function filterLogs(level) {
-            currentLogFilter = level;
-            
-            // Update button states
-            document.querySelectorAll('[id^="filter-"]').forEach(btn => {
-                btn.style.opacity = '0.7';
-            });
-            document.getElementById(`filter-${level}`).style.opacity = '1';
-            
-            loadLogs();
-        }
-
-        async function runMonitoring() {
-            const btn = document.getElementById('monitoring-btn');
-            
-            try {
-                btn.disabled = true;
-                btn.textContent = '⏳ Running...';
-                
-                const response = await fetch('/api/dashboard/run-monitoring', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (!response.ok) throw new Error('Failed to run monitoring');
-                
-                showMessage('Monitoring completed successfully', 'success');
-                
-                // Refresh data after monitoring
-                setTimeout(refreshData, 1000);
-                
-            } catch (error) {
-                showMessage('Failed to run monitoring: ' + error.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '▶️ Run Monitoring';
-            }
-        }
-
-        function toggleAutoRefresh() {
-            const btn = document.getElementById('auto-refresh-btn');
-            
-            if (autoRefreshInterval) {
-                clearInterval(autoRefreshInterval);
-                autoRefreshInterval = null;
-                btn.textContent = '⏰ Auto Refresh: OFF';
-                btn.classList.remove('active');
-                showMessage('Auto-refresh disabled', 'info');
+            if (data.logs && data.logs.length > 0) {
+                container.innerHTML = data.logs.map(log => {
+                    const logClass = log.level === 'ERROR' ? 'log-error' : 
+                                    log.level === 'WARNING' ? 'log-warning' : 'log-info';
+                    const timestamp = new Date(log.timestamp).toLocaleString();
+                    const accountInfo = log.account_name ? ` (${log.account_name})` : '';
+                    return `
+                        <div class="log-entry ${logClass}">
+                            <strong>${timestamp}</strong> [${log.level}] ${log.category}${accountInfo}: ${log.event || log.message}
+                        </div>`;
+                }).join('');
+            } else if (data.error) {
+                container.innerHTML = `<div class="error-message">Error loading logs: ${data.error}</div>`;
             } else {
-                autoRefreshInterval = setInterval(refreshData, 30000); // 30 seconds
-                btn.textContent = '⏰ Auto Refresh: ON';
-                btn.classList.add('active');
-                showMessage('Auto-refresh enabled (30s)', 'success');
+                container.innerHTML = '<div class="error-message">No recent logs available</div>';
             }
+        } catch (error) {
+            console.error('Error loading logs:', error);
+            document.getElementById('logs-container').innerHTML = `<div class="error-message">${error.message}</div>`;
         }
+    }
 
-        function changeChartMode(mode) {
-            chartMode = mode;
-            
-            // Update button states
-            document.querySelectorAll('.chart-mode-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
-            
-            // Toggle chart containers
-            const combinedContainer = document.getElementById('combined-chart-container');
-            const separateContainer = document.getElementById('separate-charts-container');
-            
-            if (mode === 'combined') {
-                combinedContainer.style.display = 'block';
-                separateContainer.style.display = 'none';
+    function filterLogs(level) {
+        const logEntries = document.querySelectorAll('.log-entry');
+        logEntries.forEach(entry => {
+            if (level === 'all' || entry.textContent.includes(`[${level}]`)) {
+                entry.style.display = 'block';
             } else {
-                combinedContainer.style.display = 'none';
-                separateContainer.style.display = 'block';
-            }
-            
-            // Re-load chart data for current mode
-            loadChartData(currentPeriod);
-        }
-
-        async function loadChartData(period = 'inception', startDate = null, endDate = null) {
-            try {
-                let url = `/api/dashboard/chart-data?period=${period}`;
-                if (period === 'custom' && startDate && endDate) {
-                    url += `&start_date=${startDate}&end_date=${endDate}`;
-                }
-                
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to load chart data');
-                
-                const data = await response.json();
-                
-                // Update chart with new data based on mode
-                if (chartMode === 'combined' && performanceChart && data.chart_data) {
-                    performanceChart.data = data.chart_data;
-                    performanceChart.update('active');
-                } else if (chartMode === 'separate' && data.chart_data) {
-                    // Update separate charts
-                    const portfolioData = {
-                        labels: data.chart_data.labels,
-                        datasets: [data.chart_data.datasets[0]] // Portfolio NAV only
-                    };
-                    
-                    const benchmarkData = {
-                        labels: data.chart_data.labels,
-                        datasets: [data.chart_data.datasets[1]] // Benchmark only
-                    };
-                    
-                    if (portfolioChart) {
-                        portfolioChart.data = portfolioData;
-                        portfolioChart.update('active');
-                    }
-                    
-                    if (benchmarkChart) {
-                        benchmarkChart.data = benchmarkData;
-                        benchmarkChart.update('active');
-                    }
-                }
-                
-                // Update stats display
-                if (data.stats) {
-                    const statsElement = document.getElementById('period-return');
-                    const navReturn = data.stats.nav_return_pct || 0;
-                    const benchmarkReturn = data.stats.benchmark_return_pct || 0;
-                    const outperformance = data.stats.outperformance_pct || 0;
-                    
-                    const startNav = data.stats.start_nav || 0;
-                    const endNav = data.stats.end_nav || 0;
-                    const startBenchmark = data.stats.start_benchmark || 0;
-                    const endBenchmark = data.stats.end_benchmark || 0;
-                    
-                    statsElement.innerHTML = `
-                        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
-                            <span class="${navReturn >= 0 ? 'positive' : 'negative'}">
-                                📊 Portfolio: ${navReturn >= 0 ? '+' : ''}${navReturn}%
-                            </span>
-                            <span class="${benchmarkReturn >= 0 ? 'positive' : 'negative'}">
-                                📈 50/50 BTC/ETH: ${benchmarkReturn >= 0 ? '+' : ''}${benchmarkReturn}%
-                            </span>
-                            <span class="${outperformance >= 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
-                                ⚡ Outperformance: ${outperformance >= 0 ? '+' : ''}${outperformance}%
-                            </span>
-                            <small style="color: #666;">
-                                ${data.stats.data_points} data points | 
-                                Start: $${formatNumber(startNav)} vs $${formatNumber(startBenchmark)}
-                            </small>
-                        </div>
-                    `;
-                }
-                
-            } catch (error) {
-                console.error('Error loading chart data:', error);
-                const statsElement = document.getElementById('period-return');
-                if (statsElement) {
-                    statsElement.innerHTML = '<span class="error-message">Error loading chart data</span>';
-                }
-            }
-        }
-
-        function changePeriod(period) {
-            currentPeriod = period;
-            
-            // Update button states
-            document.querySelectorAll('.period-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[data-period="${period}"]`).classList.add('active');
-            
-            // Hide custom date picker
-            if (period !== 'custom') {
-                document.getElementById('custom-date-picker').style.display = 'none';
-                customDatePickerVisible = false;
-            }
-            
-            // Load new chart data
-            loadChartData(period);
-        }
-
-        function toggleCustomPeriod() {
-            const customPicker = document.getElementById('custom-date-picker');
-            
-            if (customDatePickerVisible) {
-                customPicker.style.display = 'none';
-                customDatePickerVisible = false;
-            } else {
-                customPicker.style.display = 'flex';
-                customDatePickerVisible = true;
-                
-                // Set default dates (last 30 days)
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(endDate.getDate() - 30);
-                
-                document.getElementById('start-date').value = startDate.toISOString().split('T')[0];
-                document.getElementById('end-date').value = endDate.toISOString().split('T')[0];
-                
-                // Update button state
-                document.querySelectorAll('.period-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                document.querySelector('[data-period="custom"]').classList.add('active');
-            }
-        }
-
-        function applyCustomPeriod() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-            
-            if (!startDate || !endDate) {
-                alert('Please select both start and end dates');
-                return;
-            }
-            
-            if (new Date(startDate) >= new Date(endDate)) {
-                alert('Start date must be before end date');
-                return;
-            }
-            
-            currentPeriod = 'custom';
-            loadChartData('custom', startDate + 'T00:00:00Z', endDate + 'T23:59:59Z');
-        }
-
-        function initializeCharts() {
-            // Initialize combined chart
-            const ctxCombined = document.getElementById('performanceChart').getContext('2d');
-            performanceChart = new Chart(ctxCombined, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Portfolio NAV',
-                        data: [],
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
-                        fill: false
-                    }, {
-                        label: 'Benchmark',
-                        data: [],
-                        borderColor: '#764ba2',
-                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + formatNumber(value);
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': $' + formatNumber(context.parsed.y);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // Initialize separate charts
-            const ctxPortfolio = document.getElementById('portfolioChart').getContext('2d');
-            portfolioChart = new Chart(ctxPortfolio, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Portfolio NAV',
-                        data: [],
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + formatNumber(value);
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': $' + formatNumber(context.parsed.y);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            
-            const ctxBenchmark = document.getElementById('benchmarkChart').getContext('2d');
-            benchmarkChart = new Chart(ctxBenchmark, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: '50/50 BTC/ETH Benchmark',
-                        data: [],
-                        borderColor: '#764ba2',
-                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: function(value) {
-                                    return '$' + formatNumber(value);
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': $' + formatNumber(context.parsed.y);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function formatNumber(num) {
-            return new Intl.NumberFormat('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(num || 0);
-        }
-
-        function getUptime() {
-            // Simple uptime calculation from page load
-            const now = new Date();
-            const start = window.dashboardStartTime || now;
-            const diff = now - start;
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            return `${hours}h ${minutes}m`;
-        }
-
-        function showMessage(message, type) {
-            console.log(`[${type.toUpperCase()}] ${message}`);
-            // You could implement a toast notification system here
-        }
-
-        // Store dashboard start time
-        window.dashboardStartTime = new Date();
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', function() {
-            if (autoRefreshInterval) {
-                clearInterval(autoRefreshInterval);
+                entry.style.display = 'none';
             }
         });
-    </script>
+        
+        // Update filter button states
+        document.querySelectorAll('[id^="filter-"]').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`filter-${level.toLowerCase()}`).classList.add('active');
+    }
+
+    function updateAccountSelectorStatus(status) {
+        const card = document.getElementById('account-selector-container');
+        
+        // Remove all status classes
+        card.classList.remove('active-switching');
+        
+        if (status === 'switching' || status === 'loading') {
+            card.classList.add('active-switching');
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        // Remove any existing toast
+        const existingToast = document.querySelector('.toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        // Create new toast
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        // Show toast
+        setTimeout(() => toast.classList.add('show'), 100);
+        
+        // Hide toast after 3 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function formatNumber(num, sign = false) {
+        const numFloat = parseFloat(num) || 0;
+        const formatted = numFloat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (sign && numFloat > 0) {
+            return `+${formatted}`;
+        }
+        return formatted;
+    }
+</script>
+
 </body>
 </html>

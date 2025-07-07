@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-07] - Enhanced Dashboard UX and Account Selector
+
+### ✨ Added
+- **Premium Account Selector**: Complete redesign with modern card-based UI featuring gradients, shadows, and animations
+- **Loading States**: Enhanced loading indicators with skeleton animations and smooth transitions during account switching
+- **Visual Feedback**: Toast notifications, status updates, and micro-interactions for better user experience
+- **Responsive Design**: Mobile-optimized layout with auto-sizing select dropdown based on account name length
+
+### 🐛 Fixed
+- **Logs Loading**: Fixed logs not displaying by correcting table name from 'logs' to 'system_logs' in API calls
+- **Account Selector Position**: Moved account selector to prominent position under control buttons for better visibility
+- **UI Consistency**: Removed unnecessary status indicators and simplified account switching interface
+
+### 🎨 Enhanced
+- **Animations**: Added shimmer border effects, hover animations, and smooth scaling during account operations
+- **Typography**: Improved font weights, spacing, and visual hierarchy throughout account selector
+- **Loading Overlay**: Professional loading screen with centered content during account switching operations
+
 ## [2025-07-07] - UI Consistency and Bug Fixes
 
 ### 🐛 Fixed

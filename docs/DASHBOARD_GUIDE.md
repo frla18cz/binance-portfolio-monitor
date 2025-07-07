@@ -22,6 +22,14 @@ python -m api.dashboard
 
 ### Dashboard Features
 
+#### 🎯 Enhanced Account Selector
+- **Premium Card Design** - Modern UI with gradients, shadows, and animations
+- **Smart Positioning** - Located prominently under control buttons for easy access
+- **Auto-sizing Dropdown** - Select width automatically adjusts to account name length
+- **Loading States** - Visual feedback during account switching with skeleton animations
+- **Toast Notifications** - Success/error messages for account operations
+- **Mobile Responsive** - Optimized layout for all device sizes
+
 #### 📊 Portfolio Overview
 - **Current NAV** - Real-time account value from live Binance API
 - **Benchmark Value** - 50/50 BTC/ETH portfolio value
@@ -58,6 +66,13 @@ python -m api.dashboard
 - **Multiple Data Series** - Portfolio and benchmark overlay
 
 ### Dashboard Controls
+
+#### Account Switching Workflow
+1. **Select Account** - Click the account dropdown to see all available accounts
+2. **Loading State** - Watch the loading overlay with progress indicators
+3. **Data Refresh** - All dashboard sections update with account-specific data
+4. **Success Feedback** - Toast notification confirms successful account switch
+5. **Auto-sizing** - Dropdown automatically adjusts to account name length
 
 #### Manual Operations
 ```javascript

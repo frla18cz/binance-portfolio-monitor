@@ -25,7 +25,7 @@ python api/dashboard.py
 **Kompletní monitoring s dashboardem:**
 ```bash
 python run_live.py                    # Jednorázové spuštění
-python -m api.dashboard              # Dashboard na http://localhost:8001/dashboard
+python -m api.dashboard              # Enhanced Dashboard na http://localhost:8000/dashboard
 ```
 
 **Jen scraping dat (bez dashboardu):**
