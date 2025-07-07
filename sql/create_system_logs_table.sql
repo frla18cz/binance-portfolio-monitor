@@ -6,12 +6,14 @@ CREATE TABLE IF NOT EXISTS system_logs (
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     level VARCHAR(20) NOT NULL,
     category VARCHAR(50) NOT NULL,
-    account_id INTEGER,
+    account_id TEXT,
     account_name VARCHAR(255),
     operation VARCHAR(100) NOT NULL,
     message TEXT NOT NULL,
     data JSONB,
     duration_ms DECIMAL(10,2),
+    success BOOLEAN,
+    error TEXT,
     session_id VARCHAR(100) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -46,6 +48,9 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE system_logs IS 'System logs for Binance Portfolio Monitor - used in serverless environments';
 COMMENT ON COLUMN system_logs.level IS 'Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL';
 COMMENT ON COLUMN system_logs.category IS 'Log category: account_processing, api_call, database, etc.';
+COMMENT ON COLUMN system_logs.account_id IS 'Account UUID as text (supports both UUIDs and legacy integer IDs)';
 COMMENT ON COLUMN system_logs.data IS 'Additional structured data in JSON format';
 COMMENT ON COLUMN system_logs.duration_ms IS 'Operation duration in milliseconds (for performance tracking)';
+COMMENT ON COLUMN system_logs.success IS 'Whether the operation was successful (TRUE/FALSE)';
+COMMENT ON COLUMN system_logs.error IS 'Error message if operation failed';
 COMMENT ON COLUMN system_logs.session_id IS 'Unique session identifier for grouping related logs';
