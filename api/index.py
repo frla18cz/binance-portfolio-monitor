@@ -437,11 +437,74 @@ def calculate_benchmark_value(config, prices):
     eth_val = (float(config.get('eth_units') or 0)) * prices['ETHUSDT']
     return btc_val + eth_val
 
+def validate_transaction_inputs(account_id, config, prices, logger=None):
+    """
+    Validuje vstupní parametry pro zpracování transakcí.
+    Vrací True pokud jsou všechny požadované parametry validní.
+    """
+    validation_errors = []
+    
+    # Validace account_id
+    if not account_id or not isinstance(account_id, (int, str)):
+        validation_errors.append("Invalid or missing account_id")
+    
+    # Validace config objektu
+    if not config or not isinstance(config, dict):
+        validation_errors.append("Invalid or missing config object")
+    else:
+        # Kontrola požadovaných config klíčů
+        required_config_keys = ['btc_units', 'eth_units']
+        for key in required_config_keys:
+            if key not in config:
+                validation_errors.append(f"Missing required config key: {key}")
+            elif config[key] is None:
+                validation_errors.append(f"Config key {key} is None")
+    
+    # Validace prices objektu
+    if not prices or not isinstance(prices, dict):
+        validation_errors.append("Invalid or missing prices object")
+    else:
+        required_symbols = ['BTCUSDT', 'ETHUSDT']
+        for symbol in required_symbols:
+            if symbol not in prices:
+                validation_errors.append(f"Missing price for {symbol}")
+            elif not isinstance(prices[symbol], (int, float)) or prices[symbol] <= 0:
+                validation_errors.append(f"Invalid price value for {symbol}: {prices[symbol]}")
+    
+    # Logování výsledků validace
+    if validation_errors:
+        error_details = {
+            "account_id": account_id,
+            "validation_errors": validation_errors,
+            "config_keys": list(config.keys()) if isinstance(config, dict) else None,
+            "price_symbols": list(prices.keys()) if isinstance(prices, dict) else None
+        }
+        
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "validation_failed", 
+                        f"Transaction input validation failed: {'; '.join(validation_errors)}",
+                        account_id=account_id, error=str(validation_errors), data=error_details)
+        
+        return False
+    
+    # Validace prošla úspěšně
+    if logger:
+        logger.debug(LogCategory.TRANSACTION, "validation_passed", 
+                    "Transaction input validation successful",
+                    account_id=account_id, 
+                    data={"config_keys": list(config.keys()), "price_symbols": list(prices.keys())})
+    
+    return True
+
 def process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger=None):
     """
     Optimalizované zpracování deposits/withdrawals s idempotencí a atomic operations.
     Vrací aktualizovaný config s upravenými BTC/ETH units podle cashflow změn.
     """
+    # Enhanced validation before processing
+    if not validate_transaction_inputs(account_id, config, prices, logger):
+        return config
+        
     try:
         with OperationTimer(logger, LogCategory.TRANSACTION, "fetch_last_processed", account_id) if logger else nullcontext():
             last_processed = get_last_processed_time(db_client, account_id)
@@ -506,11 +569,20 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
             return config
             
     except Exception as e:
+        error_context = {
+            "account_id": account_id,
+            "config_present": config is not None,
+            "prices_present": prices is not None,
+            "error_type": type(e).__name__,
+            "error_details": str(e)
+        }
+        
         if logger:
             logger.error(LogCategory.TRANSACTION, "process_error", 
                         f"Error processing deposits/withdrawals: {str(e)}",
-                        account_id=account_id, error=str(e))
-        print(f"Error processing deposits/withdrawals: {e}")
+                        account_id=account_id, error=str(e), data=error_context)
+        print(f"Error processing deposits/withdrawals: {e} | Context: {error_context}")
+        traceback.print_exc()
         return config  # Failsafe - vrátíme původní config
 
 def get_last_processed_time(db_client, account_id):
@@ -532,35 +604,94 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
     """
     try:
         transactions = []
-        start_timestamp = int(datetime.fromisoformat(start_time.replace('Z', '+00:00')).timestamp() * 1000)
+        
+        # Enhanced timestamp validation
+        try:
+            start_timestamp = int(datetime.fromisoformat(start_time.replace('Z', '+00:00')).timestamp() * 1000)
+        except (ValueError, AttributeError) as e:
+            error_msg = f"Invalid start_time format: {start_time}"
+            if logger:
+                logger.error(LogCategory.API_CALL, "fetch_transactions_error", error_msg,
+                           account_id=account_id, error=str(e))
+            raise ValueError(error_msg)
         
         if logger:
             logger.debug(LogCategory.API_CALL, "fetch_transactions_start", 
                         f"Fetching transactions since {start_time}",
                         account_id=account_id, data={"start_timestamp": start_timestamp})
         
-        # Paralelně fetchneme deposits a withdrawals
-        deposits = binance_client.get_deposit_history(startTime=start_timestamp)
-        withdrawals = binance_client.get_withdraw_history(startTime=start_timestamp)
+        # Enhanced API calls with individual error handling
+        deposits = []
+        withdrawals = []
         
-        # Normalizujeme format pro snadné zpracování
+        try:
+            deposits = binance_client.get_deposit_history(startTime=start_timestamp)
+            if logger:
+                logger.debug(LogCategory.API_CALL, "deposits_fetched", 
+                           f"Fetched {len(deposits)} deposits", account_id=account_id)
+        except Exception as e:
+            if logger:
+                logger.warning(LogCategory.API_CALL, "deposits_fetch_failed", 
+                             f"Failed to fetch deposits: {str(e)}", 
+                             account_id=account_id, error=str(e))
+            # Continue with empty deposits list
+        
+        try:
+            withdrawals = binance_client.get_withdraw_history(startTime=start_timestamp)
+            if logger:
+                logger.debug(LogCategory.API_CALL, "withdrawals_fetched", 
+                           f"Fetched {len(withdrawals)} withdrawals", account_id=account_id)
+        except Exception as e:
+            if logger:
+                logger.warning(LogCategory.API_CALL, "withdrawals_fetch_failed", 
+                             f"Failed to fetch withdrawals: {str(e)}", 
+                             account_id=account_id, error=str(e))
+            # Continue with empty withdrawals list
+        
+        # Enhanced transaction normalization with error handling
         for deposit in deposits:
-            transactions.append({
-                'id': f"DEP_{deposit['txId']}",
-                'type': 'DEPOSIT',
-                'amount': deposit['amount'],
-                'timestamp': deposit['insertTime'],
-                'status': deposit['status']  # 0=pending, 1=success
-            })
+            try:
+                if not deposit or 'txId' not in deposit:
+                    if logger:
+                        logger.warning(LogCategory.API_CALL, "invalid_deposit_data", 
+                                     f"Skipping invalid deposit data: {deposit}", account_id=account_id)
+                    continue
+                    
+                transactions.append({
+                    'id': f"DEP_{deposit['txId']}",
+                    'type': 'DEPOSIT',
+                    'amount': float(deposit.get('amount', 0)),
+                    'timestamp': deposit.get('insertTime', 0),
+                    'status': deposit.get('status', 0)  # 0=pending, 1=success
+                })
+            except (ValueError, TypeError, KeyError) as e:
+                if logger:
+                    logger.warning(LogCategory.API_CALL, "deposit_normalization_error", 
+                                 f"Error normalizing deposit: {str(e)} | Data: {deposit}", 
+                                 account_id=account_id, error=str(e))
+                continue
             
         for withdrawal in withdrawals:
-            transactions.append({
-                'id': f"WD_{withdrawal['id']}",
-                'type': 'WITHDRAWAL', 
-                'amount': withdrawal['amount'],
-                'timestamp': withdrawal['applyTime'],
-                'status': withdrawal['status']  # 0=pending, 1=success, etc.
-            })
+            try:
+                if not withdrawal or 'id' not in withdrawal:
+                    if logger:
+                        logger.warning(LogCategory.API_CALL, "invalid_withdrawal_data", 
+                                     f"Skipping invalid withdrawal data: {withdrawal}", account_id=account_id)
+                    continue
+                    
+                transactions.append({
+                    'id': f"WD_{withdrawal['id']}",
+                    'type': 'WITHDRAWAL', 
+                    'amount': float(withdrawal.get('amount', 0)),
+                    'timestamp': withdrawal.get('applyTime', 0),
+                    'status': withdrawal.get('status', 0)  # 0=pending, 1=success, etc.
+                })
+            except (ValueError, TypeError, KeyError) as e:
+                if logger:
+                    logger.warning(LogCategory.API_CALL, "withdrawal_normalization_error", 
+                                 f"Error normalizing withdrawal: {str(e)} | Data: {withdrawal}", 
+                                 account_id=account_id, error=str(e))
+                continue
             
         # Filtrujeme jen SUCCESS transakce a sortujeme podle času
         successful_txns = []
@@ -592,6 +723,44 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
     Při depositu: zvýší BTC/ETH units proporcionálně
     Při withdrawal: sníží BTC/ETH units proporcionálně
     """
+    # Enhanced input validation and error context
+    validation_context = {
+        "account_id": account_id,
+        "net_flow": net_flow,
+        "config_present": config is not None,
+        "prices_present": prices is not None,
+        "processed_txns_count": len(processed_txns) if processed_txns else 0,
+        "config_keys": list(config.keys()) if isinstance(config, dict) else None,
+        "price_symbols": list(prices.keys()) if isinstance(prices, dict) else None
+    }
+    
+    if logger:
+        logger.debug(LogCategory.TRANSACTION, "benchmark_adjustment_start",
+                    f"Starting benchmark adjustment for net flow: ${net_flow:.2f}",
+                    account_id=account_id, data=validation_context)
+    
+    # Validate critical inputs
+    if not isinstance(net_flow, (int, float)) or abs(net_flow) < 0.01:
+        error_msg = f"Invalid net_flow value: {net_flow}"
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
+                        error_msg, account_id=account_id, error=error_msg, data=validation_context)
+        raise ValueError(error_msg)
+    
+    if not config or not isinstance(config, dict):
+        error_msg = "Invalid config object provided"
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
+                        error_msg, account_id=account_id, error=error_msg, data=validation_context)
+        raise ValueError(error_msg)
+    
+    if not prices or 'BTCUSDT' not in prices or 'ETHUSDT' not in prices:
+        error_msg = "Invalid or missing price data"
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
+                        error_msg, account_id=account_id, error=error_msg, data=validation_context)
+        raise ValueError(error_msg)
+    
     try:
         current_btc_units = float(config.get('btc_units', 0))
         current_eth_units = float(config.get('eth_units', 0))
@@ -636,17 +805,56 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                                 "reduction_ratio": reduction_ratio if current_benchmark_value > 0 else 0,
                                 "new_btc_units": new_btc_units, "new_eth_units": new_eth_units})
         
-        # Atomic database update - benchmark config + processed transactions
+        # Enhanced atomic database update with transaction safety
+        update_data = {
+            'btc_units': new_btc_units,
+            'eth_units': new_eth_units
+        }
+        
+        atomic_context = {
+            "account_id": account_id,
+            "update_data": update_data,
+            "processed_txns_count": len(processed_txns) if processed_txns else 0,
+            "operation_type": "atomic_cashflow_update"
+        }
+        
         with OperationTimer(logger, LogCategory.DATABASE, "atomic_cashflow_update", account_id) if logger else nullcontext():
-            db_client.table('benchmark_configs').update({
-                'btc_units': new_btc_units,
-                'eth_units': new_eth_units
-            }).eq('account_id', account_id).execute()
-            
-            if processed_txns:
-                db_client.table('processed_transactions').insert(processed_txns).execute()
+            try:
+                # 1. Update benchmark config first
+                config_result = db_client.table('benchmark_configs').update(update_data).eq('account_id', account_id).execute()
                 
-            update_last_processed_time(db_client, account_id)
+                if not config_result.data:
+                    error_msg = f"Failed to update benchmark_configs for account_id {account_id} - no rows affected"
+                    if logger:
+                        logger.error(LogCategory.DATABASE, "atomic_cashflow_update", error_msg,
+                                   account_id=account_id, error=error_msg, data=atomic_context)
+                    raise Exception(error_msg)
+                
+                # 2. Insert processed transactions if any
+                if processed_txns:
+                    txn_result = db_client.table('processed_transactions').insert(processed_txns).execute()
+                    if not txn_result.data:
+                        error_msg = f"Failed to insert processed_transactions for account_id {account_id}"
+                        if logger:
+                            logger.error(LogCategory.DATABASE, "atomic_cashflow_update", error_msg,
+                                       account_id=account_id, error=error_msg, data=atomic_context)
+                        raise Exception(error_msg)
+                
+                # 3. Update last processed timestamp
+                update_last_processed_time(db_client, account_id)
+                
+                if logger:
+                    logger.debug(LogCategory.DATABASE, "atomic_update_success", 
+                               "Atomic cashflow update completed successfully",
+                               account_id=account_id, data=atomic_context)
+                               
+            except Exception as db_error:
+                error_context = {**atomic_context, "db_error_type": type(db_error).__name__, "db_error_details": str(db_error)}
+                if logger:
+                    logger.error(LogCategory.DATABASE, "atomic_cashflow_update", 
+                               f"Database atomic operation failed: {str(db_error)}",
+                               account_id=account_id, error=str(db_error), data=error_context)
+                raise  # Re-raise to trigger rollback in calling function
         
         # Vrátíme aktualizovaný config
         updated_config = config.copy()
@@ -664,11 +872,23 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
         return updated_config
         
     except Exception as e:
+        # Enhanced error context for debugging
+        error_context = {
+            **validation_context,
+            "error_type": type(e).__name__,
+            "error_details": str(e),
+            "current_btc_units": current_btc_units if 'current_btc_units' in locals() else None,
+            "current_eth_units": current_eth_units if 'current_eth_units' in locals() else None,
+            "new_btc_units": new_btc_units if 'new_btc_units' in locals() else None,
+            "new_eth_units": new_eth_units if 'new_eth_units' in locals() else None,
+            "stage": "benchmark_calculation" if 'new_btc_units' not in locals() else "database_update"
+        }
+        
         if logger:
             logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
                         f"Error adjusting benchmark: {str(e)}",
-                        account_id=account_id, error=str(e))
-        print(f"Error adjusting benchmark: {e}")
+                        account_id=account_id, error=str(e), data=error_context)
+        print(f"Error adjusting benchmark: {e} | Context: {error_context}")
         raise  # Re-raise aby se celá operace rollbackla
 
 def update_last_processed_time(db_client, account_id):
