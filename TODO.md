@@ -171,6 +171,11 @@
 
 ## 🐛 Known Issues to Address
 
+### Recently Fixed (2025-07-09)
+- [x] **Rebalancing NameError** - Fixed undefined `new_eth_units` variable in rebalance_benchmark function
+- [x] **Transaction ID Length** - Increased database column from VARCHAR(50) to VARCHAR(255)
+- [x] **Account Processing Failures** - "Simple" and "Ondra(test)" accounts now process correctly
+
 ### Current Issues
 - [ ] **Error handling** - Make more granular and informative
 - [ ] **Logging** - Implement structured logging with levels

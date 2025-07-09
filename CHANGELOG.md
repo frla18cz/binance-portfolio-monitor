@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-09] - Critical Bug Fixes
+
+### 🐛 Fixed
+- **Rebalancing NameError**: Fixed critical bug in `rebalance_benchmark` function where undefined variable `new_eth_units` was used instead of `eth_units` (api/index.py:473)
+  - This error prevented "Simple" and "Ondra(test)" accounts from processing correctly
+  - "Habitanti" account was unaffected as it hadn't triggered the rebalancing code path
+- **Transaction ID Length**: Increased `transaction_id` column from VARCHAR(50) to VARCHAR(255) in `processed_transactions` table
+  - Fixed PostgreSQL error "value too long for type character varying(50)"
+  - Some Binance transaction IDs exceed 50 characters
+  - Created migration script: `sql/fix_transaction_id_length.sql`
+
+### 🚀 Impact
+- All accounts now process successfully without rebalancing errors
+- Transaction processing no longer fails due to ID length constraints
+- Improved system reliability and error handling
+
 ## [2025-07-09] - Log Retention Optimization
 
 ### ✨ Added

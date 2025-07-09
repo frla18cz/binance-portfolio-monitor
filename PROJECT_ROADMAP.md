@@ -5,11 +5,16 @@
 
 ## 📊 Current Status (for AI Context)
 
-**Last Session Completed**: 2025-07-02  
-**Where We Left Off**: Completed core monitoring system with deposit/withdrawal processing  
+**Last Session Completed**: 2025-07-09  
+**Where We Left Off**: Fixed critical bugs in rebalancing function and database schema  
 **Next To Work On**: Testing framework implementation  
-**Current Code State**: Fully functional backend, needs test coverage before web development  
+**Current Code State**: Fully functional backend with recent bug fixes, all accounts processing correctly  
 **Ready For**: pytest setup and unit test implementation
+
+### 🐛 Recent Bug Fixes (2025-07-09)
+- Fixed `NameError` in rebalance_benchmark function (undefined `new_eth_units` variable)
+- Fixed transaction ID length issue in database (increased from VARCHAR(50) to VARCHAR(255))
+- All accounts ("Habitanti", "Simple", "Ondra(test)") now process successfully
 
 ## 🎯 Completed Milestones
 

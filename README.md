@@ -380,6 +380,16 @@ VALUES (1, 0, 12);
 - Check network connectivity
 - Confirm database tables exist
 
+**"NameError: name 'new_eth_units' is not defined"**
+- Fixed in v2025-07-09: Variable name bug in rebalancing function
+- Update to latest version if encountering this error
+- Affects accounts when rebalancing is triggered
+
+**"value too long for type character varying(50)"**
+- Fixed in v2025-07-09: Transaction ID column too small
+- Run migration: `sql/fix_transaction_id_length.sql`
+- Some Binance transaction IDs exceed 50 characters
+
 ### Debug Mode
 Add debug logging:
 ```python
