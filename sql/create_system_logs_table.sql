@@ -38,7 +38,7 @@ RETURNS void AS $$
 BEGIN
     -- Delete logs older than retention period (configurable)
     DELETE FROM system_logs 
-    WHERE created_at < NOW() - INTERVAL '365 days';
+    WHERE created_at < NOW() - INTERVAL '30 days';
 END;
 $$ LANGUAGE plpgsql;
 

@@ -11,6 +11,7 @@ from .logger import get_logger, LogCategory, OperationTimer
 # Add project root to path for config import
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import settings
+from utils.log_cleanup import run_log_cleanup
 
 # --- Globální klienti ---
 supabase: Client = create_client(settings.database.supabase_url, settings.database.supabase_key)
@@ -81,6 +82,13 @@ def process_all_accounts():
                         f"Failed to process account {account_name}: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
             traceback.print_exc()
+    
+    # Run log cleanup after processing all accounts
+    try:
+        run_log_cleanup()
+    except Exception as e:
+        logger.error(LogCategory.SYSTEM, "log_cleanup_error", 
+                    f"Failed to run log cleanup: {str(e)}", error=str(e))
 
 def process_single_account(account):
     """Kompletní logika pro jeden Binance účet."""
