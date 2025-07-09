@@ -127,7 +127,7 @@ def process_single_account(account):
     save_price_history(prices, logger)
 
     with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
-        nav = get_comprehensive_nav(binance_client, logger, account_id, account_name)
+        nav = get_universal_nav(binance_client, logger, account_id, account_name)
     if nav is None:
         return
 
@@ -334,6 +334,61 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
         print(f"Error getting comprehensive NAV: {e}")
         return None
 
+def get_universal_nav(client, logger=None, account_id=None, account_name=None):
+    """
+    Získá NAV ze všech typů peněženek pomocí univerzálního SAPI endpointu.
+    Vyžaduje API klíč s oprávněním 'Permits Universal Transfer'.
+    """
+    try:
+        # Použij univerzální endpoint pro všechny peněženky
+        response = client._request('GET', '/sapi/v1/asset/wallet/balance', True, {})
+        
+        # python-binance může obalit response do struktury s klíčem 'data'
+        if isinstance(response, dict) and 'data' in response:
+            wallets = response['data']
+        else:
+            wallets = response
+            
+        total_nav = 0.0
+        breakdown = {
+            'wallets': {}
+        }
+        
+        # Zpracuj každou peněženku - response je pole objektů
+        for wallet in wallets:
+            wallet_name = wallet.get('walletName', 'Unknown')
+            balance = float(wallet.get('balance', '0'))  # Už je v USDT ekvivalentu
+            activated = wallet.get('activate', False)
+            
+            if balance > 0:
+                if balance > settings.financial.minimum_usd_value_threshold:
+                    total_nav += balance
+                    breakdown['wallets'][wallet_name] = {
+                        'usdt_balance': balance,
+                        'activated': activated
+                    }
+        
+        breakdown['total_nav'] = total_nav
+        
+        if logger:
+            wallet_summary = ', '.join([f"{k}: ${v['usdt_balance']:.2f}" for k, v in breakdown['wallets'].items()])
+            logger.info(LogCategory.API_CALL, "universal_nav_fetched", 
+                       f"Universal NAV: ${total_nav:.2f} ({wallet_summary})",
+                       account_id=account_id, account_name=account_name, 
+                       data=breakdown)
+        
+        return total_nav
+        
+    except Exception as e:
+        # Pokud selže (např. chybí oprávnění), použij záložní řešení
+        if logger:
+            logger.warning(LogCategory.API_CALL, "universal_nav_fallback", 
+                          f"Universal NAV failed, falling back to comprehensive NAV: {str(e)}",
+                          account_id=account_id, account_name=account_name, error=str(e))
+        
+        # Použij stávající comprehensive NAV jako fallback
+        return get_comprehensive_nav(client, logger, account_id, account_name)
+
 def get_futures_account_nav(client, logger=None, account_id=None, account_name=None):
     """Starý způsob výpočtu NAV - zachován pro kompatibilitu"""
     try:
@@ -415,7 +470,7 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
                        "old_btc_units": old_btc_units,
                        "old_eth_units": old_eth_units,
                        "new_btc_units": btc_units,
-                       "new_eth_units": new_eth_units,
+                       "new_eth_units": eth_units,
                        "btc_investment": investment,
                        "eth_investment": investment
                    })
