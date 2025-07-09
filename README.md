@@ -35,6 +35,8 @@
 - **🎯 Premium Dashboard** with enhanced account selector, live log streaming, and modern UI animations
 - **⚡ Operation Timing** for performance optimization
 - **🔍 Account-specific Tracking** with detailed audit trails
+- **🧹 Automatic Log Cleanup** with 30-day retention and daily cleanup cycles
+- **💾 Optimized Storage** reducing bandwidth usage by ~90%
 
 ### Safe Testing Environment
 - **🎮 Demo Mode** for risk-free testing with mock data
@@ -243,6 +245,22 @@ VALUES
     ('Conservative Account', 'api-key-1', 'api-secret-1'),
     ('Aggressive Account', 'api-key-2', 'api-secret-2');
 ```
+
+### Log Retention
+Configure log retention and cleanup settings:
+```json
+{
+  "logging": {
+    "database_logging": {
+      "retention_days": 30,  // Keep logs for 30 days
+      "max_entries": 1000000 // Maximum log entries
+    }
+  }
+}
+```
+- Automatic daily cleanup removes logs older than retention period
+- Reduces Supabase bandwidth usage by ~90%
+- Cleanup runs after each monitoring cycle (once per day)
 
 ## 🚀 Deployment
 

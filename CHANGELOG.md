@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-09] - Log Retention Optimization
+
+### ✨ Added
+- **Automatic Log Cleanup**: Implemented `LogCleanupManager` for daily automated cleanup of logs older than 30 days
+- **System Metadata Table**: Created `system_metadata` table to track cleanup state and prevent redundant operations
+- **Cleanup Integration**: Integrated log cleanup into main monitoring process (runs after processing all accounts)
+
+### 🔄 Changed
+- **Log Retention Period**: Reduced from 365 days to 30 days for significant bandwidth and storage savings
+- **Configuration Updates**:
+  - `retention_days`: 365 → 30 (in `config/settings.json`)
+  - `log_retention_hours`: 876,000 → 720 (matching 30 days)
+- **SQL Cleanup Function**: Updated to use 30-day retention period in database
+
+### 🚀 Performance Improvements
+- **Bandwidth Reduction**: ~90% reduction in log-related query bandwidth
+- **Storage Optimization**: Automatic removal of old logs keeps database lean
+- **Query Performance**: Faster log queries with smaller dataset
+
+### 📊 Technical Details
+- **Cleanup Frequency**: Runs once per day (tracked via `last_log_cleanup` in system_metadata)
+- **Database Migration**: Applied new tables and functions directly to Supabase
+- **Failsafe Design**: Cleanup failures don't affect main monitoring process
+
 ## [2025-07-07] - Enhanced Dashboard UX and Account Selector
 
 ### ✨ Added
