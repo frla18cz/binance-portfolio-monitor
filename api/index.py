@@ -127,7 +127,7 @@ def process_single_account(account):
     save_price_history(prices, logger)
 
     with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
-        nav = get_universal_nav(binance_client, logger, account_id, account_name)
+        nav = get_comprehensive_nav(binance_client, logger, account_id, account_name)
     if nav is None:
         return
 
@@ -313,14 +313,157 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
         breakdown['futures_total'] = futures_total
         breakdown['futures_details'] = futures_details
         
-        # CELKOVÝ NAV = Spot + Futures (raw asset conversion)
-        total_nav = spot_total + futures_total
+        # 3. FUNDING WALLET (Earn/Savings)
+        funding_total = 0.0
+        funding_details = {}
+        try:
+            funding_assets = client.funding_wallet()
+            for asset_info in funding_assets:
+                asset = asset_info.get('asset', '')
+                free = float(asset_info.get('free', '0'))
+                locked = float(asset_info.get('locked', '0'))
+                freeze = float(asset_info.get('freeze', '0'))
+                withdrawing = float(asset_info.get('withdrawing', '0'))
+                total_balance = free + locked + freeze + withdrawing
+                
+                if total_balance > settings.financial.minimum_balance_threshold:
+                    # Převeď na USD
+                    if asset in settings.get_supported_stablecoins():
+                        usd_value = total_balance
+                    elif asset == 'BTC':
+                        usd_value = total_balance * btc_usd_price
+                    else:
+                        try:
+                            ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                            price = float(ticker['price'])
+                            usd_value = total_balance * price
+                        except:
+                            try:
+                                btc_ticker_asset = client.get_symbol_ticker(symbol=f"{asset}BTC")
+                                btc_price = float(btc_ticker_asset['price'])
+                                usd_value = total_balance * btc_price * btc_usd_price
+                            except:
+                                usd_value = 0.0
+                    
+                    if usd_value > settings.financial.minimum_usd_value_threshold:
+                        funding_total += usd_value
+                        funding_details[asset] = {
+                            'balance': total_balance,
+                            'usd_value': usd_value
+                        }
+        except Exception as e:
+            if logger:
+                logger.warning(LogCategory.API_CALL, "funding_wallet_error", 
+                             f"Failed to fetch funding wallet: {str(e)}",
+                             account_id=account_id, account_name=account_name)
+        
+        breakdown['funding_total'] = funding_total
+        breakdown['funding_details'] = funding_details
+        
+        # 4. SIMPLE EARN POSITIONS
+        earn_total = 0.0
+        earn_details = {}
+        try:
+            # Zkus Simple Earn flexible positions
+            response = client._request('GET', 'sapi/v1/simple-earn/flexible/position', True, {})
+            
+            # Handle different response structures
+            positions = []
+            if isinstance(response, dict):
+                if 'rows' in response:
+                    positions = response['rows']
+                elif 'data' in response and isinstance(response['data'], dict) and 'rows' in response['data']:
+                    positions = response['data']['rows']
+            elif isinstance(response, list):
+                positions = response
+                
+            for position in positions:
+                    asset = position.get('asset', '')
+                    total_amount = float(position.get('totalAmount', '0'))
+                    
+                    if total_amount > settings.financial.minimum_balance_threshold:
+                        # Převeď na USD
+                        if asset in settings.get_supported_stablecoins():
+                            usd_value = total_amount
+                        elif asset == 'BTC':
+                            usd_value = total_amount * btc_usd_price
+                        else:
+                            try:
+                                ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                                price = float(ticker['price'])
+                                usd_value = total_amount * price
+                            except:
+                                usd_value = 0.0
+                        
+                        if usd_value > settings.financial.minimum_usd_value_threshold:
+                            earn_total += usd_value
+                            earn_details[f"{asset}_flexible"] = {
+                                'balance': total_amount,
+                                'usd_value': usd_value
+                            }
+        except Exception as e:
+            if logger:
+                logger.warning(LogCategory.API_CALL, "simple_earn_error", 
+                             f"Failed to fetch Simple Earn positions: {str(e)}",
+                             account_id=account_id, account_name=account_name)
+        
+        breakdown['earn_total'] = earn_total
+        breakdown['earn_details'] = earn_details
+        
+        # 5. STAKING POSITIONS
+        staking_total = 0.0
+        staking_details = {}
+        try:
+            staking_positions = client.get_staking_position(product='STAKING')
+            for position in staking_positions:
+                asset = position.get('asset', '')
+                amount = float(position.get('amount', '0'))
+                
+                if amount > settings.financial.minimum_balance_threshold:
+                    # Převeď na USD
+                    if asset in settings.get_supported_stablecoins():
+                        usd_value = amount
+                    elif asset == 'BTC':
+                        usd_value = amount * btc_usd_price
+                    else:
+                        try:
+                            ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                            price = float(ticker['price'])
+                            usd_value = amount * price
+                        except:
+                            usd_value = 0.0
+                    
+                    if usd_value > settings.financial.minimum_usd_value_threshold:
+                        staking_total += usd_value
+                        staking_details[asset] = {
+                            'balance': amount,
+                            'usd_value': usd_value
+                        }
+        except Exception as e:
+            if logger:
+                logger.warning(LogCategory.API_CALL, "staking_error", 
+                             f"Failed to fetch staking positions: {str(e)}",
+                             account_id=account_id, account_name=account_name)
+        
+        breakdown['staking_total'] = staking_total
+        breakdown['staking_details'] = staking_details
+        
+        # CELKOVÝ NAV = Spot + Futures + Funding + Earn + Staking
+        total_nav = spot_total + futures_total + funding_total + earn_total + staking_total
         breakdown['total_nav'] = total_nav
         breakdown['btc_usd_price'] = btc_usd_price
         
         if logger:
+            wallet_breakdown = f"Spot: ${spot_total:.2f}, Futures: ${futures_total:.2f}"
+            if funding_total > 0:
+                wallet_breakdown += f", Funding: ${funding_total:.2f}"
+            if earn_total > 0:
+                wallet_breakdown += f", Earn: ${earn_total:.2f}"
+            if staking_total > 0:
+                wallet_breakdown += f", Staking: ${staking_total:.2f}"
+                
             logger.info(LogCategory.API_CALL, "comprehensive_nav_fetched", 
-                       f"Comprehensive NAV: ${total_nav:.2f} (Spot: ${spot_total:.2f}, Futures: ${futures_total:.2f}) @ BTC ${btc_usd_price:.2f}",
+                       f"Comprehensive NAV: ${total_nav:.2f} ({wallet_breakdown}) @ BTC ${btc_usd_price:.2f}",
                        account_id=account_id, account_name=account_name, 
                        data=breakdown)
         

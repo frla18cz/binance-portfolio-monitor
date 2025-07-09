@@ -36,9 +36,111 @@ def main():
     # Create Binance client
     client = BinanceClient(api_key, api_secret, tld='com')
     
+    # Get BTC price first
+    btc_ticker = client.get_symbol_ticker(symbol="BTCUSDT")
+    btc_usdt_price = float(btc_ticker['price'])
+    
+    # TEST NEW WALLET ENDPOINTS
+    try:
+        print("🔍 TESTING NEW WALLET ENDPOINTS")
+        print("=" * 50)
+        
+        # Test funding wallet
+        print("\n💰 FUNDING WALLET:")
+        print("-" * 30)
+        try:
+            funding_assets = client.funding_wallet()
+            funding_total = 0.0
+            for asset_info in funding_assets:
+                asset = asset_info.get('asset', '')
+                free = float(asset_info.get('free', '0'))
+                locked = float(asset_info.get('locked', '0'))
+                freeze = float(asset_info.get('freeze', '0'))
+                withdrawing = float(asset_info.get('withdrawing', '0'))
+                total = free + locked + freeze + withdrawing
+                if total > 0:
+                    print(f"{asset}: {total:.8f} (free: {free}, locked: {locked}, freeze: {freeze}, withdrawing: {withdrawing})")
+                    # Convert to USD for major assets
+                    if asset == 'BTC':
+                        funding_total += total * btc_usdt_price
+                    elif asset in ['USDT', 'BUSD', 'USDC']:
+                        funding_total += total
+            print(f"Funding wallet total (est): ${funding_total:,.2f}")
+        except Exception as e:
+            print(f"❌ Funding wallet error: {e}")
+        
+        # Test Simple Earn
+        print("\n📈 SIMPLE EARN POSITIONS:")
+        print("-" * 30)
+        try:
+            response = client._request('GET', 'sapi/v1/simple-earn/flexible/position', True, {})
+            # Debug response structure
+            print(f"Response type: {type(response)}")
+            if isinstance(response, dict):
+                print(f"Response keys: {list(response.keys())}")
+                
+            # Handle different response structures
+            positions = []
+            if isinstance(response, dict):
+                if 'rows' in response:
+                    positions = response['rows']
+                elif 'data' in response:
+                    data = response['data']
+                    if isinstance(data, dict) and 'rows' in data:
+                        positions = data['rows']
+                    elif isinstance(data, list):
+                        positions = data
+            elif isinstance(response, list):
+                positions = response
+                
+            if positions:
+                earn_total = 0.0
+                for position in positions:
+                    asset = position.get('asset', '')
+                    total_amount = float(position.get('totalAmount', '0'))
+                    if total_amount > 0:
+                        print(f"{asset}: {total_amount:.8f}")
+                        # Convert to USD
+                        if asset == 'BTC':
+                            earn_total += total_amount * btc_usdt_price
+                        elif asset in ['USDT', 'BUSD', 'USDC']:
+                            earn_total += total_amount
+                print(f"Simple Earn total (est): ${earn_total:,.2f}")
+            else:
+                print("No Simple Earn positions found")
+        except Exception as e:
+            print(f"❌ Simple Earn error: {e}")
+            if hasattr(e, 'code'):
+                print(f"API Error Code: {e.code}")
+            if hasattr(e, 'message'):
+                print(f"API Error Message: {e.message}")
+        
+        # Test Staking
+        print("\n🥇 STAKING POSITIONS:")
+        print("-" * 30)
+        try:
+            staking_positions = client.get_staking_position(product='STAKING')
+            staking_total = 0.0
+            for position in staking_positions:
+                asset = position.get('asset', '')
+                amount = float(position.get('amount', '0'))
+                if amount > 0:
+                    print(f"{asset}: {amount:.8f}")
+                    # Convert to USD
+                    if asset == 'BTC':
+                        staking_total += amount * btc_usdt_price
+                    elif asset in ['USDT', 'BUSD', 'USDC']:
+                        staking_total += amount
+            print(f"Staking total (est): ${staking_total:,.2f}")
+        except Exception as e:
+            print(f"❌ Staking error: {e}")
+            
+    except Exception as e:
+        print(f"Error in wallet endpoint tests: {e}")
+    
     # COMPREHENSIVE NAV ANALYSIS
     try:
-        print("💰 COMPREHENSIVE NAV BREAKDOWN")
+        print("\n💰 COMPREHENSIVE NAV BREAKDOWN (OLD METHOD)")
         print("=" * 50)
         
         total_nav = 0.0
