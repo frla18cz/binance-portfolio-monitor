@@ -7,6 +7,18 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Comprehensive NAV Calculation (2025-07-09)
+- Extended `get_comprehensive_nav()` to include all wallet types:
+  - Spot wallet
+  - Futures wallet (USDT-M)
+  - Funding wallet (Earn/Savings)
+  - Simple Earn positions
+  - Staking positions
+- Removed `get_universal_nav()` function - requires dangerous "Universal Transfer" permissions
+- All endpoints are read-only, no special permissions required
+- Added error handling for each wallet type
+- Updated debug_nav.py with wallet endpoint testing
+
 ### Log Retention Optimization (2025-07-09)
 - Reduced log retention from 365 to 30 days
 - Implemented automatic daily cleanup via `LogCleanupManager`
@@ -56,9 +68,16 @@ run_log_cleanup()
 python debug_nav.py
 ```
 
+### Test Wallet Endpoints
+The debug script now tests all wallet types:
+- Funding wallet: `client.funding_wallet()`
+- Simple Earn: `client._request('GET', 'sapi/v1/simple-earn/flexible/position', True, {})`
+- Staking: `client.get_staking_position(product='STAKING')`
+
 ## Known Issues
 - Transaction processing may fail with "value too long" error - needs investigation
 - Rebalancing has undefined variable error (new_eth_units) - needs fix
+- Some wallet types (Funding, Simple Earn) may return errors if not activated on the account
 
 ## Development Notes
 - Always test with `python -m api.index` for proper imports
