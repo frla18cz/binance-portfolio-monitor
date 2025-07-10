@@ -7,6 +7,16 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Dashboard UI Cleanup (2025-07-10)
+- **Button Cleanup**: Removed non-functional buttons from dashboard interface
+- **Removed Buttons**:
+  - "▶️ Run Monitoring" - JavaScript function `runMonitoring()` was not implemented
+  - "⏰ Auto Refresh: OFF" - JavaScript function `toggleAutoRefresh()` was not implemented
+- **Remaining Functional**: Only "🔄 Refresh Data" button remains (fully functional)
+- **Auto Refresh**: Continues to work automatically every 60 seconds in background
+- **UI Improvement**: Cleaner interface with only working controls
+- **File Modified**: `dashboard.html` - removed unused CSS and HTML elements
+
 ### Database Table Restructure (2025-07-10)
 - **Table Data Reset**: Cleared all data from `system_metadata`, `system_logs`, `processed_transactions`, `price_history`, `nav_history`
 - **NAV History Enhancement**: Added `account_name` column as second column in `nav_history` table
@@ -121,6 +131,12 @@ The debug script now tests all wallet types:
 - Transaction processing may fail with "value too long" error - needs investigation
 - Rebalancing has undefined variable error (new_eth_units) - needs fix
 - Some wallet types (Funding, Simple Earn) may return errors if not activated on the account
+
+## Dashboard UI Notes
+- **Current Status**: Dashboard has only functional "🔄 Refresh Data" button
+- **Auto Refresh**: Runs automatically every 60 seconds (cannot be toggled)
+- **Removed Features**: Manual monitoring trigger and auto-refresh toggle buttons were removed due to missing JavaScript implementations
+- **Future Enhancements**: Consider implementing toggle functionality or manual monitoring trigger if needed
 
 ## Development Notes
 - Always test with `python -m api.index` for proper imports
