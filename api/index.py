@@ -4,7 +4,6 @@ import traceback
 from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
-from supabase import create_client, Client
 from binance.client import Client as BinanceClient
 from .logger import get_logger, LogCategory, OperationTimer
 
@@ -12,11 +11,12 @@ from .logger import get_logger, LogCategory, OperationTimer
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import settings
 from utils.log_cleanup import run_log_cleanup
+from utils.database_manager import get_supabase_client, with_database_retry
 
-# --- Globální klienti ---
-supabase: Client = create_client(settings.database.supabase_url, settings.database.supabase_key)
+# --- Global clients ---
+supabase = get_supabase_client()
 
-# --- Hlavní handler pro Vercel ---
+# --- Main handler for Vercel ---
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         logger = get_logger()
@@ -43,9 +43,9 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(f'Error: {e}'.encode('utf-8'))
         return
 
-# --- Hlavní logika ---
+# --- Main logic ---
 def process_all_accounts():
-    """Získá všechny účty z DB a spustí pro ně monitorovací proces."""
+    """Get all accounts from DB and run monitoring process for them."""
     logger = get_logger()
     
     with OperationTimer(logger, LogCategory.SYSTEM, "fetch_all_accounts"):
@@ -158,7 +158,7 @@ def process_single_account(account):
     benchmark_value = calculate_benchmark_value(config, prices)
     save_history(db_client, account_id, nav, benchmark_value, logger, account_name, prices)
 
-# --- Pomocné funkce ---
+# --- Helper functions ---
 
 def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
@@ -188,32 +188,42 @@ def save_price_history(prices, logger=None):
     try:
         from datetime import datetime, UTC
         
-        # Připravit data pro uložení
-        price_records = []
-        timestamp = datetime.now(UTC).isoformat()
+        # Získat ceny BTC a ETH
+        btc_price = None
+        eth_price = None
         
         for symbol, price in prices.items():
-            if symbol in settings.get_supported_symbols():
-                asset = symbol.replace('USDT', '')  # BTC nebo ETH
-                price_records.append({
-                    'timestamp': timestamp,
-                    'asset': asset,
-                    'price': float(price)
-                })
+            if symbol == 'BTCUSDT':
+                btc_price = float(price)
+            elif symbol == 'ETHUSDT':
+                eth_price = float(price)
         
-        if price_records:
-            # Pokusit se uložit do price_history (tabulka možná neexistuje)
-            try:
-                result = supabase.table('price_history').insert(price_records).execute()
-                if logger:
-                    logger.debug(LogCategory.PRICE_UPDATE, "price_history_saved", 
-                               f"Saved {len(price_records)} price records")
-            except Exception as table_error:
-                # Tabulka pravděpodobně neexistuje, vytvoříme ji manuálně později
-                if logger:
-                    logger.debug(LogCategory.PRICE_UPDATE, "price_history_table_missing", 
-                               f"Price history table not found: {str(table_error)}")
-                pass
+        # Ověřit, že máme obě ceny
+        if btc_price is None or eth_price is None:
+            if logger:
+                logger.warning(LogCategory.PRICE_UPDATE, "price_history_incomplete", 
+                             f"Missing price data: BTC={btc_price}, ETH={eth_price}")
+            return
+        
+        # Připravit data pro uložení (jedna řádka s oběma cenami)
+        price_record = {
+            'timestamp': datetime.now(UTC).isoformat(),
+            'btc_price': btc_price,
+            'eth_price': eth_price
+        }
+        
+        # Pokusit se uložit do price_history (tabulka možná neexistuje)
+        try:
+            result = supabase.table('price_history').insert(price_record).execute()
+            if logger:
+                logger.debug(LogCategory.PRICE_UPDATE, "price_history_saved", 
+                           f"Saved price record: BTC=${btc_price:.2f}, ETH=${eth_price:.2f}")
+        except Exception as table_error:
+            # Tabulka pravděpodobně neexistuje, vytvoříme ji manuálně později
+            if logger:
+                logger.debug(LogCategory.PRICE_UPDATE, "price_history_table_missing", 
+                           f"Price history table not found: {str(table_error)}")
+            pass
                 
     except Exception as e:
         if logger:
@@ -792,7 +802,7 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
         return config  # Failsafe - vrátíme původní config
 
 def get_last_processed_time(db_client, account_id):
-    """Získá timestamp posledního zpracování pro daný účet."""
+    """Get timestamp of last processing for given account."""
     try:
         response = db_client.table('account_processing_status').select('last_processed_timestamp').eq('account_id', account_id).execute()
         if response.data:
