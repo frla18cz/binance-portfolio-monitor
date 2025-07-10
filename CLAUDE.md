@@ -7,6 +7,13 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Hourly Data Collection (2025-01-10)
+- Changed monitoring interval from 2 minutes to 60 minutes
+- Reduces data volume by 97% (from 720 to 24 records per day)
+- Dropped historical data tables for fresh start
+- Improved dashboard performance with fewer data points
+- Maintained log retention and cleanup functionality
+
 ### Comprehensive NAV Calculation (2025-07-09)
 - Extended `get_comprehensive_nav()` to include all wallet types:
   - Spot wallet
@@ -40,7 +47,7 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 ### Configuration
 - Main config: `config/settings.json`
 - Log retention: 30 days (database_logging.retention_days)
-- Monitoring interval: 2 minutes
+- Monitoring interval: 60 minutes (hourly data collection)
 - Rebalancing: Weekly on Mondays
 
 ### Performance Considerations
