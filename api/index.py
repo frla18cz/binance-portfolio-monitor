@@ -752,10 +752,10 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                     total_net_flow -= amount
                     
                 processed_txns.append({
-                    'account_id': account_id,
-                    'transaction_id': txn['id'],
+                    'account_id': str(account_id),  # Ensure it's a string
+                    'transaction_id': str(txn['id']),
                     'transaction_type': txn['type'],
-                    'amount': amount,
+                    'amount': float(amount),  # Ensure it's a proper float
                     'timestamp': txn['timestamp'],
                     'status': txn['status']
                 })
@@ -1022,9 +1022,11 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                                 "new_btc_units": new_btc_units, "new_eth_units": new_eth_units})
         
         # Enhanced atomic database update with transaction safety
+        # Convert to Decimal for proper JSON serialization
+        from decimal import Decimal
         update_data = {
-            'btc_units': new_btc_units,
-            'eth_units': new_eth_units
+            'btc_units': float(Decimal(str(new_btc_units)).quantize(Decimal('0.000000000001'))),
+            'eth_units': float(Decimal(str(new_eth_units)).quantize(Decimal('0.000000000001')))
         }
         
         atomic_context = {
@@ -1112,7 +1114,7 @@ def update_last_processed_time(db_client, account_id):
     try:
         current_time = datetime.now(UTC).isoformat()
         db_client.table('account_processing_status').upsert({
-            'account_id': account_id,
+            'account_id': str(account_id),  # Ensure it's a string
             'last_processed_timestamp': current_time
         }).execute()
     except Exception as e:
@@ -1129,12 +1131,12 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
         raise ValueError(error_msg)
     
     history_data = {
-        'account_id': account_id,
+        'account_id': str(account_id),  # Ensure it's a string
         'timestamp': timestamp,
-        'nav': f'{nav:.2f}',
-        'benchmark_value': f'{benchmark_value:.2f}',
-        'btc_price': f"{prices['BTCUSDT']:.2f}",
-        'eth_price': f"{prices['ETHUSDT']:.2f}"
+        'nav': float(nav),  # Store as numeric, not string
+        'benchmark_value': float(benchmark_value),
+        'btc_price': float(prices['BTCUSDT']),
+        'eth_price': float(prices['ETHUSDT'])
     }
     
     # Insert data with required price columns
