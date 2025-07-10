@@ -7,6 +7,12 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Cron Job Synchronization (2025-07-10)
+- Updated both local cron and Vercel cron to run hourly (`0 * * * *`)
+- Removed local cron job to prevent duplicate runs when deploying to Vercel
+- Vercel will handle all scheduled executions in production
+- Both systems now synchronized with `config/settings.json` hourly interval
+
 ### Hourly Data Collection (2025-01-10)
 - Changed monitoring interval from 2 minutes to 60 minutes
 - Reduces data volume by 97% (from 720 to 24 records per day)
