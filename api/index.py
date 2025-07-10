@@ -60,6 +60,28 @@ def process_all_accounts():
 
     logger.info(LogCategory.SYSTEM, "accounts_found", f"Found {len(response.data)} accounts to process")
     
+    # Fetch prices once for all accounts
+    logger.info(LogCategory.PRICE_UPDATE, "fetch_prices_once", "Fetching prices once for all accounts")
+    try:
+        # Create temporary Binance client just for price fetching
+        from binance.client import Client as BinanceClient
+        temp_client = BinanceClient('', '')  # No API key needed for public endpoints
+        
+        with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices_all_accounts"):
+            prices = get_prices(temp_client, logger)
+        
+        if not prices:
+            logger.error(LogCategory.PRICE_UPDATE, "price_fetch_failed", "Failed to fetch prices for all accounts")
+            return
+            
+        # Save price history once
+        save_price_history(prices, logger)
+        
+    except Exception as e:
+        logger.error(LogCategory.PRICE_UPDATE, "price_fetch_error", 
+                    f"Error fetching prices: {str(e)}", error=str(e))
+        return
+    
     for account in response.data:
         account_name = account.get('account_name', 'Unknown')
         account_id = account.get('id')
@@ -71,7 +93,7 @@ def process_all_accounts():
         try:
             with OperationTimer(logger, LogCategory.ACCOUNT_PROCESSING, "process_account", 
                               account_id, account_name):
-                process_single_account(account)
+                process_single_account(account, prices)
                 
             logger.info(LogCategory.ACCOUNT_PROCESSING, "complete_processing", 
                        f"Successfully processed account: {account_name}",
@@ -90,7 +112,7 @@ def process_all_accounts():
         logger.error(LogCategory.SYSTEM, "log_cleanup_error", 
                     f"Failed to run log cleanup: {str(e)}", error=str(e))
 
-def process_single_account(account):
+def process_single_account(account, prices=None):
     """Kompletní logika pro jeden Binance účet."""
     logger = get_logger()
     
@@ -118,16 +140,17 @@ def process_single_account(account):
     binance_client = BinanceClient(api_key, api_secret, tld=settings.api.binance.tld)
     db_client = supabase
     
-    with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
-        prices = get_prices(binance_client, logger, account_id, account_name)
+    # If prices not provided, fetch them (for backward compatibility)
     if not prices:
-        return
-    
-    # Uložit historické ceny (pro dynamický benchmark)
-    save_price_history(prices, logger)
+        with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
+            prices = get_prices(binance_client, logger, account_id, account_name)
+        if not prices:
+            return
+        # Save price history only if we fetched prices ourselves
+        save_price_history(prices, logger)
 
     with OperationTimer(logger, LogCategory.API_CALL, "fetch_nav", account_id, account_name):
-        nav = get_comprehensive_nav(binance_client, logger, account_id, account_name)
+        nav = get_comprehensive_nav(binance_client, logger, account_id, account_name, prices)
     if nav is None:
         return
 
@@ -230,7 +253,7 @@ def save_price_history(prices, logger=None):
             logger.error(LogCategory.PRICE_UPDATE, "price_history_error", 
                         f"Failed to save price history: {str(e)}", error=str(e))
 
-def get_comprehensive_nav(client, logger=None, account_id=None, account_name=None):
+def get_comprehensive_nav(client, logger=None, account_id=None, account_name=None, prices=None):
     """
     Vypočítá kompletní NAV zahrnující:
     1. Spot účet - všechny balances převedené na USD
@@ -241,9 +264,13 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
         total_nav = 0.0
         breakdown = {}
         
-        # Získej aktuální BTC cenu pro konverze
-        btc_ticker = client.get_symbol_ticker(symbol="BTCUSDT")
-        btc_usd_price = float(btc_ticker['price'])
+        # Use provided prices or fetch BTC price for conversions
+        if prices and 'BTCUSDT' in prices:
+            btc_usd_price = float(prices['BTCUSDT'])
+        else:
+            # Fallback to fetching if prices not provided
+            btc_ticker = client.get_symbol_ticker(symbol="BTCUSDT")
+            btc_usd_price = float(btc_ticker['price'])
         
         # 1. SPOT ACCOUNT - všechny balances
         spot_account = client.get_account()
@@ -487,7 +514,7 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
         print(f"Error getting comprehensive NAV: {e}")
         return None
 
-def get_universal_nav(client, logger=None, account_id=None, account_name=None):
+def get_universal_nav(client, logger=None, account_id=None, account_name=None, prices=None):
     """
     Získá NAV ze všech typů peněženek pomocí univerzálního SAPI endpointu.
     Vyžaduje API klíč s oprávněním 'Permits Universal Transfer'.
@@ -540,7 +567,7 @@ def get_universal_nav(client, logger=None, account_id=None, account_name=None):
                           account_id=account_id, account_name=account_name, error=str(e))
         
         # Použij stávající comprehensive NAV jako fallback
-        return get_comprehensive_nav(client, logger, account_id, account_name)
+        return get_comprehensive_nav(client, logger, account_id, account_name, prices)
 
 def get_futures_account_nav(client, logger=None, account_id=None, account_name=None):
     """Starý způsob výpočtu NAV - zachován pro kompatibilitu"""
