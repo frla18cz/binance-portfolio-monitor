@@ -755,22 +755,25 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
         with OperationTimer(logger, LogCategory.TRANSACTION, "fetch_new_transactions", account_id) if logger else nullcontext():
             new_transactions = fetch_new_transactions(binance_client, last_processed, logger, account_id)
         
-        if not new_transactions:
+        # Filter out transactions that have already been processed
+        unprocessed_transactions = filter_unprocessed_transactions(db_client, new_transactions, account_id, logger)
+        
+        if not unprocessed_transactions:
             if logger:
                 logger.debug(LogCategory.TRANSACTION, "no_new_transactions", 
-                           "No new transactions found", account_id=account_id)
+                           "No new transactions found (after deduplication)", account_id=account_id)
             return config
             
         if logger:
             logger.info(LogCategory.TRANSACTION, "processing_transactions", 
-                       f"Processing {len(new_transactions)} new transactions",
-                       account_id=account_id, data={"transaction_count": len(new_transactions)})
+                       f"Processing {len(unprocessed_transactions)} new transactions",
+                       account_id=account_id, data={"transaction_count": len(unprocessed_transactions)})
         
         # Batch zpracování všech nových transakcí
         total_net_flow = 0  # Kladné = deposit, záporné = withdrawal
         processed_txns = []
         
-        for txn in new_transactions:
+        for txn in unprocessed_transactions:
             if txn['status'] == 'SUCCESS':  # Pouze úspěšné transakce
                 amount = float(txn['amount'])
                 if txn['type'] == 'DEPOSIT':
@@ -839,6 +842,40 @@ def get_last_processed_time(db_client, account_id):
             return (datetime.now(UTC) - timedelta(days=settings.scheduling.historical_period_days)).isoformat()
     except:
         return (datetime.now(UTC) - timedelta(days=settings.scheduling.historical_period_days)).isoformat()
+
+def filter_unprocessed_transactions(db_client, transactions, account_id, logger=None):
+    """
+    Filtruje transakce, které už byly zpracovány (existují v processed_transactions).
+    """
+    if not transactions:
+        return []
+    
+    try:
+        # Získáme ID všech transakcí, které chceme zkontrolovat
+        transaction_ids = [txn['id'] for txn in transactions]
+        
+        # Zkontrolujeme, které už existují v databázi
+        existing_response = db_client.table('processed_transactions').select('transaction_id').eq('account_id', account_id).in_('transaction_id', transaction_ids).execute()
+        existing_ids = {row['transaction_id'] for row in existing_response.data}
+        
+        # Filtrujeme jen ty, které ještě nebyly zpracovány
+        unprocessed = [txn for txn in transactions if txn['id'] not in existing_ids]
+        
+        if logger:
+            logger.debug(LogCategory.TRANSACTION, "deduplication_check", 
+                       f"Filtered {len(transactions)} transactions: {len(unprocessed)} new, {len(existing_ids)} already processed",
+                       account_id=account_id, 
+                       data={"total_fetched": len(transactions), "new_count": len(unprocessed), "existing_count": len(existing_ids)})
+        
+        return unprocessed
+        
+    except Exception as e:
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "deduplication_error", 
+                       f"Error during deduplication check: {str(e)}",
+                       account_id=account_id, error=str(e))
+        # V případě chyby vrátíme původní seznam (lepší než ztratit transakce)
+        return transactions
 
 def fetch_new_transactions(binance_client, start_time, logger=None, account_id=None):
     """
