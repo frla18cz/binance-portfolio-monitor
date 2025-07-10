@@ -7,6 +7,21 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Database Table Restructure (2025-07-10)
+- **Table Data Reset**: Cleared all data from `system_metadata`, `system_logs`, `processed_transactions`, `price_history`, `nav_history`
+- **NAV History Enhancement**: Added `account_name` column as second column in `nav_history` table
+- **Auto-Population**: Created trigger to automatically populate `account_name` from `binance_accounts` table
+- **Column Order**: Restructured `nav_history` with optimal column ordering: id, account_name, account_id, timestamp, nav, benchmark_value, btc_price, eth_price, created_at
+- **Data Integrity**: All existing data preserved during table restructure
+- **Migration Files**: `migrations/clear_tables_add_account_name.sql` and `migrations/reorder_nav_history_columns.sql`
+
+### Local Development Cron Fix (2025-07-10)
+- Fixed hardcoded 2-minute default intervals in `config/__init__.py`
+- Changed fallback values from 2 minutes to 60 minutes (hourly)
+- Ensures local development uses same schedule as production
+- All scheduling now consistently uses `config/settings.json` values
+- Prevents confusion between local (2min) and production (60min) intervals
+
 ### Cron Job Synchronization (2025-07-10)
 - Updated both local cron and Vercel cron to run hourly (`0 * * * *`)
 - Removed local cron job to prevent duplicate runs when deploying to Vercel
@@ -50,7 +65,7 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 ### Database Tables
 - `binance_accounts` - Trading accounts configuration
 - `benchmark_configs` - Benchmark portfolio settings
-- `nav_history` - Historical NAV and benchmark values
+- `nav_history` - Historical NAV and benchmark values (with auto-populated account_name as 2nd column)
 - `system_logs` - Application logs (30-day retention)
 - `system_metadata` - System state tracking (e.g., last cleanup time)
 - `processed_transactions` - Deposit/withdrawal tracking
@@ -85,6 +100,15 @@ run_log_cleanup()
 ### Debug NAV Calculation
 ```bash
 python debug_nav.py
+```
+
+### Apply Database Migrations
+```bash
+# Apply table clearing and account_name addition
+python apply_migration.py
+
+# Verify nav_history table structure
+python verify_nav_history.py
 ```
 
 ### Test Wallet Endpoints
