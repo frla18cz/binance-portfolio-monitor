@@ -114,10 +114,10 @@ class Settings:
         # Scheduling configuration
         sched_config = config_data.get("scheduling", {})
         self.scheduling = SchedulingConfig(
-            cron_interval_minutes=sched_config.get("cron_interval_minutes", 2),
-            cron_schedule=sched_config.get("cron_schedule", "*/2 * * * *"),
-            daemon_interval_seconds=sched_config.get("daemon_interval_seconds", 120),
-            vercel_schedule=sched_config.get("vercel_schedule", "*/2 * * * *"),
+            cron_interval_minutes=sched_config.get("cron_interval_minutes", 60),
+            cron_schedule=sched_config.get("cron_schedule", "0 * * * *"),
+            daemon_interval_seconds=sched_config.get("daemon_interval_seconds", 3600),
+            vercel_schedule=sched_config.get("vercel_schedule", "0 * * * *"),
             log_retention_hours=sched_config.get("log_retention_hours", 24),
             log_retention_entries=sched_config.get("log_retention_entries", 10000),
             historical_period_days=sched_config.get("historical_period_days", 30),
