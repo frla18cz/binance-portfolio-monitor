@@ -20,12 +20,12 @@ CREATE TABLE IF NOT EXISTS account_processing_status (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Price history table (optional but useful)
+-- 3. Price history table (stores BTC and ETH prices together)
 CREATE TABLE IF NOT EXISTS price_history (
     id SERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ NOT NULL,
-    asset VARCHAR(10) NOT NULL,
-    price DECIMAL(20,8) NOT NULL,
+    btc_price DECIMAL(20,8) NOT NULL,
+    eth_price DECIMAL(20,8) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -38,12 +38,16 @@ CREATE INDEX IF NOT EXISTS idx_account_processing_status_account_id ON account_p
 CREATE INDEX IF NOT EXISTS idx_account_processing_status_updated_at ON account_processing_status(updated_at);
 
 CREATE INDEX IF NOT EXISTS idx_price_history_timestamp ON price_history(timestamp);
-CREATE INDEX IF NOT EXISTS idx_price_history_asset ON price_history(asset);
+CREATE INDEX IF NOT EXISTS idx_price_history_created_at ON price_history(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_price_history_timestamp_unique ON price_history(timestamp);
 
 -- Add comments for documentation
 COMMENT ON TABLE processed_transactions IS 'Tracks all processed deposit/withdrawal transactions to prevent duplicate processing';
 COMMENT ON TABLE account_processing_status IS 'Stores the last processed timestamp for each account to track transaction processing state';
-COMMENT ON TABLE price_history IS 'Historical price data for BTC and ETH used for benchmark calculations';
+COMMENT ON TABLE price_history IS 'Historical BTC and ETH prices for benchmark calculations';
+COMMENT ON COLUMN price_history.timestamp IS 'The exact time when prices were captured';
+COMMENT ON COLUMN price_history.btc_price IS 'BTC price in USDT';
+COMMENT ON COLUMN price_history.eth_price IS 'ETH price in USDT';
 
 -- Verify tables were created
 SELECT 

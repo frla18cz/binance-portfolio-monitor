@@ -7,6 +7,12 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Price History Table Optimization (2025-01-10)
+- Changed `price_history` table to store BTC and ETH prices on the same row
+- Benefits: Better performance, simpler queries, atomic timestamps
+- Migration SQL: `migrations/update_price_history_combined.sql`
+- Updated `save_price_history()` to save both prices together
+
 ### Comprehensive NAV Calculation (2025-07-09)
 - Extended `get_comprehensive_nav()` to include all wallet types:
   - Spot wallet
@@ -35,7 +41,7 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 - `system_logs` - Application logs (30-day retention)
 - `system_metadata` - System state tracking (e.g., last cleanup time)
 - `processed_transactions` - Deposit/withdrawal tracking
-- `price_history` - Historical BTC/ETH prices
+- `price_history` - Historical BTC/ETH prices (combined row format)
 
 ### Configuration
 - Main config: `config/settings.json`
@@ -83,3 +89,20 @@ The debug script now tests all wallet types:
 - Always test with `python -m api.index` for proper imports
 - Dashboard runs on port 8001
 - Use demo mode for testing without real API calls
+
+## Database Connection Management (2025-01-10)
+- Implemented centralized database connection manager with singleton pattern
+- All database connections now use `utils.database_manager.get_supabase_client()`
+- Features:
+  - Single shared connection instance across all modules
+  - Automatic health checks every 60 seconds
+  - Retry logic with exponential backoff (3 attempts)
+  - Thread-safe access with locking
+- Updated modules:
+  - `api/index.py` - Uses shared connection
+  - `api/logger.py` - Uses shared connection for log writes
+  - `utils/log_cleanup.py` - Uses shared connection
+- Benefits:
+  - Reduced connection overhead (was creating 16+ separate connections)
+  - Better error handling and recovery
+  - Improved performance for high-frequency operations

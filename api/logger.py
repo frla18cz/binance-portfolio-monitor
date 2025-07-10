@@ -173,16 +173,13 @@ class MonitorLogger:
         """Save log entry to database."""
         try:
             # Import here to avoid circular imports
-            from supabase import create_client
+            from utils.database_manager import get_supabase_client
             
             if not CONFIG_LOADED:
                 return
             
             # Get database client
-            supabase = create_client(
-                settings.database.supabase_url,
-                settings.database.supabase_key
-            )
+            supabase = get_supabase_client()
             
             # Check if log level should be saved
             log_levels = settings.logging.database_logging.get('log_levels', ['INFO', 'WARNING', 'ERROR', 'CRITICAL'])

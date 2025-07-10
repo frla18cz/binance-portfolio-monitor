@@ -1,9 +1,9 @@
 """Log cleanup utilities for managing database log retention."""
 
 from datetime import datetime, timedelta
-from supabase import create_client, Client
 from config import settings
 from api.logger import get_logger, LogCategory
+from utils.database_manager import get_supabase_client
 import time
 
 
@@ -16,7 +16,7 @@ class LogCleanupManager:
     def __init__(self):
         self.config = settings
         self.logger = get_logger()
-        self.supabase = create_client(settings.database.supabase_url, settings.database.supabase_key)
+        self.supabase = get_supabase_client()
         
     def should_run_cleanup(self):
         """Check if cleanup should run based on last execution time."""
