@@ -639,10 +639,11 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
         datetime.now(UTC), config['rebalance_day'], config['rebalance_hour']
     )
 
+    old_btc_units = float(config.get('btc_units', 0))
+    old_eth_units = float(config.get('eth_units', 0))
+    rebalance_timestamp = datetime.now(UTC)
+    
     if logger:
-        old_btc_units = float(config.get('btc_units', 0))
-        old_eth_units = float(config.get('eth_units', 0))
-        
         logger.info(LogCategory.REBALANCING, "rebalance_start", 
                    f"Rebalancing benchmark with current value: ${current_value:.2f}",
                    account_id=account_id,
@@ -660,17 +661,32 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
     calculated_benchmark = (btc_units * prices['BTCUSDT']) + (eth_units * prices['ETHUSDT'])
     validation_error = abs(calculated_benchmark - current_value) / current_value if current_value != 0 else 0
     
+    rebalance_status = "success"
+    rebalance_error = None
+    
     if validation_error > 0.01:  # 1% tolerance
         error_msg = f"Benchmark validation failed: calculated={calculated_benchmark:.2f}, expected={current_value:.2f}, error={validation_error:.2%}"
+        rebalance_status = "failed"
+        rebalance_error = error_msg
         if logger:
             logger.error(LogCategory.REBALANCING, "validation_failed", error_msg, account_id=account_id)
         raise ValueError(error_msg)
+    
+    # Get current rebalance count
+    current_count = config.get('rebalance_count', 0)
+    new_count = current_count + 1
     
     with OperationTimer(logger, LogCategory.DATABASE, "update_rebalance_config", account_id) if logger else nullcontext():
         response = db_client.table('benchmark_configs').update({
             'btc_units': btc_units,
             'eth_units': eth_units,
-            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00'
+            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00',
+            'last_rebalance_timestamp': rebalance_timestamp.isoformat() + '+00:00',
+            'last_rebalance_status': rebalance_status,
+            'last_rebalance_error': rebalance_error,
+            'rebalance_count': new_count,
+            'last_rebalance_btc_units': old_btc_units,
+            'last_rebalance_eth_units': old_eth_units
         }).eq('account_id', account_id).execute()
     
     if logger:
@@ -681,7 +697,10 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
                        "btc_units": btc_units,
                        "eth_units": eth_units,
                        "next_rebalance": next_rebalance.isoformat(),
-                       "validation_error": validation_error
+                       "validation_error": validation_error,
+                       "rebalance_count": new_count,
+                       "old_btc_units": old_btc_units,
+                       "old_eth_units": old_eth_units
                    })
     
     print(f"Benchmark rebalanced. Next rebalance: {next_rebalance}")
