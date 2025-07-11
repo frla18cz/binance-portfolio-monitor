@@ -43,10 +43,74 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(f'Error: {e}'.encode('utf-8'))
         return
 
+# --- Helper functions ---
+def ensure_benchmark_configs():
+    """Ensure all accounts have benchmark configs, create missing ones."""
+    logger = get_logger()
+    db_client = get_supabase_client()
+    
+    try:
+        # Get all accounts
+        accounts_response = db_client.table('binance_accounts').select('*').execute()
+        if not accounts_response.data:
+            logger.warning(LogCategory.SYSTEM, "no_accounts_for_config", 
+                          "No accounts found for benchmark config check")
+            return
+        
+        # Get existing benchmark configs
+        configs_response = db_client.table('benchmark_configs').select('account_id').execute()
+        existing_account_ids = {config['account_id'] for config in configs_response.data}
+        
+        # Find accounts without configs
+        accounts_without_config = [
+            account for account in accounts_response.data 
+            if account['id'] not in existing_account_ids
+        ]
+        
+        if not accounts_without_config:
+            logger.info(LogCategory.SYSTEM, "all_configs_exist", 
+                       "All accounts have benchmark configs")
+            return
+        
+        # Create missing configs
+        logger.info(LogCategory.SYSTEM, "creating_missing_configs", 
+                   f"Creating benchmark configs for {len(accounts_without_config)} accounts")
+        
+        configs_to_create = []
+        for account in accounts_without_config:
+            config = {
+                'account_id': account['id'],
+                'btc_units': 0.0,  # Will be initialized on first run
+                'eth_units': 0.0   # Will be initialized on first run
+            }
+            configs_to_create.append(config)
+            
+            logger.info(LogCategory.SYSTEM, "creating_config_for_account", 
+                       f"Creating benchmark config for account: {account['account_name']}",
+                       account_id=account['id'], account_name=account['account_name'])
+        
+        # Insert all configs at once
+        response = db_client.table('benchmark_configs').insert(configs_to_create).execute()
+        
+        if response.data:
+            logger.info(LogCategory.SYSTEM, "configs_created", 
+                       f"Successfully created {len(response.data)} benchmark configs")
+        else:
+            logger.error(LogCategory.SYSTEM, "config_creation_failed", 
+                        "Failed to create benchmark configs")
+            
+    except Exception as e:
+        logger.error(LogCategory.SYSTEM, "ensure_configs_error", 
+                    f"Error ensuring benchmark configs: {str(e)}", error=str(e))
+        # Don't re-raise - allow process to continue even if config creation fails
+
 # --- Main logic ---
 def process_all_accounts():
     """Get all accounts from DB and run monitoring process for them."""
     logger = get_logger()
+    
+    # Ensure all accounts have benchmark configs before processing
+    ensure_benchmark_configs()
     
     with OperationTimer(logger, LogCategory.SYSTEM, "fetch_all_accounts"):
         # Use real Supabase client
@@ -122,11 +186,7 @@ def process_single_account(account, prices=None):
     account_name = account.get('account_name', 'Unknown')
     config = account.get('benchmark_configs')
 
-    if not config:
-        logger.warning(LogCategory.ACCOUNT_PROCESSING, "no_config", 
-                      "Benchmark config not found for account, skipping",
-                      account_id=account_id, account_name=account_name)
-        return
+    # Config should always exist now thanks to ensure_benchmark_configs()
     if isinstance(config, list):
         config = config[0]
 

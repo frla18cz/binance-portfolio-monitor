@@ -7,6 +7,15 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Automatic Benchmark Configs Creation (2025-07-11)
+- **New Feature**: System now automatically creates missing benchmark_configs
+- **Problem Solved**: No manual intervention needed when benchmark_configs are missing
+- **Implementation**: Added `ensure_benchmark_configs()` function that runs before monitoring
+- **Behavior**: Checks for missing configs and creates them with default values (btc_units=0, eth_units=0)
+- **Result**: System is now self-healing - if configs are deleted, they're recreated automatically
+- **Testing**: Verified with complete deletion of benchmark_configs table
+- **Files Modified**: `api/index.py` (added ensure_benchmark_configs function)
+
 ### Missing Benchmark Configs Fix (2025-07-11)
 - **Critical Issue**: Dashboard not collecting data due to missing benchmark_configs in database
 - **Root Cause**: All 3 Binance accounts existed but had no corresponding benchmark_configs records
