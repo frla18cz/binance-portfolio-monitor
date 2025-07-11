@@ -175,8 +175,9 @@ def process_single_account(account, prices=None):
             logger.info(LogCategory.REBALANCING, "rebalance_time", 
                        "Rebalance time reached, starting rebalancing",
                        account_id=account_id, account_name=account_name)
-            benchmark_value = calculate_benchmark_value(config, prices)
-            config = rebalance_benchmark(db_client, config, account_id, benchmark_value, prices, logger)
+            # Use current benchmark value to maintain independence from portfolio NAV
+            current_benchmark_value = calculate_benchmark_value(config, prices)
+            config = rebalance_benchmark(db_client, config, account_id, current_benchmark_value, prices, logger)
 
     benchmark_value = calculate_benchmark_value(config, prices)
     save_history(db_client, account_id, nav, benchmark_value, logger, account_name, prices)
@@ -655,6 +656,16 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
                        "eth_investment": investment
                    })
 
+    # Validation: Check that new benchmark units create a value close to current_value
+    calculated_benchmark = (btc_units * prices['BTCUSDT']) + (eth_units * prices['ETHUSDT'])
+    validation_error = abs(calculated_benchmark - current_value) / current_value if current_value != 0 else 0
+    
+    if validation_error > 0.01:  # 1% tolerance
+        error_msg = f"Benchmark validation failed: calculated={calculated_benchmark:.2f}, expected={current_value:.2f}, error={validation_error:.2%}"
+        if logger:
+            logger.error(LogCategory.REBALANCING, "validation_failed", error_msg, account_id=account_id)
+        raise ValueError(error_msg)
+    
     with OperationTimer(logger, LogCategory.DATABASE, "update_rebalance_config", account_id) if logger else nullcontext():
         response = db_client.table('benchmark_configs').update({
             'btc_units': btc_units,
@@ -669,7 +680,8 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
                    data={
                        "btc_units": btc_units,
                        "eth_units": eth_units,
-                       "next_rebalance": next_rebalance.isoformat()
+                       "next_rebalance": next_rebalance.isoformat(),
+                       "validation_error": validation_error
                    })
     
     print(f"Benchmark rebalanced. Next rebalance: {next_rebalance}")

@@ -7,6 +7,15 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Benchmark Independence Fix (2025-07-11)
+- **Critical Fix**: Rebalancing now uses benchmark value instead of NAV
+- **Problem Fixed**: Benchmark was being "reset" to NAV value during rebalancing, breaking independence
+- **Solution**: Changed `rebalance_benchmark()` to use `current_benchmark_value` instead of `nav`
+- **Validation Added**: 1% tolerance check ensures rebalancing preserves value
+- **Frontend Simplified**: Removed dynamic calculation, now uses DB values
+- **Result**: Benchmark evolves independently based on market prices only
+- **Files Modified**: `api/index.py`, `api/dashboard.py`
+
 ### Dashboard UI Cleanup (2025-07-10)
 - **Button Cleanup**: Removed non-functional buttons from dashboard interface
 - **Removed Buttons**:
@@ -93,6 +102,21 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 - Database queries should select only needed columns
 - Log cleanup runs once daily to minimize overhead
 
+## Benchmark System
+
+### How Benchmark Works
+- **Independent Evolution**: Benchmark operates independently from portfolio NAV
+- **50/50 Allocation**: Maintains equal-weighted BTC/ETH through weekly rebalancing
+- **Initialization**: Starts with same value as initial NAV, then evolves independently
+- **Rebalancing**: Uses benchmark's own value (not NAV) to maintain 50/50 split
+- **Performance Tracking**: Difference between NAV and benchmark shows trading alpha
+
+### Benchmark Calculation
+- Every hour: `benchmark_value = btc_units × BTC_price + eth_units × ETH_price`
+- Weekly rebalancing: Recalculates units to restore 50/50 allocation
+- Validation: 1% tolerance ensures rebalancing preserves value
+- Storage: Values saved in `nav_history.benchmark_value`
+
 ## Common Tasks
 
 ### Check Supabase Bandwidth Usage
@@ -159,3 +183,8 @@ The debug script now tests all wallet types:
   - Reduced connection overhead (was creating 16+ separate connections)
   - Better error handling and recovery
   - Improved performance for high-frequency operations
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

@@ -20,58 +20,7 @@ from .logger import get_logger, LogCategory
 from .index import process_all_accounts, supabase, get_prices
 
 
-def calculate_dynamic_benchmark(nav_data, allocation={'BTC': 0.5, 'ETH': 0.5}, rebalance_frequency='weekly'):
-    if not nav_data:
-        return []
-    
-    try:
-        missing_prices = [item for item in nav_data if 'btc_price' not in item or 'eth_price' not in item or item['btc_price'] is None or item['eth_price'] is None]
-        if missing_prices:
-            print(f"Warning: {len(missing_prices)} records missing price data, using old benchmark values")
-            return [float(item['benchmark_value']) for item in nav_data]
-        
-        initial_nav = float(nav_data[0]['nav'])
-        benchmark_allocation = settings.get_benchmark_allocation()
-        btc_allocation = allocation.get('BTC', benchmark_allocation['BTC'])
-        eth_allocation = allocation.get('ETH', benchmark_allocation['ETH'])
-        
-        initial_btc_value = initial_nav * btc_allocation
-        initial_eth_value = initial_nav * eth_allocation
-        
-        first_btc_price = float(nav_data[0]['btc_price'])
-        first_eth_price = float(nav_data[0]['eth_price'])
-        
-        btc_units = initial_btc_value / first_btc_price if first_btc_price > 0 else 0
-        eth_units = initial_eth_value / first_eth_price if first_eth_price > 0 else 0
-        
-        benchmark_values = []
-        last_rebalance_week = None
-        
-        for i, record in enumerate(nav_data):
-            current_btc_price = float(record['btc_price'])
-            current_eth_price = float(record['eth_price'])
-            current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
-            
-            if rebalance_frequency == 'weekly':
-                record_time = datetime.fromisoformat(record['timestamp'].replace('Z', '+00:00'))
-                week_number = record_time.isocalendar()[1]
-                
-                if last_rebalance_week is None or week_number != last_rebalance_week:
-                    if record_time.weekday() == 0 or i == 0:
-                        total_value = current_benchmark_value
-                        btc_units = (total_value * btc_allocation) / current_btc_price if current_btc_price > 0 else 0
-                        eth_units = (total_value * eth_allocation) / current_eth_price if current_eth_price > 0 else 0
-                        last_rebalance_week = week_number
-                        current_benchmark_value = (btc_units * current_btc_price) + (eth_units * current_eth_price)
-            
-            benchmark_values.append(current_benchmark_value)
-        
-        return benchmark_values
-        
-    except Exception as e:
-        print(f"Error calculating dynamic benchmark: {e}")
-        traceback.print_exc()
-        return [float(item['benchmark_value']) for item in nav_data]
+# Note: Dynamic benchmark calculation removed - now using stored DB values for consistency
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -182,8 +131,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if nav_history.data:
                     nav_data = nav_history.data
                     latest_data = nav_data[-1]
-                    dynamic_benchmark_values = calculate_dynamic_benchmark(nav_data)
-                    latest_benchmark_value = dynamic_benchmark_values[-1] if dynamic_benchmark_values else 0
+                    # Use stored benchmark_value from database instead of dynamic calculation
+                    latest_benchmark_value = float(latest_data.get("benchmark_value", 0))
                     
                     account_name = next((acc['account_name'] for acc in all_accounts if acc['id'] == account_id), "Unknown")
 
@@ -247,22 +196,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
             result = query.execute()
             nav_data = result.data or []
             
-            dynamic_benchmark_values = calculate_dynamic_benchmark(nav_data)
+            # Use stored benchmark_value from database instead of dynamic calculation
+            stored_benchmark_values = [float(item['benchmark_value']) for item in nav_data]
             
             chart_data = {
                 "labels": [item['timestamp'] for item in nav_data],
                 "datasets": [
                     {"label": "Portfolio NAV", "data": [float(item['nav']) for item in nav_data]},
-                    {"label": "Benchmark", "data": dynamic_benchmark_values}
+                    {"label": "Benchmark", "data": stored_benchmark_values}
                 ]
             }
             
             stats = {}
-            if nav_data and dynamic_benchmark_values:
+            if nav_data and stored_benchmark_values:
                 first_nav = float(nav_data[0]['nav'])
                 last_nav = float(nav_data[-1]['nav'])
-                first_benchmark = dynamic_benchmark_values[0]
-                last_benchmark = dynamic_benchmark_values[-1]
+                first_benchmark = stored_benchmark_values[0]
+                last_benchmark = stored_benchmark_values[-1]
                 nav_return = ((last_nav - first_nav) / first_nav * 100) if first_nav != 0 else 0
                 benchmark_return = ((last_benchmark - first_benchmark) / first_benchmark * 100) if first_benchmark != 0 else 0
                 stats = {"nav_return_pct": nav_return, "benchmark_return_pct": benchmark_return}
