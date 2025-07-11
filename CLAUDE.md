@@ -7,6 +7,16 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Missing Benchmark Configs Fix (2025-07-11)
+- **Critical Issue**: Dashboard not collecting data due to missing benchmark_configs in database
+- **Root Cause**: All 3 Binance accounts existed but had no corresponding benchmark_configs records
+- **Impact**: Monitoring code skipped processing accounts without benchmark configs (api/index.py:125-129)
+- **Solution**: Created benchmark_configs for all accounts with proper initialization
+- **Database Changes**: Added 3 benchmark_configs records with btc_units=0, eth_units=0 (triggers initialization)
+- **Enhanced Tracking**: Added rebalancing history fields for better monitoring
+- **Result**: System now collects NAV data hourly and displays real-time dashboard data
+- **Files Modified**: `api/index.py` (enhanced rebalancing tracking)
+
 ### Benchmark Independence Fix (2025-07-11)
 - **Critical Fix**: Rebalancing now uses benchmark value instead of NAV
 - **Problem Fixed**: Benchmark was being "reset" to NAV value during rebalancing, breaking independence
@@ -153,8 +163,41 @@ The debug script now tests all wallet types:
 
 ## Known Issues
 - Transaction processing may fail with "value too long" error - needs investigation
-- Rebalancing has undefined variable error (new_eth_units) - needs fix
 - Some wallet types (Funding, Simple Earn) may return errors if not activated on the account
+
+## Troubleshooting Guide
+
+### Dashboard Shows No Data / "No NAV history"
+1. **Check benchmark_configs**: Ensure all accounts have benchmark_configs records
+   ```python
+   # Check if configs exist
+   from utils.database_manager import get_supabase_client
+   supabase = get_supabase_client()
+   accounts = supabase.table('binance_accounts').select('*, benchmark_configs(*)').execute()
+   for account in accounts.data:
+       print(f"{account['account_name']}: {'✅' if account.get('benchmark_configs') else '❌'}")
+   ```
+
+2. **Test manual monitoring**: Run `python -m api.index` to test data collection
+3. **Check nav_history**: Verify data is being saved to database
+4. **Verify cron job**: Check Vercel cron configuration in `vercel.json`
+
+### Creating Missing Benchmark Configs
+If benchmark_configs are missing, create them with:
+```python
+from utils.database_manager import get_supabase_client
+supabase = get_supabase_client()
+
+# Get accounts without configs
+accounts = supabase.table('binance_accounts').select('*').execute()
+for account in accounts.data:
+    config = {
+        'account_id': account['id'],
+        'btc_units': 0.0,  # Will initialize on first run
+        'eth_units': 0.0   # Will initialize on first run
+    }
+    supabase.table('benchmark_configs').insert(config).execute()
+```
 
 ## Dashboard UI Notes
 - **Current Status**: Dashboard has only functional "🔄 Refresh Data" button
