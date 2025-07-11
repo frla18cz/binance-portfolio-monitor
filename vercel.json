@@ -1,8 +1,4 @@
 {
-  "functions": {
-    "api/index.py": {},
-    "api/dashboard.py": {}
-  },
   "crons": [
     {
       "path": "/api/index",

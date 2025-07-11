@@ -58,10 +58,12 @@ __pycache__/
 #### Create `vercel.json` Configuration
 ```json
 {
-  "functions": {
-    "api/index.py": {},
-    "api/dashboard.py": {}
-  },
+  "crons": [
+    {
+      "path": "/api/index",
+      "schedule": "0 * * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/dashboard",
@@ -71,19 +73,15 @@ __pycache__/
       "src": "/api/dashboard/(.*)",
       "dest": "/api/dashboard"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/index",
-      "schedule": "0 * * * *"
-    }
   ]
 }
 ```
 
 **Important Notes:**
 - **Python Runtime**: Vercel uses Python 3.12 by default (no runtime specification needed)
+- **Function Detection**: Vercel automatically detects Python functions in `/api/` directory
 - **Legacy Runtime**: Avoid specifying `"runtime": "python3.9"` as it causes deployment errors
+- **Empty Functions**: Avoid empty function objects `{}` as they cause "must contain at least one property" errors
 - **Cron Schedule**: Hourly execution requires Vercel Pro plan ($20/month)
 
 #### Verify `requirements.txt`
@@ -531,6 +529,17 @@ print(client.table('binance_accounts').select('count').execute())
 ```
 
 ### Performance Issues
+
+**"Function must contain at least one property"**
+```bash
+# Remove empty functions section from vercel.json
+# Vercel auto-detects functions in /api/ directory
+{
+  "crons": [...],
+  "routes": [...]
+  // Remove: "functions": { "api/index.py": {} }
+}
+```
 
 **"Function timeout"**
 - Increase function timeout in platform settings

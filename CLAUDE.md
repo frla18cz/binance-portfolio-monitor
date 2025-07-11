@@ -7,6 +7,14 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Vercel Empty Functions Fix (2025-07-11)
+- **Build Error**: Fixed "Function must contain at least one property" error
+- **Problem**: Empty function objects `{}` in vercel.json functions section
+- **Solution**: Removed entire functions section - Vercel auto-detects functions
+- **Cron Impact**: No impact on cron jobs - they continue to work normally
+- **Auto-Detection**: Vercel automatically detects Python functions in /api/ directory
+- **Files Modified**: `vercel.json` - removed functions section entirely
+
 ### Vercel Python Runtime Fix (2025-07-11)
 - **Issue Fixed**: Vercel deployment error "Function Runtimes must have a valid version"
 - **Problem**: `"runtime": "python3.9"` specification in vercel.json was invalid
