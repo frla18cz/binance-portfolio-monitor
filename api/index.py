@@ -5,7 +5,10 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
-from .logger import get_logger, LogCategory, OperationTimer
+try:
+    from .logger import get_logger, LogCategory, OperationTimer
+except ImportError:
+    from api.logger import get_logger, LogCategory, OperationTimer
 
 # Add project root to path for config import
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
