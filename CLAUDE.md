@@ -7,6 +7,14 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Vercel Python Runtime Fix (2025-07-11)
+- **Issue Fixed**: Vercel deployment error "Function Runtimes must have a valid version"
+- **Problem**: `"runtime": "python3.9"` specification in vercel.json was invalid
+- **Solution**: Removed runtime specifications to use Python 3.12 default
+- **Deployment**: Now compatible with Vercel's latest Python runtime requirements
+- **Cron Schedule**: Maintained hourly execution (`0 * * * *`) for Pro plan
+- **Files Modified**: `vercel.json` (removed runtime specifications)
+
 ### Automatic Benchmark Configs Creation (2025-07-11)
 - **New Feature**: System now automatically creates missing benchmark_configs
 - **Problem Solved**: No manual intervention needed when benchmark_configs are missing

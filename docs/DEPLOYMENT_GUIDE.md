@@ -59,24 +59,32 @@ __pycache__/
 ```json
 {
   "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python"
-    }
+    "api/index.py": {},
+    "api/dashboard.py": {}
   },
   "routes": [
     {
-      "src": "/api",
-      "dest": "/api/index.py"
+      "src": "/dashboard",
+      "dest": "/api/dashboard"
+    },
+    {
+      "src": "/api/dashboard/(.*)",
+      "dest": "/api/dashboard"
     }
   ],
   "crons": [
     {
-      "path": "/api",
+      "path": "/api/index",
       "schedule": "0 * * * *"
     }
   ]
 }
 ```
+
+**Important Notes:**
+- **Python Runtime**: Vercel uses Python 3.12 by default (no runtime specification needed)
+- **Legacy Runtime**: Avoid specifying `"runtime": "python3.9"` as it causes deployment errors
+- **Cron Schedule**: Hourly execution requires Vercel Pro plan ($20/month)
 
 #### Verify `requirements.txt`
 ```txt

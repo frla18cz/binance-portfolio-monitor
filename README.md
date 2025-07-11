@@ -1,6 +1,6 @@
 # 📊 Binance Portfolio Monitor
 
-[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-30%20passed-green.svg)](./tests/)
 [![Coverage](https://img.shields.io/badge/coverage-71%25-green.svg)](./tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
