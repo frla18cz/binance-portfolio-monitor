@@ -293,6 +293,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json_data.encode('utf-8'))
 
+# Export handler for Vercel
+handler = DashboardHandler
+
 if __name__ == "__main__":
     from http.server import HTTPServer
     print(f"🟢 Starting Dashboard on http://{settings.dashboard.host}:{settings.dashboard.port}/dashboard")
