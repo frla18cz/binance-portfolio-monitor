@@ -322,10 +322,6 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
                        f"Successfully fetched prices from data API: BTC=${prices['BTCUSDT']:,.2f}, ETH=${prices['ETHUSDT']:,.2f}",
                        account_id=account_id, account_name=account_name, data=prices)
         
-        # Restore original API URL for account operations
-        if original_api_url:
-            client.API_URL = original_api_url
-            
         return prices
     except Exception as e:
         if logger:
