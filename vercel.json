@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/*.py": {
+      "regions": ["fra1"]
+    }
+  },
   "crons": [
     {
       "path": "/api/index",
