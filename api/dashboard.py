@@ -38,7 +38,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         logger.info(LogCategory.SYSTEM, "request_received", f"GET request for {path} with params {query_params}")
         
         try:
-            if path == '/api/dashboard/status':
+            if path == '/api/dashboard' or path == '/api/dashboard/':
+                self._serve_dashboard()
+            elif path == '/api/dashboard/status':
                 self._handle_status()
             elif path == '/api/dashboard/logs':
                 self._handle_logs(query_params)
