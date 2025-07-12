@@ -17,13 +17,51 @@ from utils.log_cleanup import run_log_cleanup
 from utils.database_manager import get_supabase_client, with_database_retry
 
 # --- Global clients ---
-supabase = get_supabase_client()
+try:
+    supabase = get_supabase_client()
+except Exception as e:
+    print(f"ERROR initializing Supabase client: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    supabase = None
 
 # --- Main handler for Vercel ---
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        logger = get_logger()
-        logger.info(LogCategory.SYSTEM, "cron_trigger", "Cron job triggered - starting monitoring process")
+        # Health check endpoint
+        if self.path == '/api/health':
+            health_data = {
+                'status': 'checking',
+                'supabase_configured': bool(os.getenv('SUPABASE_URL')),
+                'supabase_key_configured': bool(os.getenv('SUPABASE_ANON_KEY')),
+                'supabase_connected': supabase is not None,
+                'environment': os.getenv('VERCEL_ENV', 'unknown'),
+                'python_version': sys.version
+            }
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            import json
+            self.wfile.write(json.dumps(health_data, indent=2).encode('utf-8'))
+            return
+            
+        # Early error check
+        if supabase is None:
+            self.send_response(500)
+            self.send_header('Content-type','text/plain')
+            self.end_headers()
+            self.wfile.write('Error: Database connection failed during initialization'.encode('utf-8'))
+            return
+            
+        try:
+            logger = get_logger()
+            logger.info(LogCategory.SYSTEM, "cron_trigger", "Cron job triggered - starting monitoring process")
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type','text/plain')
+            self.end_headers()
+            self.wfile.write(f'Logger initialization error: {str(e)}'.encode('utf-8'))
+            return
         
         try:
             with OperationTimer(logger, LogCategory.SYSTEM, "full_monitoring_cycle"):

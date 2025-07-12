@@ -7,7 +7,17 @@ import time
 from typing import Optional, Dict, Any
 from functools import wraps
 from supabase import create_client, Client
-from config import settings
+import os
+try:
+    from config import settings
+except ImportError:
+    # Fallback for Vercel environment
+    class Settings:
+        class Database:
+            supabase_url = os.getenv('SUPABASE_URL', '')
+            supabase_key = os.getenv('SUPABASE_ANON_KEY', '')
+    settings = Settings()
+    settings.database = Settings.Database()
 
 
 class DatabaseManager:
