@@ -7,6 +7,19 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Vercel Cron Job Fix - Data API URL Persistence (2025-07-12)
+- **Critical Issue Resolved**: Fixed hourly cron job failures on Vercel due to API URL restoration
+- **Problem**: `get_prices()` was restoring original API URL after fetching prices, causing subsequent calls to fail
+- **Root Cause**: After switching to `data-api.binance.vision`, the function restored the original Binance API URL
+- **Impact**: All cron job executions failing with "Service unavailable from a restricted location" error
+- **Solution**: Removed API URL restoration code (lines 326-328) to maintain data API permanently
+- **Code Changes**:
+  - Deleted the URL restoration block in `get_prices()` function
+  - Data API URL now remains set for all read-only operations
+- **Testing Results**: ✅ All 3 accounts processed successfully locally with data API
+- **Files Modified**: `api/index.py`
+- **Commit**: `3b9ef9f` - "fix: remove API URL restoration to maintain data API for all price fetching"
+
 ### Production Error Fixes (2025-07-12)
 - **Critical Issues Resolved**: Fixed timestamp format errors and geographic restrictions causing system failures
 - **Problem 1**: Timestamp formatting error - `datetime.isoformat() + '+00:00'` created invalid formats like `2025-07-12T15:59:17.684759+00:00+00:00`
