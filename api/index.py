@@ -757,18 +757,23 @@ def initialize_benchmark(db_client, config, account_id, initial_nav, prices, log
                    data={"initial_nav": initial_nav, "btc_investment": investment, 
                         "eth_investment": investment, "btc_units": btc_units, "eth_units": eth_units})
     
+    # Set initialized_at to current timestamp to prevent duplicate transaction processing
+    initialized_at = datetime.now(UTC).isoformat() + '+00:00'
+    
     with OperationTimer(logger, LogCategory.DATABASE, "update_benchmark_config", account_id) if logger else nullcontext():
         response = db_client.table('benchmark_configs').update({
             'btc_units': btc_units,
             'eth_units': eth_units,
-            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00'
+            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00',
+            'initialized_at': initialized_at
         }).eq('account_id', account_id).execute()
     
     if logger:
         logger.info(LogCategory.BENCHMARK, "initialize_complete", 
                    f"Benchmark initialized successfully. Next rebalance: {next_rebalance}",
                    account_id=account_id,
-                   data={"btc_units": btc_units, "eth_units": eth_units, "next_rebalance": next_rebalance.isoformat()})
+                   data={"btc_units": btc_units, "eth_units": eth_units, "next_rebalance": next_rebalance.isoformat(),
+                        "initialized_at": initialized_at})
     
     print(f"Benchmark initialized. Next rebalance: {next_rebalance}")
     return response.data[0]
@@ -932,10 +937,30 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
         # Filter out transactions that have already been processed
         unprocessed_transactions = filter_unprocessed_transactions(db_client, new_transactions, account_id, logger)
         
+        # Filter out transactions that occurred before benchmark initialization (prevents duplicate processing)
+        initialized_at = config.get('initialized_at')
+        if initialized_at:
+            # Convert initialized_at to datetime for comparison
+            initialized_dt = datetime.fromisoformat(initialized_at.replace('Z', '+00:00'))
+            pre_init_count = len(unprocessed_transactions)
+            
+            # Filter out transactions before initialization
+            unprocessed_transactions = [
+                txn for txn in unprocessed_transactions
+                if datetime.fromisoformat(txn['timestamp'].replace('Z', '+00:00')) >= initialized_dt
+            ]
+            
+            filtered_count = pre_init_count - len(unprocessed_transactions)
+            if filtered_count > 0 and logger:
+                logger.info(LogCategory.TRANSACTION, "pre_init_filtered", 
+                           f"Filtered out {filtered_count} pre-initialization transactions",
+                           account_id=account_id, 
+                           data={"filtered_count": filtered_count, "initialized_at": initialized_at})
+        
         if not unprocessed_transactions:
             if logger:
                 logger.debug(LogCategory.TRANSACTION, "no_new_transactions", 
-                           "No new transactions found (after deduplication)", account_id=account_id)
+                           "No new transactions found (after deduplication and pre-init filtering)", account_id=account_id)
             return config
             
         if logger:
@@ -1185,8 +1210,17 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
         "prices_present": prices is not None,
         "processed_txns_count": len(processed_txns) if processed_txns else 0,
         "config_keys": list(config.keys()) if isinstance(config, dict) else None,
-        "price_symbols": list(prices.keys()) if isinstance(prices, dict) else None
+        "price_symbols": list(prices.keys()) if isinstance(prices, dict) else None,
+        "config_has_initialized_at": bool(config.get('initialized_at')) if config else False
     }
+    
+    # Validation: Check if benchmark is properly initialized
+    if not config.get('initialized_at'):
+        error_msg = "Cannot adjust benchmark for uninitialized config (missing initialized_at)"
+        if logger:
+            logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
+                        error_msg, account_id=account_id, error=error_msg, data=validation_context)
+        raise ValueError(error_msg)
     
     if logger:
         logger.debug(LogCategory.TRANSACTION, "benchmark_adjustment_start",
