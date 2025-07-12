@@ -12,7 +12,22 @@ except ImportError:
 
 # Add project root to path for config import
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from config import settings
+
+# Try to load config, fallback to environment variables for Vercel
+try:
+    from config import settings
+except ValueError as e:
+    if "SUPABASE_URL" in str(e) or "SUPABASE_ANON_KEY" in str(e):
+        # Create minimal settings for Vercel environment
+        class MinimalSettings:
+            class Database:
+                supabase_url = os.getenv('SUPABASE_URL', '')
+                supabase_key = os.getenv('SUPABASE_ANON_KEY', '')
+        settings = MinimalSettings()
+        settings.database = MinimalSettings.Database()
+        print(f"Using fallback settings for Vercel: URL={bool(settings.database.supabase_url)}, KEY={bool(settings.database.supabase_key)}")
+    else:
+        raise
 from utils.log_cleanup import run_log_cleanup
 from utils.database_manager import get_supabase_client, with_database_retry
 
