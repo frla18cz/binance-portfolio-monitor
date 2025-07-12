@@ -758,7 +758,7 @@ def initialize_benchmark(db_client, config, account_id, initial_nav, prices, log
                         "eth_investment": investment, "btc_units": btc_units, "eth_units": eth_units})
     
     # Set initialized_at to current timestamp to prevent duplicate transaction processing
-    initialized_at = datetime.now(UTC).isoformat() + '+00:00'
+    initialized_at = datetime.now(UTC).isoformat()
     
     with OperationTimer(logger, LogCategory.DATABASE, "update_benchmark_config", account_id) if logger else nullcontext():
         response = db_client.table('benchmark_configs').update({
