@@ -7,6 +7,50 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Binance Data API Integration (2025-07-12)
+- **Geographic Restriction Solution**: Switched to `data-api.binance.vision` for public endpoints
+- **Problem Solved**: Vercel functions in Frankfurt region were still blocked by Binance
+- **Root Cause**: Cloud provider IP ranges (AWS, GCP, Vercel) are geo-blocked by Binance
+- **Implementation**: 
+  - Added `data_api_url` configuration pointing to `https://data-api.binance.vision/api`
+  - Modified `get_prices()` function to automatically use data API for price fetching
+  - Updated BinanceConfig dataclass to include data_api_url field
+- **Scope**: Only affects public read-only endpoints (prices, tickers)
+- **Account APIs**: Private account endpoints (NAV, balances) still use regular Binance API with API keys
+- **Result**: ✅ Fully functional monitoring on Vercel with hourly cron execution
+- **Files Modified**: `config/settings.json`, `config/__init__.py`, `api/index.py`, `api/dashboard.py`
+- **Testing**: Added data API test to debug endpoint for verification
+
+### Frankfurt Region Configuration (2025-07-12)
+- **Vercel Region**: Configured functions to run in Frankfurt (fra1) instead of US (iad1)
+- **Purpose**: Attempt to bypass Binance geographic restrictions for EU region
+- **Implementation**: Added `"functions": {"api/*.py": {"regions": ["fra1"]}}` to vercel.json
+- **Pro Plan**: Requires Vercel Pro plan for region selection functionality
+- **Result**: Successfully deployed to Frankfurt but Binance still blocked cloud provider IPs
+- **Follow-up**: Led to data API solution which completely resolved the issue
+- **Files Modified**: `vercel.json`
+
+### Vercel Production Deployment Fixes (2025-07-12)
+- **Read-only Filesystem**: Added fallback for logger when file creation fails in Vercel
+- **Config Validation**: Added environment variable fallback for missing Supabase credentials
+- **Handler Export**: Added proper `handler = DashboardHandler` export for Vercel compatibility
+- **Error Handling**: Comprehensive error handling for serverless environment constraints
+- **Environment Detection**: Added logic to detect Vercel environment and adjust behavior
+- **Robustness**: System now gracefully handles serverless limitations and missing dependencies
+- **Files Modified**: `api/logger.py`, `api/index.py`, `api/dashboard.py`
+
+### Dashboard Timestamp Enhancement (2025-07-12)
+- **Price Timestamps**: Added timestamp display showing when prices were last fetched
+- **Portfolio Timestamps**: Show last monitoring run time for each account
+- **User Experience**: Users can see data freshness with relative time ("2 hours ago", "just now")
+- **Implementation**:
+  - Added `getTimeAgo()` JavaScript function for relative time calculation
+  - Enhanced API responses to include timestamp metadata
+  - Added CSS styling for timestamp display elements
+- **Data Source**: Timestamps reflect actual database data age, not API call time
+- **Hybrid Solution**: Combines cached database values with freshness indicators
+- **Files Modified**: `dashboard.html`, `api/dashboard.py`
+
 ### Vercel Empty Functions Fix (2025-07-11)
 - **Build Error**: Fixed "Function must contain at least one property" error
 - **Problem**: Empty function objects `{}` in vercel.json functions section
@@ -210,6 +254,7 @@ The debug script now tests all wallet types:
 2. **Test manual monitoring**: Run `python -m api.index` to test data collection
 3. **Check nav_history**: Verify data is being saved to database
 4. **Verify cron job**: Check Vercel cron configuration in `vercel.json`
+5. **Check Binance API access**: Verify geographic restrictions are not blocking data fetching
 
 ### Creating Missing Benchmark Configs
 If benchmark_configs are missing, create them with:
@@ -227,6 +272,34 @@ for account in accounts.data:
     }
     supabase.table('benchmark_configs').insert(config).execute()
 ```
+
+### Geographic Restrictions / "Service unavailable from restricted location"
+If you see `APIError(code=0): Service unavailable from a restricted location` errors:
+
+1. **Verify Data API Configuration**: Check that system is using data-api.binance.vision for prices
+   ```python
+   # Check current configuration
+   from config import settings
+   print(f"Data API URL: {settings.api.binance.data_api_url}")
+   
+   # Test data API access
+   from binance.client import Client
+   client = Client('', '')
+   client.API_URL = 'https://data-api.binance.vision/api'
+   ticker = client.get_symbol_ticker(symbol='BTCUSDT')
+   print(f"Success: {ticker}")
+   ```
+
+2. **Check Vercel Region**: Ensure functions run in Frankfurt region (fra1)
+   ```bash
+   # Check deployment logs for region indicator
+   curl -s https://your-app.vercel.app/api/health
+   # Look for "fra1::" in response indicating Frankfurt deployment
+   ```
+
+3. **Monitor Logs**: Check system_logs table for price_fetch_error vs prices_fetched events
+
+**Note**: Geographic restrictions only affect cloud provider IPs. The data API solution bypasses this for public endpoints while private account APIs work through Frankfurt region.
 
 ## Dashboard UI Notes
 - **Current Status**: Dashboard has only functional "🔄 Refresh Data" button
