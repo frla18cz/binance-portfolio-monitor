@@ -88,25 +88,34 @@ class MonitorLogger:
     
     def _setup_file_logging(self):
         """Setup file logging with rotation."""
-        # Ensure logs directory exists
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
-        
-        # Setup standard Python logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_dir / "monitor.log"),
-                logging.StreamHandler()
-            ]
-        )
-        
-        self.file_path = log_dir / self.log_file
+        # Check if we can write to filesystem (not Vercel)
+        try:
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            
+            # Setup standard Python logging
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                handlers=[
+                    logging.FileHandler(log_dir / "monitor.log"),
+                    logging.StreamHandler()
+                ]
+            )
+            
+            self.file_path = log_dir / self.log_file
+        except (OSError, PermissionError):
+            # Vercel read-only filesystem - use only console logging
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                handlers=[logging.StreamHandler()]
+            )
+            self.file_path = None
     
     def _load_existing_logs(self):
         """Load existing logs from file."""
-        if self.file_path.exists():
+        if self.file_path and self.file_path.exists():
             try:
                 with open(self.file_path, 'r') as f:
                     lines = f.readlines()
@@ -132,6 +141,9 @@ class MonitorLogger:
     
     def _save_to_file(self, entry: LogEntry):
         """Save log entry to file."""
+        if not self.file_path:
+            return  # Skip file logging in read-only environments like Vercel
+            
         try:
             with open(self.file_path, 'a') as f:
                 f.write(json.dumps(entry.to_dict()) + '\n')
