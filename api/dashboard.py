@@ -264,6 +264,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             try:
                 from binance.client import Client as BinanceClient
                 temp_client = BinanceClient('', '')
+                temp_client.API_URL = 'https://data-api.binance.vision/api'
                 # Simple ping to check if we can reach Binance
                 temp_client.ping()
             except Exception:

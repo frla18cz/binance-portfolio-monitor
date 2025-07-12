@@ -185,7 +185,8 @@ def process_all_accounts():
     try:
         # Create temporary Binance client just for price fetching
         from binance.client import Client as BinanceClient
-        temp_client = BinanceClient('', '')  # No API key needed for public endpoints
+        temp_client = BinanceClient('', '')  # Use data API for read-only access
+        temp_client.API_URL = settings.api.binance.data_api_url
         
         with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices_all_accounts"):
             prices = get_prices(temp_client, logger)
@@ -302,6 +303,11 @@ def process_single_account(account, prices=None):
 
 def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
+        # Ensure client uses data API for price fetching
+        if not hasattr(client, '_data_api_configured'):
+            client.API_URL = settings.api.binance.data_api_url
+            client._data_api_configured = True
+            
         prices = {}
         for symbol in settings.get_supported_symbols():
             ticker = client.get_symbol_ticker(symbol=symbol)
@@ -309,13 +315,13 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
         
         if logger:
             logger.info(LogCategory.PRICE_UPDATE, "prices_fetched", 
-                       f"Successfully fetched prices: BTC=${prices['BTCUSDT']:,.2f}, ETH=${prices['ETHUSDT']:,.2f}",
+                       f"Successfully fetched prices from data API: BTC=${prices['BTCUSDT']:,.2f}, ETH=${prices['ETHUSDT']:,.2f}",
                        account_id=account_id, account_name=account_name, data=prices)
         return prices
     except Exception as e:
         if logger:
             logger.error(LogCategory.PRICE_UPDATE, "price_fetch_error", 
-                        f"Failed to fetch prices: {str(e)}",
+                        f"Failed to fetch prices from data API: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
         
         # Fallback: use latest prices from database if available

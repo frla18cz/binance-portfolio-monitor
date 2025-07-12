@@ -41,6 +41,7 @@
   "api": {
     "binance": {
       "tld": "com",
+      "data_api_url": "https://data-api.binance.vision/api",
       "supported_symbols": ["BTCUSDT", "ETHUSDT"],
       "supported_stablecoins": ["USDT", "BUSD", "USDC", "BNFCR"],
       "timeout_seconds": 30,

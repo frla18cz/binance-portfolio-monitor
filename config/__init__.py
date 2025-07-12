@@ -59,6 +59,7 @@ class FinancialConfig:
 @dataclass
 class BinanceConfig:
     tld: str
+    data_api_url: str
     supported_symbols: list
     supported_stablecoins: list
     timeout_seconds: int
@@ -144,6 +145,7 @@ class Settings:
         self.api = APIConfig(
             binance=BinanceConfig(
                 tld=binance_config.get("tld", "com"),
+                data_api_url=binance_config.get("data_api_url", "https://data-api.binance.vision/api"),
                 supported_symbols=binance_config.get("supported_symbols", ["BTCUSDT", "ETHUSDT"]),
                 supported_stablecoins=binance_config.get("supported_stablecoins", ["USDT", "BUSD", "USDC", "BNFCR"]),
                 timeout_seconds=binance_config.get("timeout_seconds", 30),
