@@ -261,16 +261,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             except Exception:
                 db_status = "disconnected"
             
-            # Check API status (simplified)
+            # API status is not relevant since we use data API for prices and account APIs work independently
             api_status = "active"
-            try:
-                from binance.client import Client as BinanceClient
-                temp_client = BinanceClient('', '')
-                temp_client.API_URL = 'https://data-api.binance.vision/api'
-                # Simple ping to check if we can reach Binance
-                temp_client.ping()
-            except Exception:
-                api_status = "inactive"
             
             # Get system stats
             system_stats = {
