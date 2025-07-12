@@ -7,6 +7,23 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Production Error Fixes (2025-07-12)
+- **Critical Issues Resolved**: Fixed timestamp format errors and geographic restrictions causing system failures
+- **Problem 1**: Timestamp formatting error - `datetime.isoformat() + '+00:00'` created invalid formats like `2025-07-12T15:59:17.684759+00:00+00:00`
+- **Problem 2**: Data API geographic restrictions still blocking price fetching on Vercel
+- **Impact**: All accounts failing to process with PostgreSQL timestamp parsing errors
+- **Solutions**:
+  - **Timestamp Fix**: Removed redundant `+ '+00:00'` from 3 locations in `api/index.py` (lines 767, 831, 832)
+  - **Data API Enhancement**: Improved `get_prices()` function with forced data API switching and URL restoration
+  - **Error Handling**: Added comprehensive logging for data API transitions and fallback mechanisms
+- **Code Changes**:
+  - Modified `initialize_benchmark()` and `rebalance_benchmark()` timestamp formatting
+  - Enhanced `get_prices()` with explicit data API URL management
+  - Added `data_api_switch` logging for monitoring API transitions
+- **Testing Results**: ✅ All 3 accounts processed successfully, data API working, no timestamp errors
+- **Files Modified**: `api/index.py`
+- **Deployment**: Ready for production - fixes tested locally and ready for Vercel deployment
+
 ### Benchmark Disparity Fix (2025-07-12)
 - **Critical Issue Resolved**: Fixed benchmark values being 3x higher than NAV due to duplicate transaction processing
 - **Root Cause**: Benchmark initialized with current NAV (containing historical deposits) + historical transactions reprocessed = double counting

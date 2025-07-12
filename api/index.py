@@ -303,10 +303,14 @@ def process_single_account(account, prices=None):
 
 def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
-        # Ensure client uses data API for price fetching
-        if not hasattr(client, '_data_api_configured'):
-            client.API_URL = settings.api.binance.data_api_url
-            client._data_api_configured = True
+        # Force data API configuration for geographic restriction bypass
+        original_api_url = getattr(client, 'API_URL', None)
+        client.API_URL = settings.api.binance.data_api_url
+        
+        if logger:
+            logger.info(LogCategory.PRICE_UPDATE, "data_api_switch", 
+                       f"Switched to data API: {settings.api.binance.data_api_url}",
+                       account_id=account_id, account_name=account_name)
             
         prices = {}
         for symbol in settings.get_supported_symbols():
@@ -317,11 +321,16 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
             logger.info(LogCategory.PRICE_UPDATE, "prices_fetched", 
                        f"Successfully fetched prices from data API: BTC=${prices['BTCUSDT']:,.2f}, ETH=${prices['ETHUSDT']:,.2f}",
                        account_id=account_id, account_name=account_name, data=prices)
+        
+        # Restore original API URL for account operations
+        if original_api_url:
+            client.API_URL = original_api_url
+            
         return prices
     except Exception as e:
         if logger:
             logger.error(LogCategory.PRICE_UPDATE, "price_fetch_error", 
-                        f"Failed to fetch prices from data API: {str(e)}",
+                        f"Error fetching prices: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
         
         # Fallback: use latest prices from database if available
@@ -764,7 +773,7 @@ def initialize_benchmark(db_client, config, account_id, initial_nav, prices, log
         response = db_client.table('benchmark_configs').update({
             'btc_units': btc_units,
             'eth_units': eth_units,
-            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00',
+            'next_rebalance_timestamp': next_rebalance.isoformat(),
             'initialized_at': initialized_at
         }).eq('account_id', account_id).execute()
     
@@ -828,8 +837,8 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
         response = db_client.table('benchmark_configs').update({
             'btc_units': btc_units,
             'eth_units': eth_units,
-            'next_rebalance_timestamp': next_rebalance.isoformat() + '+00:00',
-            'last_rebalance_timestamp': rebalance_timestamp.isoformat() + '+00:00',
+            'next_rebalance_timestamp': next_rebalance.isoformat(),
+            'last_rebalance_timestamp': rebalance_timestamp.isoformat(),
             'last_rebalance_status': rebalance_status,
             'last_rebalance_error': rebalance_error,
             'rebalance_count': new_count,
