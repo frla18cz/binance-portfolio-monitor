@@ -7,6 +7,26 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Benchmark Disparity Fix (2025-07-12)
+- **Critical Issue Resolved**: Fixed benchmark values being 3x higher than NAV due to duplicate transaction processing
+- **Root Cause**: Benchmark initialized with current NAV (containing historical deposits) + historical transactions reprocessed = double counting
+- **Impact**: Ondra(test) account had 2.91x benchmark disparity, causing incorrect performance tracking
+- **Solution**: Added `initialized_at` timestamp to prevent pre-initialization transaction processing
+- **Database Changes**:
+  - Added `initialized_at TIMESTAMP WITH TIME ZONE` column to `benchmark_configs` table
+  - Migration script removes duplicate `processed_transactions` records
+- **Code Changes**:
+  - Modified `initialize_benchmark()` to set `initialized_at` timestamp during initialization
+  - Enhanced `process_deposits_withdrawals()` to filter transactions before `initialized_at`
+  - Added validation in `adjust_benchmark_for_cashflow()` to require proper initialization
+- **Results**:
+  - Habitanti: 1.62% outperformance (was ~1.7x disparity)
+  - Simple: 1.60% outperformance (was ~1.7x disparity) 
+  - Ondra(test): 0.37% outperformance (was ~3x disparity)
+- **Prevention**: System now prevents duplicate transaction processing during restarts/resets
+- **Files Modified**: `api/index.py`, `migrations/add_initialized_at_to_benchmark_configs.sql`, `fix_existing_benchmark_configs.py`
+- **Migration Required**: Run SQL migration to add `initialized_at` column and execute cleanup script
+
 ### Binance Data API Integration (2025-07-12)
 - **Geographic Restriction Solution**: Switched to `data-api.binance.vision` for public endpoints
 - **Problem Solved**: Vercel functions in Frankfurt region were still blocked by Binance
@@ -239,6 +259,55 @@ The debug script now tests all wallet types:
 - Some wallet types (Funding, Simple Earn) may return errors if not activated on the account
 
 ## Troubleshooting Guide
+
+### Benchmark Disparity Issues
+If benchmark values are significantly different from NAV (ratio > 1.5x or < 0.5x):
+
+1. **Check for missing initialized_at**: 
+   ```sql
+   SELECT account_id, initialized_at FROM benchmark_configs WHERE initialized_at IS NULL;
+   ```
+
+2. **Verify transaction filtering**: Look for `pre_init_filtered` logs in system_logs:
+   ```python
+   from utils.database_manager import get_supabase_client
+   supabase = get_supabase_client()
+   logs = supabase.table('system_logs').select('*').eq('operation', 'pre_init_filtered').execute()
+   ```
+
+3. **Check for duplicate transactions**: 
+   ```python
+   # Count processed transactions vs expected
+   txns = supabase.table('processed_transactions').select('*').execute()
+   print(f"Processed transactions: {len(txns.data)}")
+   ```
+
+4. **Fix benchmark disparity**:
+   ```bash
+   # Run the migration script to fix existing accounts
+   python fix_existing_benchmark_configs.py
+   ```
+
+5. **Reset specific account benchmark**:
+   ```python
+   # Manual reset to match current NAV
+   account_id = 'your-account-id'
+   current_nav = 6000.0  # Get from latest nav_history
+   btc_price = 100000.0  # Current BTC price
+   eth_price = 3000.0    # Current ETH price
+   
+   # Calculate 50/50 split
+   investment_per_coin = current_nav / 2
+   btc_units = investment_per_coin / btc_price
+   eth_units = investment_per_coin / eth_price
+   
+   # Update config
+   supabase.table('benchmark_configs').update({
+       'btc_units': btc_units,
+       'eth_units': eth_units,
+       'initialized_at': datetime.now(timezone.utc).isoformat() + '+00:00'
+   }).eq('account_id', account_id).execute()
+   ```
 
 ### Dashboard Shows No Data / "No NAV history"
 1. **Check benchmark_configs**: Ensure all accounts have benchmark_configs records
