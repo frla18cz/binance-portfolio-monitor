@@ -146,25 +146,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "current_nav": float(latest_data.get("nav", 0)),
                         "benchmark_value": float(latest_benchmark_value),
                         "vs_benchmark": float(latest_data.get("nav", 0)) - float(latest_benchmark_value),
-                        "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_benchmark_value)) / float(latest_benchmark_value) * 100 if latest_benchmark_value != 0 else 0
+                        "vs_benchmark_pct": (float(latest_data.get("nav", 0)) - float(latest_benchmark_value)) / float(latest_benchmark_value) * 100 if latest_benchmark_value != 0 else 0,
+                        "last_updated": latest_data.get("timestamp")
                     }
                 else:
                     logger.warning(LogCategory.SYSTEM, "metrics_no_nav", f"No NAV history for account_id: {account_id}")
 
-            # Get latest BTC/ETH prices from database instead of API
+            # Get latest BTC/ETH prices from database with timestamp
             try:
-                price_result = supabase.table('price_history').select('btc_price, eth_price').order('timestamp', desc=True).limit(1).execute()
+                price_result = supabase.table('price_history').select('btc_price, eth_price, timestamp').order('timestamp', desc=True).limit(1).execute()
                 if price_result.data:
                     latest_prices = price_result.data[0]
                     prices = {
                         "btc": float(latest_prices.get("btc_price", 0.0)), 
-                        "eth": float(latest_prices.get("eth_price", 0.0))
+                        "eth": float(latest_prices.get("eth_price", 0.0)),
+                        "timestamp": latest_prices.get("timestamp"),
+                        "source": "database"
                     }
                 else:
-                    prices = {"btc": 0.0, "eth": 0.0}
+                    prices = {
+                        "btc": 0.0, 
+                        "eth": 0.0, 
+                        "timestamp": None,
+                        "source": "none"
+                    }
             except Exception as price_error:
                 logger.warning(LogCategory.SYSTEM, "dashboard_price_fallback", f"Could not fetch prices from DB: {str(price_error)}")
-                prices = {"btc": 0.0, "eth": 0.0}
+                prices = {
+                    "btc": 0.0, 
+                    "eth": 0.0, 
+                    "timestamp": None,
+                    "source": "error"
+                }
 
         except Exception as e:
             logger.error(LogCategory.SYSTEM, "dashboard_live_data_error", f"Error fetching metrics: {str(e)}", error=str(e))
