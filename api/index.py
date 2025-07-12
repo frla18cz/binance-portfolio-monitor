@@ -317,6 +317,27 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
             logger.error(LogCategory.PRICE_UPDATE, "price_fetch_error", 
                         f"Failed to fetch prices: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
+        
+        # Fallback: use latest prices from database if available
+        try:
+            price_result = supabase.table('price_history').select('btc_price, eth_price').order('timestamp', desc=True).limit(1).execute()
+            if price_result.data:
+                latest = price_result.data[0]
+                fallback_prices = {
+                    'BTCUSDT': float(latest['btc_price']),
+                    'ETHUSDT': float(latest['eth_price'])
+                }
+                if logger:
+                    logger.info(LogCategory.PRICE_UPDATE, "prices_fallback", 
+                               f"Using fallback prices from DB: BTC=${fallback_prices['BTCUSDT']:,.2f}, ETH=${fallback_prices['ETHUSDT']:,.2f}",
+                               account_id=account_id, account_name=account_name)
+                return fallback_prices
+        except Exception as fallback_error:
+            if logger:
+                logger.error(LogCategory.PRICE_UPDATE, "price_fallback_error", 
+                            f"Fallback price fetch also failed: {str(fallback_error)}",
+                            error=str(fallback_error))
+        
         print(f"Error getting prices: {e}")
         return None
 
