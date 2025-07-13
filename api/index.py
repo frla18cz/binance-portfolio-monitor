@@ -349,9 +349,7 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
             ticker = client.get_symbol_ticker(symbol=symbol)
             prices[symbol] = float(ticker['price'])
         
-        # Restore original API URL if it was set
-        if original_api_url:
-            client.API_URL = original_api_url
+        # Keep using data API URL - do not restore original
             
         if logger:
             logger.info(LogCategory.PRICE_UPDATE, "prices_fetched", 
