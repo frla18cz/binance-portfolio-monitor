@@ -18,31 +18,53 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 # Try to load config, fallback to environment variables for Vercel
 try:
     from config import settings
-except ValueError as e:
-    if "SUPABASE_URL" in str(e) or "SUPABASE_ANON_KEY" in str(e):
-        # Create minimal settings for Vercel environment
-        class MinimalSettings:
-            class Database:
-                supabase_url = os.getenv('SUPABASE_URL', '')
-                supabase_key = os.getenv('SUPABASE_ANON_KEY', '')
-            class Api:
-                class Binance:
-                    data_api_url = 'https://data-api.binance.vision/api'
-                    tld = 'com'
-                    supported_symbols = ['BTCUSDT', 'ETHUSDT']
-                    supported_stablecoins = ['USDT', 'BUSD', 'USDC', 'BNFCR']
+    # Ensure settings has required methods for Vercel
+    if not hasattr(settings, 'get_supported_symbols'):
+        settings.get_supported_symbols = lambda: getattr(settings.api.binance, 'supported_symbols', ['BTCUSDT', 'ETHUSDT'])
+    if not hasattr(settings, 'get_supported_stablecoins'):
+        settings.get_supported_stablecoins = lambda: getattr(settings.api.binance, 'supported_stablecoins', ['USDT', 'BUSD', 'USDC', 'BNFCR'])
+    if not hasattr(settings, 'financial'):
+        class Financial:
+            minimum_balance_threshold = 0.00001
+            minimum_usd_value_threshold = 0.1
+        settings.financial = Financial()
+    if not hasattr(settings, 'scheduling'):
+        class Scheduling:
+            historical_period_days = 30
+        settings.scheduling = Scheduling()
+except (ValueError, ImportError, ModuleNotFoundError) as e:
+    # Create minimal settings for Vercel environment
+    class MinimalSettings:
+        class Database:
+            supabase_url = os.getenv('SUPABASE_URL', '')
+            supabase_key = os.getenv('SUPABASE_ANON_KEY', '')
+        class Api:
+            class Binance:
+                data_api_url = 'https://data-api.binance.vision/api'
+                tld = 'com'
+                supported_symbols = ['BTCUSDT', 'ETHUSDT']
+                supported_stablecoins = ['USDT', 'BUSD', 'USDC', 'BNFCR']
+        class Financial:
+            minimum_balance_threshold = 0.00001
+            minimum_usd_value_threshold = 0.1
+        class Scheduling:
+            historical_period_days = 30
+        
+        def get_supported_symbols(self):
+            """Method to get supported symbols for compatibility"""
+            return self.api.binance.supported_symbols
             
-            def get_supported_symbols(self):
-                """Method to get supported symbols for compatibility"""
-                return self.api.binance.supported_symbols
-                
-        settings = MinimalSettings()
-        settings.database = MinimalSettings.Database()
-        settings.api = MinimalSettings.Api()
-        settings.api.binance = MinimalSettings.Api.Binance()
-        # Using fallback settings for Vercel
-    else:
-        raise
+        def get_supported_stablecoins(self):
+            """Method to get supported stablecoins for compatibility"""
+            return self.api.binance.supported_stablecoins
+            
+    settings = MinimalSettings()
+    settings.database = MinimalSettings.Database()
+    settings.api = MinimalSettings.Api()
+    settings.api.binance = MinimalSettings.Api.Binance()
+    settings.financial = MinimalSettings.Financial()
+    settings.scheduling = MinimalSettings.Scheduling()
+    # Using fallback settings for Vercel
 from utils.log_cleanup import run_log_cleanup
 from utils.database_manager import get_supabase_client, with_database_retry
 
