@@ -6,7 +6,7 @@
   },
   "crons": [
     {
-      "path": "/api/cron_monitor",
+      "path": "/api/monitor",
       "schedule": "0 * * * *"
     }
   ],
