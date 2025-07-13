@@ -1,14 +1,8 @@
 {
   "regions": ["fra1"],
   "functions": {
-    "api/index.py": {
+    "api/*.py": {
       "maxDuration": 60
-    },
-    "api/test.py": {
-      "maxDuration": 10  
-    },
-    "api/version.py": {
-      "maxDuration": 10
     }
   },
   "crons": [
