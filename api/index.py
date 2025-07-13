@@ -255,7 +255,14 @@ def process_single_account(account, prices=None):
 
     # Use real Binance client
     binance_client = BinanceClient(api_key, api_secret, tld=settings.api.binance.tld)
+    # Note: We don't set data API URL here as this client is used for private endpoints (NAV, balances)
+    # Price fetching uses temp_client with data API URL in process_all_accounts()
     db_client = supabase
+    
+    # Log price availability for debugging
+    logger.info(LogCategory.PRICE_UPDATE, "price_availability_check", 
+               f"Prices provided: {bool(prices)}, prices data: {prices if prices else 'None'}",
+               account_id=account_id, account_name=account_name)
     
     # If prices not provided, fetch them (for backward compatibility)
     if not prices:
