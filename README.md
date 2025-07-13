@@ -1,4 +1,5 @@
 # 📊 Binance Portfolio Monitor
+<!-- Deploy trigger: 2025-07-13 11:56 UTC -->
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-30%20passed-green.svg)](./tests/)
