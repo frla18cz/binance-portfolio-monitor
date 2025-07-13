@@ -66,6 +66,25 @@ class BinanceConfig:
     max_retries: int
 
 @dataclass
+class ProxyConfig:
+    enabled_on_vercel: bool
+    url_env: str
+    timeout_seconds: int
+    verify_ssl: bool
+    description: str = ""
+    
+    @property
+    def url(self) -> Optional[str]:
+        """Get proxy URL from environment variable."""
+        return os.environ.get(self.url_env)
+    
+    @property
+    def is_active(self) -> bool:
+        """Check if proxy should be active (Vercel environment + URL configured)."""
+        is_vercel = bool(os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV'))
+        return self.enabled_on_vercel and is_vercel and bool(self.url)
+
+@dataclass
 class APIConfig:
     binance: BinanceConfig
     rate_limiting: Dict[str, int]
@@ -152,6 +171,16 @@ class Settings:
                 max_retries=binance_config.get("max_retries", 3)
             ),
             rate_limiting=api_config.get("rate_limiting", {"requests_per_minute": 100, "period_seconds": 60})
+        )
+        
+        # Proxy configuration
+        proxy_config = config_data.get("proxy", {})
+        self.proxy = ProxyConfig(
+            enabled_on_vercel=proxy_config.get("enabled_on_vercel", False),
+            url_env=proxy_config.get("url_env", "OXYLABS_PROXY_URL"),
+            timeout_seconds=proxy_config.get("timeout_seconds", 30),
+            verify_ssl=proxy_config.get("verify_ssl", True),
+            description=proxy_config.get("description", "")
         )
         
         # Dashboard configuration

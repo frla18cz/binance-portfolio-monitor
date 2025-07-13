@@ -7,6 +7,28 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Oxylabs Proxy Integration for Vercel (2025-07-13)
+- **Critical Issue Resolved**: Bypassed Binance geographic restrictions on Vercel using Oxylabs proxy
+- **Problem**: Binance blocks all cloud provider IPs (AWS, GCP, Vercel) even in Frankfurt region
+- **Previous Workarounds**: Data API works for prices, but private endpoints (NAV, balances) were still blocked
+- **Solution**: Implemented conditional proxy usage only for Vercel deployments
+- **Implementation Details**:
+  - Added proxy configuration to `config/settings.json` with environment-based activation
+  - Created `create_binance_client()` wrapper function with proxy support
+  - Proxy applies only to authenticated API calls (NAV, balances, transactions)
+  - Price fetching continues using data-api.binance.vision (no proxy needed)
+  - Dashboard remains proxy-independent (reads from database only)
+- **Security**: 
+  - Proxy credentials stored in `OXYLABS_PROXY_URL` environment variable
+  - No hardcoded credentials in code
+  - Proxy active only when: `VERCEL` env detected + `OXYLABS_PROXY_URL` configured
+- **Files Modified**: 
+  - `config/settings.json` - Added proxy configuration section
+  - `config/__init__.py` - Added ProxyConfig dataclass with smart activation
+  - `api/index.py` - Implemented create_binance_client() with conditional proxy
+- **Testing**: Local development unaffected (no proxy), Vercel uses proxy automatically
+- **Documentation**: See `PROXY_SETUP.md` for detailed setup instructions
+
 ### Vercel Cron Job Fix - Data API URL Persistence (2025-07-12)
 - **Critical Issue Resolved**: Fixed hourly cron job failures on Vercel due to API URL restoration
 - **Problem**: `get_prices()` was restoring original API URL after fetching prices, causing subsequent calls to fail
