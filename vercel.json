@@ -1,25 +1,20 @@
 {
+  "regions": ["fra1"],
   "functions": {
-    "api/*.py": {
-      "regions": ["fra1"],
-      "runtime": "python3.9"
+    "api/index.py": {
+      "maxDuration": 60
+    },
+    "api/test.py": {
+      "maxDuration": 10  
+    },
+    "api/version.py": {
+      "maxDuration": 10
     }
   },
-  "buildCommand": "pip install -r requirements.txt",
   "crons": [
     {
       "path": "/api/index",
       "schedule": "*/5 * * * *"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/dashboard",
-      "dest": "/api/dashboard"
-    },
-    {
-      "src": "/api/dashboard/(.*)",
-      "dest": "/api/dashboard"
     }
   ]
 }
