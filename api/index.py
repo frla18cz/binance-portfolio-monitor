@@ -222,8 +222,11 @@ def process_all_accounts():
         # Create temporary Binance client just for price fetching
         from binance.client import Client as BinanceClient
         temp_client = BinanceClient('', '')  # Use data API for read-only access
-        # Always use data API URL for price fetching with fallback
-        temp_client.API_URL = getattr(settings.api.binance, 'data_api_url', 'https://data-api.binance.vision/api')
+        # ALWAYS force data API URL for price fetching - no fallback needed
+        temp_client.API_URL = 'https://data-api.binance.vision/api'
+        
+        logger.info(LogCategory.PRICE_UPDATE, "temp_client_created", 
+                   f"Created temp client with data API URL: {temp_client.API_URL}")
         
         with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices_all_accounts"):
             prices = get_prices(temp_client, logger)
@@ -290,8 +293,13 @@ def process_single_account(account, prices=None):
                     account_id=account_id, account_name=account_name)
         return
 
-    # Use real Binance client
-    binance_client = BinanceClient(api_key, api_secret, tld=settings.api.binance.tld)
+    # Use real Binance client for authenticated endpoints
+    tld = getattr(settings.api.binance, 'tld', 'com') if hasattr(settings, 'api') else 'com'
+    binance_client = BinanceClient(api_key, api_secret, tld=tld)
+    # Log which API URL is being used for this client
+    logger.info(LogCategory.API_CALL, "binance_client_created", 
+               f"Created Binance client for account {account_name}. API URL: {binance_client.API_URL}",
+               account_id=account_id, account_name=account_name)
     # Note: We don't set data API URL here as this client is used for private endpoints (NAV, balances)
     # Price fetching uses temp_client with data API URL in process_all_accounts()
     db_client = supabase
@@ -303,8 +311,16 @@ def process_single_account(account, prices=None):
     
     # If prices not provided, fetch them (for backward compatibility)
     if not prices:
+        logger.warning(LogCategory.PRICE_UPDATE, "prices_not_provided", 
+                      "Prices not provided to process_single_account, creating data API client",
+                      account_id=account_id, account_name=account_name)
+        
+        # Create a NEW client specifically for price fetching with data API
+        price_client = BinanceClient('', '')
+        price_client.API_URL = 'https://data-api.binance.vision/api'
+        
         with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
-            prices = get_prices(binance_client, logger, account_id, account_name)
+            prices = get_prices(price_client, logger, account_id, account_name)
         if not prices:
             return
         # Save price history only if we fetched prices ourselves
@@ -347,26 +363,28 @@ def process_single_account(account, prices=None):
 
 def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
-        # Force data API configuration for geographic restriction bypass
+        # ALWAYS force data API for price queries to bypass geographic restrictions
+        data_api_url = 'https://data-api.binance.vision/api'
+        
+        # Store original URL to log the switch
         original_api_url = getattr(client, 'API_URL', None)
-        # Defensive fallback for data API URL
-        data_api_url = getattr(settings.api.binance, 'data_api_url', 'https://data-api.binance.vision/api')
+        
+        # Force data API URL
         client.API_URL = data_api_url
         
         if logger:
             logger.info(LogCategory.PRICE_UPDATE, "data_api_switch", 
-                       f"Switched to data API: {data_api_url}",
-                       account_id=account_id, account_name=account_name)
+                       f"Forcing data API for prices. Original: {original_api_url} -> New: {data_api_url}",
+                       account_id=account_id, account_name=account_name,
+                       data={"original_url": original_api_url, "new_url": data_api_url})
             
         prices = {}
-        # Handle both real settings and minimal settings
-        supported_symbols = getattr(settings, 'get_supported_symbols', lambda: ['BTCUSDT', 'ETHUSDT'])()
-        if callable(supported_symbols):
-            supported_symbols = supported_symbols()
-        elif hasattr(settings.api.binance, 'supported_symbols'):
-            supported_symbols = settings.api.binance.supported_symbols
-        else:
-            supported_symbols = ['BTCUSDT', 'ETHUSDT']
+        # Always use these symbols regardless of settings
+        supported_symbols = ['BTCUSDT', 'ETHUSDT']
+        
+        if logger:
+            logger.debug(LogCategory.PRICE_UPDATE, "using_symbols", 
+                        f"Fetching prices for symbols: {supported_symbols}")
             
         for symbol in supported_symbols:
             ticker = client.get_symbol_ticker(symbol=symbol)
