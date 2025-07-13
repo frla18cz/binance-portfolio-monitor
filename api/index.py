@@ -91,15 +91,27 @@ def create_binance_client(api_key='', api_secret='', tld='com', for_prices_only=
     Returns:
         Configured BinanceClient instance
     """
+    logger = get_logger()
     client = BinanceClient(api_key, api_secret, tld=tld)
     
     # For price-only clients, always use data API (no proxy needed)
     if for_prices_only:
         client.API_URL = 'https://data-api.binance.vision/api'
+        logger.debug(LogCategory.SYSTEM, "binance_client_created", 
+                    "Created price-only client with data API URL")
         return client
     
     # Check if proxy should be applied (only on Vercel for authenticated endpoints)
-    if hasattr(settings, 'proxy') and settings.proxy.is_active:
+    is_vercel = bool(os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV'))
+    proxy_url_exists = bool(os.environ.get('OXYLABS_PROXY_URL'))
+    proxy_configured = hasattr(settings, 'proxy') and settings.proxy.enabled_on_vercel
+    proxy_is_active = hasattr(settings, 'proxy') and settings.proxy.is_active
+    
+    logger.info(LogCategory.SYSTEM, "proxy_status_check", 
+               f"Proxy check - Vercel: {is_vercel}, URL exists: {proxy_url_exists}, "
+               f"Configured: {proxy_configured}, Active: {proxy_is_active}")
+    
+    if proxy_is_active:
         proxy_url = settings.proxy.url
         if proxy_url:
             # Create a session with proxy configuration
@@ -114,10 +126,17 @@ def create_binance_client(api_key='', api_secret='', tld='com', for_prices_only=
             client.session = session
             
             # Log proxy usage (without exposing credentials)
-            logger = get_logger()
             proxy_host = proxy_url.split('@')[-1] if '@' in proxy_url else 'proxy'
             logger.info(LogCategory.SYSTEM, "proxy_enabled", 
-                       f"Proxy enabled for Binance client on Vercel using {proxy_host}")
+                       f"Proxy ENABLED for authenticated client via {proxy_host}",
+                       has_api_key=bool(api_key))
+        else:
+            logger.warning(LogCategory.SYSTEM, "proxy_url_missing", 
+                          "Proxy should be active but URL is missing")
+    else:
+        logger.debug(LogCategory.SYSTEM, "proxy_not_active", 
+                    f"Proxy not active - client created without proxy",
+                    is_vercel=is_vercel, has_api_key=bool(api_key))
     
     return client
 
