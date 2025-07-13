@@ -7,7 +7,7 @@
   },
   "crons": [
     {
-      "path": "/api/monitor_v3",
+      "path": "/api/index",
       "schedule": "*/5 * * * *"
     }
   ]
