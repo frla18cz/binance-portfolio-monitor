@@ -5,10 +5,8 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
-try:
-    from .logger import get_logger, LogCategory, OperationTimer
-except ImportError:
-    from api.logger import get_logger, LogCategory, OperationTimer
+# Use absolute imports for better Vercel compatibility
+from api.logger import get_logger, LogCategory, OperationTimer
 
 # Add project root to path for config import
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -1437,6 +1435,9 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
                    data={"nav": nav, "benchmark_value": benchmark_value, "vs_benchmark": vs_benchmark, "vs_benchmark_pct": vs_benchmark_pct})
     
     print(f"{timestamp} | NAV: {nav:.2f} | Benchmark: {benchmark_value:.2f}")
+
+# Export handler for Vercel - required for serverless function
+# Note: the class is already named 'handler' which Vercel expects
 
 # Tento blok je pro lokální testování, Vercel ho ignoruje
 if __name__ == "__main__":

@@ -16,12 +16,9 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import settings
 
-try:
-    from .logger import get_logger, LogCategory
-    from .index import process_all_accounts, supabase, get_prices
-except ImportError:
-    from api.logger import get_logger, LogCategory
-    from api.index import process_all_accounts, supabase, get_prices
+# Use absolute imports for better Vercel compatibility
+from api.logger import get_logger, LogCategory
+from api.index import process_all_accounts, supabase, get_prices
 
 
 # Note: Dynamic benchmark calculation removed - now using stored DB values for consistency
