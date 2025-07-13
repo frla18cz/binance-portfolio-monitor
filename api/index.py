@@ -51,8 +51,7 @@ try:
     supabase = get_supabase_client()
 except Exception as e:
     # ERROR initializing Supabase client
-    import traceback
-    traceback.print_exc()
+    # Traceback suppressed for Vercel
     supabase = None
 
 # --- Main handler for Vercel ---
@@ -106,7 +105,7 @@ class handler(BaseHTTPRequestHandler):
             
         except Exception as e:
             logger.error(LogCategory.SYSTEM, "cron_error", f"Main process failed: {str(e)}", error=str(e))
-            traceback.print_exc()
+            # Traceback suppressed for Vercel
             
             self.send_response(500)
             self.send_header('Content-type','text/plain')
@@ -239,7 +238,7 @@ def process_all_accounts():
             logger.error(LogCategory.ACCOUNT_PROCESSING, "process_error", 
                         f"Failed to process account {account_name}: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
-            traceback.print_exc()
+            # Traceback suppressed for Vercel
     
     # Run log cleanup after processing all accounts
     try:
@@ -386,7 +385,7 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
                             f"Fallback price fetch also failed: {str(fallback_error)}",
                             error=str(fallback_error))
         
-        print(f"Error getting prices: {e}")
+        # Error getting prices
         return None
 
 def save_price_history(prices, logger=None):
@@ -697,7 +696,7 @@ def get_comprehensive_nav(client, logger=None, account_id=None, account_name=Non
             logger.error(LogCategory.API_CALL, "comprehensive_nav_error", 
                         f"Failed to fetch comprehensive NAV: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
-        print(f"Error getting comprehensive NAV: {e}")
+        # Error getting comprehensive NAV
         return None
 
 def get_universal_nav(client, logger=None, account_id=None, account_name=None, prices=None):
@@ -773,7 +772,7 @@ def get_futures_account_nav(client, logger=None, account_id=None, account_name=N
             logger.error(LogCategory.API_CALL, "nav_fetch_error", 
                         f"Failed to fetch NAV: {str(e)}",
                         account_id=account_id, account_name=account_name, error=str(e))
-        print(f"Error getting NAV: {e}")
+        # Error getting NAV
         return None
 
 def calculate_next_rebalance_time(now, rebalance_day, rebalance_hour):
@@ -817,7 +816,7 @@ def initialize_benchmark(db_client, config, account_id, initial_nav, prices, log
                    data={"btc_units": btc_units, "eth_units": eth_units, "next_rebalance": next_rebalance.isoformat(),
                         "initialized_at": initialized_at})
     
-    print(f"Benchmark initialized. Next rebalance: {next_rebalance}")
+    # Benchmark initialized
     return response.data[0]
 
 def rebalance_benchmark(db_client, config, account_id, current_value, prices, logger=None):
@@ -893,7 +892,7 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
                        "old_eth_units": old_eth_units
                    })
     
-    print(f"Benchmark rebalanced. Next rebalance: {next_rebalance}")
+    # Benchmark rebalanced
     return response.data[0]
 
 def calculate_benchmark_value(config, prices):
@@ -1068,8 +1067,8 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
             logger.error(LogCategory.TRANSACTION, "process_error", 
                         f"Error processing deposits/withdrawals: {str(e)}",
                         account_id=account_id, error=str(e), data=error_context)
-        print(f"Error processing deposits/withdrawals: {e} | Context: {error_context}")
-        traceback.print_exc()
+        # Error processing deposits/withdrawals
+        # Traceback suppressed for Vercel
         return config  # Failsafe - vrátíme původní config
 
 def get_last_processed_time(db_client, account_id):
@@ -1235,7 +1234,7 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
             logger.error(LogCategory.API_CALL, "fetch_transactions_error", 
                         f"Error fetching transaction history: {str(e)}",
                         account_id=account_id, error=str(e))
-        print(f"Error fetching transaction history: {e}")
+        # Error fetching transaction history
         return []
 
 def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, prices, processed_txns, logger=None):
@@ -1400,7 +1399,7 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                        data={"old_btc_units": current_btc_units, "old_eth_units": current_eth_units,
                             "new_btc_units": new_btc_units, "new_eth_units": new_eth_units})
         
-        print(f"Benchmark adjusted - BTC: {new_btc_units:.6f}, ETH: {new_eth_units:.6f}")
+        # Benchmark adjusted
         return updated_config
         
     except Exception as e:
@@ -1420,7 +1419,7 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
             logger.error(LogCategory.TRANSACTION, "adjust_benchmark_error", 
                         f"Error adjusting benchmark: {str(e)}",
                         account_id=account_id, error=str(e), data=error_context)
-        print(f"Error adjusting benchmark: {e} | Context: {error_context}")
+        # Error adjusting benchmark
         raise  # Re-raise aby se celá operace rollbackla
 
 def update_last_processed_time(db_client, account_id):
@@ -1432,7 +1431,7 @@ def update_last_processed_time(db_client, account_id):
             'last_processed_timestamp': current_time
         }).execute()
     except Exception as e:
-        print(f"Error updating last processed time: {e}")
+        # Error updating last processed time
 
 def save_history(db_client, account_id, nav, benchmark_value, logger=None, account_name=None, prices=None):
     timestamp = datetime.now(UTC).isoformat()
@@ -1466,7 +1465,7 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
                    account_id=account_id, account_name=account_name,
                    data={"nav": nav, "benchmark_value": benchmark_value, "vs_benchmark": vs_benchmark, "vs_benchmark_pct": vs_benchmark_pct})
     
-    print(f"{timestamp} | NAV: {nav:.2f} | Benchmark: {benchmark_value:.2f}")
+    # NAV and Benchmark values saved
 
 # Export handler for Vercel - required for serverless function
 class handler(BaseHTTPRequestHandler):
@@ -1504,5 +1503,5 @@ class handler(BaseHTTPRequestHandler):
 
 # Tento blok je pro lokální testování, Vercel ho ignoruje
 if __name__ == "__main__":
-    print("Running script locally for testing...")
+    # Running script locally for testing
     process_all_accounts()
