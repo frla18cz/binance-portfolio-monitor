@@ -128,11 +128,13 @@ class handler(BaseHTTPRequestHandler):
         if self.path == '/api/health':
             health_data = {
                 'status': 'checking',
+                'version': '1.0.2-proxy',  # Version with proxy support
                 'supabase_configured': bool(os.getenv('SUPABASE_URL')),
                 'supabase_key_configured': bool(os.getenv('SUPABASE_ANON_KEY')),
                 'supabase_connected': supabase is not None,
                 'environment': os.getenv('VERCEL_ENV', 'unknown'),
-                'python_version': sys.version
+                'python_version': sys.version,
+                'proxy_configured': bool(os.getenv('OXYLABS_PROXY_URL'))
             }
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
