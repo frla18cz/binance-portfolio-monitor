@@ -1,9 +1,11 @@
 {
   "functions": {
     "api/*.py": {
-      "regions": ["fra1"]
+      "regions": ["fra1"],
+      "runtime": "python3.9"
     }
   },
+  "buildCommand": "pip install -r requirements.txt",
   "crons": [
     {
       "path": "/api/index",

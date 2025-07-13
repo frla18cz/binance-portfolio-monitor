@@ -5,6 +5,10 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
+
+# Debug print for Vercel deployment verification
+print(f"[API INDEX] Loading at {datetime.now(UTC).isoformat()} - Version: v3-fixed-cron-2025-07-13")
+
 # Use absolute imports for better Vercel compatibility
 from api.logger import get_logger, LogCategory, OperationTimer
 
