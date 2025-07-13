@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import traceback
 from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
@@ -340,6 +341,10 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
             ticker = client.get_symbol_ticker(symbol=symbol)
             prices[symbol] = float(ticker['price'])
         
+        # Restore original API URL if it was set
+        if original_api_url:
+            client.API_URL = original_api_url
+            
         if logger:
             logger.info(LogCategory.PRICE_UPDATE, "prices_fetched", 
                        f"Successfully fetched prices from data API: BTC=${prices['BTCUSDT']:,.2f}, ETH=${prices['ETHUSDT']:,.2f}",
@@ -1455,7 +1460,38 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
     print(f"{timestamp} | NAV: {nav:.2f} | Benchmark: {benchmark_value:.2f}")
 
 # Export handler for Vercel - required for serverless function
-# Note: the class is already named 'handler' which Vercel expects
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        """Handle GET request for monitoring."""
+        try:
+            # Run monitoring
+            process_all_accounts()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            response = {
+                "status": "success",
+                "message": "Monitoring completed",
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+            
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            error_response = {
+                "status": "error",
+                "message": str(e),
+                "type": type(e).__name__,
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
 
 # Tento blok je pro lokální testování, Vercel ho ignoruje
 if __name__ == "__main__":
