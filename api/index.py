@@ -296,6 +296,8 @@ def process_single_account(account, prices=None):
     # Use real Binance client for authenticated endpoints
     tld = getattr(settings.api.binance, 'tld', 'com') if hasattr(settings, 'api') else 'com'
     binance_client = BinanceClient(api_key, api_secret, tld=tld)
+    # Force an alternative API endpoint to potentially bypass regional blocks
+    binance_client.API_URL = 'https://api3.binance.com/api'
     # Log which API URL is being used for this client
     logger.info(LogCategory.API_CALL, "binance_client_created", 
                f"Created Binance client for account {account_name}. API URL: {binance_client.API_URL}",

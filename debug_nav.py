@@ -73,11 +73,8 @@ def main():
         print("\n📈 SIMPLE EARN POSITIONS:")
         print("-" * 30)
         try:
-            response = client._request('GET', 'sapi/v1/simple-earn/flexible/position', True, {})
-            # Debug response structure
-            print(f"Response type: {type(response)}")
-            if isinstance(response, dict):
-                print(f"Response keys: {list(response.keys())}")
+            # Use the proper client method instead of raw request
+            response = client.get_simple_earn_flexible_product_position()
                 
             # Handle different response structures
             positions = []
@@ -90,6 +87,9 @@ def main():
                         positions = data['rows']
                     elif isinstance(data, list):
                         positions = data
+                else:
+                    # If no 'rows' or 'data', maybe the positions are at the top level
+                    positions = []
             elif isinstance(response, list):
                 positions = response
                 
@@ -109,7 +109,9 @@ def main():
             else:
                 print("No Simple Earn positions found")
         except Exception as e:
-            print(f"❌ Simple Earn error: {e}")
+            print(f"❌ Simple Earn error: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             if hasattr(e, 'code'):
                 print(f"API Error Code: {e.code}")
             if hasattr(e, 'message'):
