@@ -1452,6 +1452,7 @@ def update_last_processed_time(db_client, account_id):
         }).execute()
     except Exception as e:
         # Error updating last processed time
+        pass
 
 def save_history(db_client, account_id, nav, benchmark_value, logger=None, account_name=None, prices=None):
     timestamp = datetime.now(UTC).isoformat()
