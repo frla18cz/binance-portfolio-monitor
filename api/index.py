@@ -222,7 +222,8 @@ def process_all_accounts():
         # Create temporary Binance client just for price fetching
         from binance.client import Client as BinanceClient
         temp_client = BinanceClient('', '')  # Use data API for read-only access
-        temp_client.API_URL = settings.api.binance.data_api_url
+        # Always use data API URL for price fetching with fallback
+        temp_client.API_URL = getattr(settings.api.binance, 'data_api_url', 'https://data-api.binance.vision/api')
         
         with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices_all_accounts"):
             prices = get_prices(temp_client, logger)
@@ -1488,39 +1489,7 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
     
     # NAV and Benchmark values saved
 
-# Export handler for Vercel - required for serverless function
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        """Handle GET request for monitoring."""
-        try:
-            # Run monitoring
-            process_all_accounts()
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            
-            response = {
-                "status": "success",
-                "message": "Monitoring completed",
-                "timestamp": datetime.now(UTC).isoformat()
-            }
-            
-            self.wfile.write(json.dumps(response).encode('utf-8'))
-            
-        except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            
-            error_response = {
-                "status": "error",
-                "message": str(e),
-                "type": type(e).__name__,
-                "timestamp": datetime.now(UTC).isoformat()
-            }
-            
-            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+# Handler is already defined above at line 80
 
 # Tento blok je pro lokální testování, Vercel ho ignoruje
 if __name__ == "__main__":
