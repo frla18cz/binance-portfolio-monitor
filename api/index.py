@@ -111,7 +111,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(500)
             self.send_header('Content-type','text/plain')
             self.end_headers()
-            self.wfile.write(f'Logger initialization error: {str(e)}'.encode('utf-8'))
+            self.wfile.write(('Logger initialization error: ' + str(e)).encode('utf-8'))
             return
         
         try:
