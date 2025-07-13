@@ -53,6 +53,14 @@
     }
   },
   
+  "proxy": {
+    "enabled_on_vercel": true,
+    "url_env": "OXYLABS_PROXY_URL",
+    "timeout_seconds": 30,
+    "verify_ssl": true,
+    "description": "Proxy configuration for bypassing Binance geographic restrictions on Vercel"
+  },
+  
   "dashboard": {
     "host": "localhost",
     "port": 8000,

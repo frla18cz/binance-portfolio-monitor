@@ -6,6 +6,7 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
+import requests
 
 # Debug print removed - was causing issues on Vercel
 
@@ -75,6 +76,50 @@ except Exception as e:
     # ERROR initializing Supabase client
     # Traceback suppressed for Vercel
     supabase = None
+
+# --- Proxy support for Binance client ---
+def create_binance_client(api_key='', api_secret='', tld='com', for_prices_only=False):
+    """
+    Create Binance client with optional proxy support on Vercel.
+    
+    Args:
+        api_key: Binance API key (empty for public endpoints)
+        api_secret: Binance API secret (empty for public endpoints)
+        tld: Top-level domain for Binance ('com' or 'us')
+        for_prices_only: If True, always use data API URL (bypasses proxy need)
+    
+    Returns:
+        Configured BinanceClient instance
+    """
+    client = BinanceClient(api_key, api_secret, tld=tld)
+    
+    # For price-only clients, always use data API (no proxy needed)
+    if for_prices_only:
+        client.API_URL = 'https://data-api.binance.vision/api'
+        return client
+    
+    # Check if proxy should be applied (only on Vercel for authenticated endpoints)
+    if hasattr(settings, 'proxy') and settings.proxy.is_active:
+        proxy_url = settings.proxy.url
+        if proxy_url:
+            # Create a session with proxy configuration
+            session = requests.Session()
+            session.proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            session.verify = settings.proxy.verify_ssl
+            
+            # Apply the session to Binance client
+            client.session = session
+            
+            # Log proxy usage (without exposing credentials)
+            logger = get_logger()
+            proxy_host = proxy_url.split('@')[-1] if '@' in proxy_url else 'proxy'
+            logger.info(LogCategory.SYSTEM, "proxy_enabled", 
+                       f"Proxy enabled for Binance client on Vercel using {proxy_host}")
+    
+    return client
 
 # --- Main handler for Vercel ---
 class handler(BaseHTTPRequestHandler):
@@ -220,10 +265,7 @@ def process_all_accounts():
     logger.info(LogCategory.PRICE_UPDATE, "fetch_prices_once", "Fetching prices once for all accounts")
     try:
         # Create temporary Binance client just for price fetching
-        from binance.client import Client as BinanceClient
-        temp_client = BinanceClient('', '')  # Use data API for read-only access
-        # ALWAYS force data API URL for price fetching - no fallback needed
-        temp_client.API_URL = 'https://data-api.binance.vision/api'
+        temp_client = create_binance_client(for_prices_only=True)
         
         logger.info(LogCategory.PRICE_UPDATE, "temp_client_created", 
                    f"Created temp client with data API URL: {temp_client.API_URL}")
@@ -293,9 +335,9 @@ def process_single_account(account, prices=None):
                     account_id=account_id, account_name=account_name)
         return
 
-    # Use real Binance client for authenticated endpoints
+    # Use real Binance client for authenticated endpoints (with proxy support on Vercel)
     tld = getattr(settings.api.binance, 'tld', 'com') if hasattr(settings, 'api') else 'com'
-    binance_client = BinanceClient(api_key, api_secret, tld=tld)
+    binance_client = create_binance_client(api_key, api_secret, tld=tld)
     # Log which API URL is being used for this client
     logger.info(LogCategory.API_CALL, "binance_client_created", 
                f"Created Binance client for account {account_name}. API URL: {binance_client.API_URL}",
@@ -316,8 +358,7 @@ def process_single_account(account, prices=None):
                       account_id=account_id, account_name=account_name)
         
         # Create a NEW client specifically for price fetching with data API
-        price_client = BinanceClient('', '')
-        price_client.API_URL = 'https://data-api.binance.vision/api'
+        price_client = create_binance_client(for_prices_only=True)
         
         with OperationTimer(logger, LogCategory.PRICE_UPDATE, "fetch_prices", account_id, account_name):
             prices = get_prices(price_client, logger, account_id, account_name)
