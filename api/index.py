@@ -337,7 +337,16 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
                        account_id=account_id, account_name=account_name)
             
         prices = {}
-        for symbol in settings.get_supported_symbols():
+        # Handle both real settings and minimal settings
+        supported_symbols = getattr(settings, 'get_supported_symbols', lambda: ['BTCUSDT', 'ETHUSDT'])()
+        if callable(supported_symbols):
+            supported_symbols = supported_symbols()
+        elif hasattr(settings.api.binance, 'supported_symbols'):
+            supported_symbols = settings.api.binance.supported_symbols
+        else:
+            supported_symbols = ['BTCUSDT', 'ETHUSDT']
+            
+        for symbol in supported_symbols:
             ticker = client.get_symbol_ticker(symbol=symbol)
             prices[symbol] = float(ticker['price'])
         
