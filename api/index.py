@@ -21,9 +21,22 @@ except ValueError as e:
             class Database:
                 supabase_url = os.getenv('SUPABASE_URL', '')
                 supabase_key = os.getenv('SUPABASE_ANON_KEY', '')
+            class Api:
+                class Binance:
+                    data_api_url = 'https://data-api.binance.vision/api'
+                    tld = 'com'
+                    supported_symbols = ['BTCUSDT', 'ETHUSDT']
+                    supported_stablecoins = ['USDT', 'BUSD', 'USDC', 'BNFCR']
+            
+            def get_supported_symbols(self):
+                """Method to get supported symbols for compatibility"""
+                return self.api.binance.supported_symbols
+                
         settings = MinimalSettings()
         settings.database = MinimalSettings.Database()
-        print(f"Using fallback settings for Vercel: URL={bool(settings.database.supabase_url)}, KEY={bool(settings.database.supabase_key)}")
+        settings.api = MinimalSettings.Api()
+        settings.api.binance = MinimalSettings.Api.Binance()
+        print(f"Using fallback settings for Vercel: URL={bool(settings.database.supabase_url)}, KEY={bool(settings.database.supabase_key)}, DATA_API={settings.api.binance.data_api_url}")
     else:
         raise
 from utils.log_cleanup import run_log_cleanup
@@ -310,11 +323,13 @@ def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
         # Force data API configuration for geographic restriction bypass
         original_api_url = getattr(client, 'API_URL', None)
-        client.API_URL = settings.api.binance.data_api_url
+        # Defensive fallback for data API URL
+        data_api_url = getattr(settings.api.binance, 'data_api_url', 'https://data-api.binance.vision/api')
+        client.API_URL = data_api_url
         
         if logger:
             logger.info(LogCategory.PRICE_UPDATE, "data_api_switch", 
-                       f"Switched to data API: {settings.api.binance.data_api_url}",
+                       f"Switched to data API: {data_api_url}",
                        account_id=account_id, account_name=account_name)
             
         prices = {}
