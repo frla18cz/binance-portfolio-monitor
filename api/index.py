@@ -40,7 +40,7 @@ except ValueError as e:
         settings.database = MinimalSettings.Database()
         settings.api = MinimalSettings.Api()
         settings.api.binance = MinimalSettings.Api.Binance()
-        print(f"Using fallback settings for Vercel: URL={bool(settings.database.supabase_url)}, KEY={bool(settings.database.supabase_key)}, DATA_API={settings.api.binance.data_api_url}")
+        # Using fallback settings for Vercel
     else:
         raise
 from utils.log_cleanup import run_log_cleanup
@@ -50,7 +50,7 @@ from utils.database_manager import get_supabase_client, with_database_retry
 try:
     supabase = get_supabase_client()
 except Exception as e:
-    print(f"ERROR initializing Supabase client: {str(e)}")
+    # ERROR initializing Supabase client
     import traceback
     traceback.print_exc()
     supabase = None
