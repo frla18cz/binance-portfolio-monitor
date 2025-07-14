@@ -1,5 +1,4 @@
 # 📊 Binance Portfolio Monitor
-<!-- Deploy trigger: 2025-07-13 11:56 UTC -->
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-30%20passed-green.svg)](./tests/)
@@ -7,6 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 **Automated cryptocurrency trading performance monitoring system** that tracks Binance futures accounts against a 50/50 BTC/ETH benchmark portfolio.
+
+> **Note**: For Vercel deployment with proxy support, see the [`vercel-deployment-backup`](https://github.com/frla18cz/binance-portfolio-monitor/tree/vercel-deployment-backup) branch.
 
 > ⚠️ **Educational Project**: This is a learning and research project. Use with caution in production environments.
 
@@ -51,10 +52,52 @@
 - Atomic operations for data consistency
 - Error recovery and graceful degradation
 
+## 🚀 Deployment Options
+
+### Local Deployment
+Best for development and testing. Run on your local machine with direct Binance API access.
+
+### AWS EC2 Deployment
+Recommended for production. Deploy on EC2 instance in a supported region (e.g., EU, Asia).
+
+```bash
+# Install on Ubuntu/Debian
+sudo apt update
+sudo apt install python3.12 python3-pip
+git clone https://github.com/frla18cz/binance-portfolio-monitor.git
+cd binance-portfolio-monitor
+pip3 install -r requirements.txt
+
+# Set up cron job for hourly monitoring
+crontab -e
+# Add: 0 * * * * cd /path/to/binance-portfolio-monitor && python3 -m api.index
+```
+
+### Systemd Service (Recommended for EC2)
+Create `/etc/systemd/system/binance-monitor.service`:
+
+```ini
+[Unit]
+Description=Binance Portfolio Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/binance-portfolio-monitor
+ExecStart=/usr/bin/python3 -m api.dashboard
+Restart=always
+Environment="SUPABASE_URL=your_url"
+Environment="SUPABASE_ANON_KEY=your_key"
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.13+
+- Python 3.12+
 - Binance account with futures trading enabled
 - Supabase database instance
 

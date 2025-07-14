@@ -7,6 +7,13 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Data API Integration for Geographic Restrictions (2025-07-12)
+- **Solution**: Use `data-api.binance.vision` for public endpoints to bypass restrictions
+- **Implementation**: Modified `get_prices()` to use data API URL
+- **Scope**: Only affects public read-only endpoints (prices, tickers)
+- **Account APIs**: Private endpoints (NAV, balances) use regular Binance API
+- **Files Modified**: `api/index.py`
+
 ### Vercel Cron Job Fix - Data API URL Persistence (2025-07-12)
 - **Critical Issue Resolved**: Fixed hourly cron job failures on Vercel due to API URL restoration
 - **Problem**: `get_prices()` was restoring original API URL after fetching prices, causing subsequent calls to fail
