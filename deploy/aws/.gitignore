@@ -1,0 +1,21 @@
+# AWS deployment artifacts
+*.pem
+instance-details.json
+deploy-to-instance.sh
+binance_api_test_results_*.json
+
+# Terraform state files (if using Terraform)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
