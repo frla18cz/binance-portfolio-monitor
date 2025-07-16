@@ -57,42 +57,37 @@
 ### Local Deployment
 Best for development and testing. Run on your local machine with direct Binance API access.
 
-### AWS EC2 Deployment
-Recommended for production. Deploy on EC2 instance in a supported region (e.g., EU, Asia).
+### AWS EC2 Deployment (Recommended)
+Complete deployment solution for production. See **[AWS_DEPLOYMENT_COMPLETE.md](AWS_DEPLOYMENT_COMPLETE.md)** for detailed instructions.
 
+**Quick Start:**
 ```bash
-# Install on Ubuntu/Debian
-sudo apt update
-sudo apt install python3.12 python3-pip
-git clone https://github.com/frla18cz/binance-portfolio-monitor.git
-cd binance-portfolio-monitor
-pip3 install -r requirements.txt
+# 1. Deploy code to EC2
+./deployment/aws/deploy_simple.sh your-server-ip your-key.pem
 
-# Set up cron job for hourly monitoring
-crontab -e
-# Add: 0 * * * * cd /path/to/binance-portfolio-monitor && python3 -m api.index
+# 2. SSH to server and setup
+ssh -i your-key.pem ec2-user@your-server-ip
+cd /home/ec2-user/binance-monitor
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Configure
+cp deployment/aws/.env.example .env
+nano .env  # Add your API keys
+
+# 4. Run
+./deployment/aws/start_monitor.sh
 ```
 
-### Systemd Service (Recommended for EC2)
-Create `/etc/systemd/system/binance-monitor.service`:
+**Features:**
+- Simple Python + screen deployment
+- Hourly automatic monitoring
+- Dashboard on port 8000
+- PyCharm integration support
+- Easy management and troubleshooting
 
-```ini
-[Unit]
-Description=Binance Portfolio Monitor
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/binance-portfolio-monitor
-ExecStart=/usr/bin/python3 -m api.dashboard
-Restart=always
-Environment="SUPABASE_URL=your_url"
-Environment="SUPABASE_ANON_KEY=your_key"
-
-[Install]
-WantedBy=multi-user.target
-```
+For systemd service (advanced users), see deployment documentation.
 
 ## 🚀 Quick Start
 

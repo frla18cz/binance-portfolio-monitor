@@ -7,6 +7,24 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### AWS EC2 Deployment Solution (2025-07-16)
+- **Implemented**: Complete AWS EC2 deployment with simple Python + screen approach
+- **Created Files**:
+  - `deployment/aws/run_forever.py` - Main runner with hourly execution loop
+  - `deployment/aws/start_monitor.sh` - Screen session management script
+  - `deployment/aws/deploy_simple.sh` - Code deployment helper
+  - `deployment/aws/.env.example` - Configuration template
+  - `deployment/aws/SIMPLE_DEPLOYMENT.md` - Step-by-step guide
+  - `deployment/aws/PYCHARM_DEPLOYMENT.md` - PyCharm specific guide
+  - `AWS_DEPLOYMENT_COMPLETE.md` - Master deployment guide
+- **Key Features**:
+  - Runs monitoring every hour automatically
+  - Dashboard on port 8000
+  - Uses screen for background execution
+  - PyCharm integration for easy deployment
+  - Simple configuration via .env file
+- **Deployment Time**: ~15 minutes from start to finish
+
 ### Data API Integration for Geographic Restrictions (2025-07-12)
 - **Solution**: Use `data-api.binance.vision` for public endpoints to bypass restrictions
 - **Implementation**: Modified `get_prices()` to use data API URL
@@ -415,10 +433,39 @@ If you see `APIError(code=0): Service unavailable from a restricted location` er
 - **Removed Features**: Manual monitoring trigger and auto-refresh toggle buttons were removed due to missing JavaScript implementations
 - **Future Enhancements**: Consider implementing toggle functionality or manual monitoring trigger if needed
 
+## AWS Deployment Troubleshooting
+
+### Common Issues and Solutions
+
+1. **"Module not found" errors**
+   - Always activate virtual environment: `source venv/bin/activate`
+   - Ensure PYTHONPATH includes project root
+
+2. **Screen session management**
+   ```bash
+   screen -ls          # List sessions
+   screen -r monitor   # Attach to session
+   # Ctrl+A, D to detach
+   ```
+
+3. **Dashboard not accessible**
+   - Check Security Group allows port 8000
+   - Use SSH tunnel for secure access: `ssh -L 8000:localhost:8000 user@server`
+
+4. **Monitoring not running after EC2 restart**
+   - Screen sessions don't survive reboots
+   - Run `./deployment/aws/start_monitor.sh` after restart
+   - Consider systemd service for production
+
+5. **Binance API restrictions**
+   - System automatically uses data-api.binance.vision for prices
+   - EU regions (Frankfurt, Ireland) work better than US regions
+
 ## Development Notes
 - Always test with `python -m api.index` for proper imports
-- Dashboard runs on port 8001
+- Dashboard runs on port 8000 (changed from 8001)
 - Use demo mode for testing without real API calls
+- AWS deployment uses `deployment/aws/` directory (not `deploy/aws/`)
 
 ## Database Connection Management (2025-01-10)
 - Implemented centralized database connection manager with singleton pattern
