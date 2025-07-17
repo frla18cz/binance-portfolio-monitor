@@ -18,6 +18,16 @@ Jednoduchý a přímočarý návod pro nasazení Binance Portfolio Monitoru na A
 
 Celý proces zabere ~15 minut.
 
+## 🏗️ Co která komponenta dělá?
+
+| Soubor | Co dělá | Jak funguje |
+|--------|---------|-------------|
+| **`run_forever.py`** | ⏰ Časovač | Spouští monitoring každou hodinu |
+| **`api/index.py`** | 👷 Sběr dat | Stahuje data z Binance, počítá NAV |
+| **`api/dashboard.py`** | 📊 Web UI | Zobrazuje grafy na portu 8000 |
+
+**Jednoduše**: run_forever je budík, api/index dělá práci, dashboard ukazuje výsledky.
+
 ## 📚 Návody podle situace
 
 ### A) Máte PyCharm propojený s EC2
@@ -101,9 +111,12 @@ BINANCE_API_SECRET=váš_secret
 # Otestujte že vše funguje
 python test_binance_aws.py
 
-# Spusťte monitoring
+# Spusťte monitoring (časovač + dashboard)
 screen -S monitor
 python deployment/aws/run_forever.py
+# Tento script spustí:
+# - Dashboard na portu 8000 (jednou)
+# - Monitoring každou hodinu (opakovaně)
 
 # Odpojte se od screen (aplikace běží dál)
 # Stiskněte: Ctrl+A, pak D

@@ -52,12 +52,17 @@
 - Atomic operations for data consistency
 - Error recovery and graceful degradation
 
-## 🏗️ Architecture
+## 🏗️ Architecture - What Does What?
 
-The system consists of three main components working together:
-- **Orchestrator** (`run_forever.py`) - Manages scheduling and process lifecycle
-- **Data Collector** (`api/index.py`) - Fetches data from Binance and calculates metrics
-- **Web Dashboard** (`api/dashboard.py`) - Provides real-time visualization
+The system has three simple components with clear roles:
+
+| Component | Role | What it does | What it DOESN'T do |
+|-----------|------|--------------|-------------------|
+| **`run_forever.py`** | ⏰ **TIMER** | Runs monitoring every hour | Doesn't touch data |
+| **`api/index.py`** | 👷 **WORKER** | Fetches data & calculates | Doesn't handle scheduling |
+| **`api/dashboard.py`** | 📊 **DISPLAY** | Shows charts on port 8000 | Doesn't modify anything |
+
+**Simple analogy**: run_forever = alarm clock, api/index = employee, dashboard = TV screen
 
 For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 

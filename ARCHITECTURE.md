@@ -1,5 +1,19 @@
 # Binance Portfolio Monitor - Architecture
 
+## 🎯 Component Roles - What Does What?
+
+### Quick Summary:
+- **`run_forever.py`** = ⏰ **SCHEDULER** (Timer/Cron) - Says WHEN to run
+- **`api/index.py`** = 👷 **WORKER** (Data Collector) - Does the ACTUAL WORK
+- **`api/dashboard.py`** = 📊 **PRESENTER** (Web UI) - Shows the RESULTS
+
+### Analogy:
+```
+run_forever.py = ALARM CLOCK (rings every hour)
+api/index.py   = EMPLOYEE (does the job when alarm rings)
+dashboard.py   = DISPLAY WINDOW (shows what employee produced)
+```
+
 ## System Overview
 
 The Binance Portfolio Monitor consists of three main components that work together to track cryptocurrency portfolio performance:
@@ -50,62 +64,75 @@ The Binance Portfolio Monitor consists of three main components that work togeth
 
 ## Component Details
 
-### 1. **run_forever.py** (Orchestrator)
-- **Purpose**: Manages the lifecycle of monitoring and dashboard processes
-- **Responsibilities**:
-  - Starts dashboard on launch
-  - Runs monitoring every hour on the hour
-  - Handles graceful shutdown (SIGINT/SIGTERM)
-  - Logs all activities to `logs/continuous_runner.log`
-- **Key Features**:
-  - Calculates next run time to align with clock hours
-  - 5-minute timeout for monitoring runs
-  - Continues running even if individual monitoring fails
+### 1. **run_forever.py** (⏰ SCHEDULER - Just a Timer)
+- **What it is**: A simple infinite loop with a timer
+- **What it does**: 
+  - Waits for the clock to hit the hour (e.g., 14:00, 15:00)
+  - Runs `python -m api.index` when it's time
+  - That's it! Just scheduling, no data processing
+- **What it DOESN'T do**:
+  - ❌ Doesn't connect to Binance
+  - ❌ Doesn't calculate anything
+  - ❌ Doesn't know what NAV or benchmark is
+- **Real-world analogy**: Like a cron job or Windows Task Scheduler
 
-### 2. **api/index.py** (Data Collection Worker)
-- **Purpose**: Core business logic for portfolio monitoring
-- **Execution Modes**:
-  - **Module mode**: `python -m api.index` runs `process_all_accounts()`
-  - **HTTP mode**: Provides `APIHandler` for web endpoints (used by Vercel)
-- **Key Functions**:
-  - `ensure_benchmark_configs()`: Creates missing benchmark configurations
-  - `process_all_accounts()`: Main orchestration function
-  - `process_single_account()`: Processes one trading account
-  - `get_comprehensive_nav()`: Calculates total portfolio value
-  - `initialize_benchmark()`: Sets up 50/50 BTC/ETH benchmark
-  - `process_deposits_withdrawals()`: Handles cashflow events
+### 2. **api/index.py** (👷 WORKER - Does ALL the Work)
+- **What it is**: The brain of the operation - contains all business logic
+- **What it does**:
+  - ✅ Connects to Binance API
+  - ✅ Fetches account balances and prices
+  - ✅ Calculates NAV (Net Asset Value)
+  - ✅ Updates benchmark portfolio
+  - ✅ Saves everything to database
+  - ✅ All the actual monitoring work!
+- **How it's called**:
+  - By `run_forever.py` every hour: `python -m api.index`
+  - Can also run manually for testing
+- **Real-world analogy**: Like an employee who comes in, does their job, then leaves
 
-### 3. **api/dashboard.py** (Web Interface)
-- **Purpose**: Provides real-time view of portfolio performance
-- **Features**:
-  - HTTP server on port 8000
-  - Serves `dashboard.html` with embedded JavaScript
-  - Auto-refreshes every 60 seconds
-  - Shows NAV vs Benchmark performance charts
-- **Data Flow**:
-  - Reads from Supabase (never writes)
-  - Transforms data for visualization
-  - Returns JSON for AJAX requests
+### 3. **api/dashboard.py** (📊 PRESENTER - Just Shows Data)
+- **What it is**: A web server that displays results
+- **What it does**:
+  - ✅ Reads data from database
+  - ✅ Shows pretty charts and numbers
+  - ✅ Auto-refreshes every 60 seconds
+  - ✅ That's it - just displays, never modifies
+- **What it DOESN'T do**:
+  - ❌ Doesn't collect data from Binance
+  - ❌ Doesn't calculate anything
+  - ❌ Doesn't save anything
+- **Real-world analogy**: Like a TV screen showing stock prices - displays but doesn't trade
 
-## Data Flow
+## Data Flow - Step by Step
 
-1. **Hourly Monitoring Cycle**:
-   ```
-   run_forever.py → subprocess → api.index.py → Binance API
-                                      ↓
-                                  Calculate NAV
-                                      ↓
-                                  Update Benchmark
-                                      ↓
-                                  Save to Supabase
-   ```
+### What Happens Every Hour:
+```
+1. run_forever.py: "It's 14:00! Time to work!"
+                            ↓
+2. Starts: python -m api.index
+                            ↓
+3. api/index.py: "OK boss, I'll do the monitoring"
+   - Connects to Binance
+   - Gets prices & balances
+   - Calculates everything
+   - Saves to database
+   - "Done! See you next hour"
+                            ↓
+4. run_forever.py: "Great, I'll wake you at 15:00"
+```
 
-2. **Dashboard Data Flow**:
-   ```
-   Browser → api/dashboard.py → Read from Supabase → JSON Response
-      ↑                                                    ↓
-      └──────── Auto-refresh every 60s ←─────────────────┘
-   ```
+### What Dashboard Does (Always):
+```
+Browser: "Show me the data"
+           ↓
+dashboard.py: "Let me check the database"
+           ↓
+Database: "Here's the latest data"
+           ↓
+dashboard.py: "Here's a pretty chart"
+           ↓
+(wait 60 seconds and repeat)
+```
 
 ## Database Schema
 

@@ -2,6 +2,14 @@
 
 Tento návod vás provede nasazením Binance Portfolio Monitoru na AWS EC2 instanci pomocí jednoduché Python smyčky a screen utility.
 
+## 🏗️ Jak to funguje?
+
+| Komponenta | Co dělá | Popis |
+|------------|---------|-------|
+| **`run_forever.py`** | ⏰ Časovač | Spouští monitoring každou hodinu |
+| **`api/index.py`** | 👷 Pracant | Sbírá data z Binance, počítá hodnoty |
+| **`api/dashboard.py`** | 📊 Display | Web rozhraní na portu 8000 |
+
 ## 📋 Požadavky
 
 - AWS EC2 instance s Linuxem (Amazon Linux 2 nebo Ubuntu)
