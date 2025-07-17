@@ -2,6 +2,16 @@
 """
 Binance Portfolio Monitor - Continuous Runner
 Spouští monitoring v nekonečné smyčce každou hodinu
+
+This is the ORCHESTRATOR component that manages:
+1. Starting the dashboard web server (once at startup)
+2. Running the monitoring process every hour
+3. Handling graceful shutdown
+4. Logging all activities
+
+It calls:
+- api.index (module mode) for data collection
+- api.dashboard for web interface
 """
 
 import os
@@ -45,11 +55,20 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 def run_monitoring():
-    """Spustí monitoring proces"""
+    """Spustí monitoring proces
+    
+    Calls api/index.py in module mode which:
+    - Fetches current prices from Binance
+    - Calculates NAV for all accounts
+    - Updates benchmark values
+    - Saves data to Supabase
+    """
     try:
         logger.info("🚀 Spouštím monitoring proces...")
         
         # Spuštění monitoring scriptu
+        # This runs: python -m api.index
+        # Which triggers the process_all_accounts() function
         result = subprocess.run(
             [sys.executable, '-m', 'api.index'],
             capture_output=True,
@@ -75,11 +94,20 @@ def run_monitoring():
         logger.error(traceback.format_exc())
 
 def run_dashboard():
-    """Spustí dashboard v samostatném procesu"""
+    """Spustí dashboard v samostatném procesu
+    
+    Starts the web dashboard that:
+    - Runs on port 8000
+    - Reads data from Supabase
+    - Auto-refreshes every 60 seconds
+    - Provides real-time portfolio view
+    """
     try:
         logger.info("🌐 Spouštím dashboard...")
         
         # Spuštění dashboard jako samostatný proces (nezávislý na tomto scriptu)
+        # This runs: python -m api.dashboard
+        # Which starts the HTTP server on port 8000
         subprocess.Popen(
             [sys.executable, '-m', 'api.dashboard'],
             stdout=subprocess.DEVNULL,

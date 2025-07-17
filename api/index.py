@@ -1511,5 +1511,7 @@ def save_history(db_client, account_id, nav, benchmark_value, logger=None, accou
 
 # Tento blok je pro lokální testování, Vercel ho ignoruje
 if __name__ == "__main__":
-    # Running script locally for testing
+    # MODULE MODE: When run as 'python -m api.index' or 'python api/index.py'
+    # This is how run_forever.py calls this script
+    # It runs the monitoring process once and exits
     process_all_accounts()

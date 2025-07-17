@@ -52,6 +52,15 @@
 - Atomic operations for data consistency
 - Error recovery and graceful degradation
 
+## 🏗️ Architecture
+
+The system consists of three main components working together:
+- **Orchestrator** (`run_forever.py`) - Manages scheduling and process lifecycle
+- **Data Collector** (`api/index.py`) - Fetches data from Binance and calculates metrics
+- **Web Dashboard** (`api/dashboard.py`) - Provides real-time visualization
+
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## 🚀 Deployment Options
 
 ### Local Deployment
