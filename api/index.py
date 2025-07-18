@@ -1066,7 +1066,8 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                     'transaction_type': txn['type'],
                     'amount': float(amount),  # Ensure it's a proper float
                     'timestamp': txn['timestamp'],
-                    'status': txn['status']
+                    'status': txn['status'],
+                    'metadata': txn.get('metadata')  # Save transaction metadata if present
                 })
         
         if total_net_flow != 0:
@@ -1243,8 +1244,23 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                     'type': 'WITHDRAWAL', 
                     'amount': float(withdrawal.get('amount', 0)),
                     'timestamp': withdrawal.get('applyTime', 0),
-                    'status': withdrawal.get('status', 0)  # 0=pending, 1=success, etc.
+                    'status': withdrawal.get('status', 0),  # 0=pending, 1=success, etc.
+                    # Metadata for debugging and future analysis
+                    'transfer_type': withdrawal.get('transferType', 0),  # 0=external, 1=internal
+                    'tx_id': withdrawal.get('txId', ''),  # "Internal transfer" for internal
+                    'coin': withdrawal.get('coin', ''),  # Currency
+                    'network': withdrawal.get('network', '')  # Network for external
                 })
+                
+                # Log internal transfers for debugging
+                if withdrawal.get('transferType') == 1 or 'Internal transfer' in str(withdrawal.get('txId', '')):
+                    if logger:
+                        logger.info(LogCategory.TRANSACTION, "internal_transfer_detected",
+                                   f"Internal transfer: {withdrawal.get('amount')} {withdrawal.get('coin')}",
+                                   account_id=account_id,
+                                   data={'withdrawal_id': withdrawal['id'], 
+                                         'transfer_type': withdrawal.get('transferType'),
+                                         'tx_id': withdrawal.get('txId')})
             except (ValueError, TypeError, KeyError) as e:
                 if logger:
                     logger.warning(LogCategory.API_CALL, "withdrawal_normalization_error", 
@@ -1258,6 +1274,16 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
             if (txn['status'] == 1 or txn['status'] == 'SUCCESS'):  # Binance používá různé formáty
                 txn['status'] = 'SUCCESS'
                 txn['timestamp'] = datetime.fromtimestamp(txn['timestamp']/1000, UTC).isoformat()
+                
+                # Preserve metadata for withdrawals
+                if txn['type'] == 'WITHDRAWAL' and any(key in txn for key in ['transfer_type', 'tx_id', 'coin', 'network']):
+                    txn['metadata'] = {
+                        'transfer_type': txn.pop('transfer_type', 0),
+                        'tx_id': txn.pop('tx_id', ''),
+                        'coin': txn.pop('coin', ''),
+                        'network': txn.pop('network', '')
+                    }
+                    
                 successful_txns.append(txn)
         
         if logger:

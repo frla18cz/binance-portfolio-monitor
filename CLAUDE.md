@@ -7,6 +7,19 @@ Binance Portfolio Monitor tracks cryptocurrency trading performance against a 50
 
 ## Recent Updates
 
+### Enhanced Transaction Detection (2025-07-17)
+- **Implemented**: Comprehensive detection of all withdrawal types including internal transfers
+- **Problem Solved**: Internal transfers (email/phone) between Binance accounts were not being detected
+- **Key Changes**:
+  - Modified `fetch_new_transactions()` to capture withdrawal metadata (transferType, txId, coin, network)
+  - Added logging for internal transfers (transferType=1 or txId="Internal transfer")
+  - Added JSONB metadata column to processed_transactions table for storing additional transaction data
+  - Updated transaction processing to preserve and save metadata
+- **Database Migration**: `migrations/add_transaction_metadata.sql`
+- **Testing**: Created `test_transaction_processing.py` to verify metadata capture
+- **Result**: System now captures and logs all types of withdrawals with full context
+- **Files Modified**: `api/index.py`, `migrations/add_transaction_metadata.sql`
+
 ### AWS EC2 Deployment Solution (2025-07-16)
 - **Implemented**: Complete AWS EC2 deployment with simple Python + screen approach
 - **Created Files**:
