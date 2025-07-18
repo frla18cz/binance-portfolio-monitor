@@ -1157,6 +1157,83 @@ def filter_unprocessed_transactions(db_client, transactions, account_id, logger=
         # V případě chyby vrátíme původní seznam (lepší než ztratit transakce)
         return transactions
 
+def fetch_withdrawals_via_ccxt(api_key, api_secret, start_timestamp, logger=None, account_id=None):
+    """
+    Fetch withdrawals using CCXT library which works with read-only permissions.
+    Returns data in python-binance compatible format.
+    """
+    try:
+        import ccxt
+        
+        # Initialize CCXT exchange
+        exchange = ccxt.binance({
+            'apiKey': api_key,
+            'secret': api_secret,
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'spot',
+            }
+        })
+        
+        # Convert timestamp to datetime for CCXT
+        since_dt = datetime.fromtimestamp(start_timestamp / 1000, UTC)
+        
+        # Fetch withdrawals via CCXT
+        ccxt_withdrawals = exchange.fetch_withdrawals(since=int(start_timestamp))
+        
+        if logger:
+            logger.debug(LogCategory.API_CALL, "ccxt_withdrawals_fetched", 
+                       f"CCXT fetched {len(ccxt_withdrawals)} withdrawals", 
+                       account_id=account_id)
+        
+        # Convert CCXT format to python-binance format
+        binance_format_withdrawals = []
+        
+        for w in ccxt_withdrawals:
+            # Get the original Binance data from info field
+            info = w.get('info', {})
+            
+            # Map CCXT status to Binance status codes
+            # CCXT: 'pending', 'ok', 'failed', 'canceled'
+            # Binance: 0=Email Sent, 1=Cancelled, 2=Awaiting Approval, 3=Rejected, 4=Processing, 5=Failure, 6=Completed
+            status_map = {
+                'ok': 6,        # Completed
+                'pending': 4,   # Processing
+                'failed': 5,    # Failure
+                'canceled': 1   # Cancelled
+            }
+            status = status_map.get(w.get('status'), 4)  # Default to processing
+            
+            # Build python-binance compatible withdrawal object
+            withdrawal = {
+                'id': w.get('id', ''),
+                'amount': str(w.get('amount', 0)),
+                'coin': w.get('currency', ''),
+                'status': status,
+                'applyTime': int(w.get('timestamp', 0)),
+                'network': info.get('network', ''),
+                'address': info.get('address', ''),
+                'txId': info.get('txId', w.get('txid', '')),
+                'transferType': info.get('transferType', 0)  # 0=external, 1=internal
+            }
+            
+            binance_format_withdrawals.append(withdrawal)
+            
+        return binance_format_withdrawals
+        
+    except ImportError:
+        if logger:
+            logger.warning(LogCategory.API_CALL, "ccxt_not_available", 
+                         "CCXT library not available, falling back to python-binance",
+                         account_id=account_id)
+        return None
+    except Exception as e:
+        if logger:
+            logger.warning(LogCategory.API_CALL, "ccxt_withdrawals_error", 
+                         f"CCXT withdrawal fetch failed: {str(e)}", 
+                         account_id=account_id, error=str(e))
+        return None
+
 def fetch_new_transactions(binance_client, start_time, logger=None, account_id=None):
     """
     Optimalizovaně fetchne deposits + withdrawals od start_time.
@@ -1196,17 +1273,38 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                              account_id=account_id, error=str(e))
             # Continue with empty deposits list
         
-        try:
-            withdrawals = binance_client.get_withdraw_history(startTime=start_timestamp)
+        # Try CCXT first for withdrawals (works with read-only permissions)
+        ccxt_withdrawals = None
+        if hasattr(binance_client, 'API_KEY') and hasattr(binance_client, 'API_SECRET'):
+            ccxt_withdrawals = fetch_withdrawals_via_ccxt(
+                binance_client.API_KEY, 
+                binance_client.API_SECRET, 
+                start_timestamp, 
+                logger, 
+                account_id
+            )
+        
+        if ccxt_withdrawals is not None:
+            # CCXT succeeded
+            withdrawals = ccxt_withdrawals
             if logger:
-                logger.debug(LogCategory.API_CALL, "withdrawals_fetched", 
-                           f"Fetched {len(withdrawals)} withdrawals", account_id=account_id)
-        except Exception as e:
-            if logger:
-                logger.warning(LogCategory.API_CALL, "withdrawals_fetch_failed", 
-                             f"Failed to fetch withdrawals: {str(e)}", 
-                             account_id=account_id, error=str(e))
-            # Continue with empty withdrawals list
+                logger.info(LogCategory.API_CALL, "withdrawals_via_ccxt", 
+                           f"Using CCXT: fetched {len(withdrawals)} withdrawals", 
+                           account_id=account_id)
+        else:
+            # Fallback to python-binance (requires withdrawal permissions)
+            try:
+                withdrawals = binance_client.get_withdraw_history(startTime=start_timestamp)
+                if logger:
+                    logger.debug(LogCategory.API_CALL, "withdrawals_fetched", 
+                               f"Fetched {len(withdrawals)} withdrawals via python-binance", 
+                               account_id=account_id)
+            except Exception as e:
+                if logger:
+                    logger.warning(LogCategory.API_CALL, "withdrawals_fetch_failed", 
+                                 f"Failed to fetch withdrawals: {str(e)}", 
+                                 account_id=account_id, error=str(e))
+                # Continue with empty withdrawals list
         
         # Enhanced transaction normalization with error handling
         for deposit in deposits:
