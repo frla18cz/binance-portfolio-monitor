@@ -1271,7 +1271,8 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
         # Filtrujeme jen SUCCESS transakce a sortujeme podle času
         successful_txns = []
         for txn in transactions:
-            if (txn['status'] == 1 or txn['status'] == 'SUCCESS'):  # Binance používá různé formáty
+            # Different status codes for deposits (1) and withdrawals (6=completed)
+            if (txn['status'] == 1 or txn['status'] == 6 or txn['status'] == 'SUCCESS'):  # Binance používá různé formáty
                 txn['status'] = 'SUCCESS'
                 txn['timestamp'] = datetime.fromtimestamp(txn['timestamp']/1000, UTC).isoformat()
                 
