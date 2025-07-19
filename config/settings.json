@@ -15,7 +15,7 @@
   "scheduling": {
     "cron_interval_minutes": 60,
     "cron_schedule": "0 * * * *",
-    "daemon_interval_seconds": 3600,
+    "daemon_interval_seconds": 600,
     "vercel_schedule": "0 * * * *",
     "log_retention_hours": 720,
     "log_retention_entries": 10000000,

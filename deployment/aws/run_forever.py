@@ -27,6 +27,9 @@ import traceback
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
 
+# Import konfigurace pro načtení intervalu
+from config import settings
+
 # Vytvoření adresáře pro logy pokud neexistuje
 os.makedirs('logs', exist_ok=True)
 
@@ -122,11 +125,17 @@ def run_dashboard():
         # Dashboard není kritický, pokračujeme dál
 
 def calculate_next_run():
-    """Vypočítá čas do další hodiny"""
+    """Vypočítá čas do dalšího běhu podle konfigurace v settings.json"""
     now = datetime.now()
-    next_hour = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    seconds_until_next_hour = (next_hour - now).total_seconds()
-    return seconds_until_next_hour, next_hour
+    
+    # Načíst interval z settings.json
+    interval_minutes = settings.scheduling.cron_interval_minutes
+    
+    # Vypočítat další běh
+    next_run = now + timedelta(minutes=interval_minutes)
+    seconds_until_next_run = interval_minutes * 60
+    
+    return seconds_until_next_run, next_run
 
 def main():
     """Hlavní smyčka aplikace"""
@@ -136,6 +145,7 @@ def main():
     logger.info(f"Python: {sys.version}")
     logger.info(f"Pracovní adresář: {os.getcwd()}")
     logger.info(f"Project root: {project_root}")
+    logger.info(f"📊 Použitý interval: {settings.scheduling.cron_interval_minutes} minut")
     
     # Kontrola prostředí
     env_vars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'BINANCE_API_KEY', 'BINANCE_API_SECRET']
@@ -160,7 +170,7 @@ def main():
             # Výpočet času do další hodiny
             seconds_to_wait, next_run_time = calculate_next_run()
             
-            logger.info(f"⏰ Další běh naplánován na: {next_run_time.strftime('%H:%M:%S')}")
+            logger.info(f"⏰ Další běh naplánován na: {next_run_time.strftime('%H:%M:%S')} (za {int(seconds_to_wait/60)} minut)")
             logger.info(f"💤 Čekám {int(seconds_to_wait)} sekund...")
             
             # Čekání s možností přerušení

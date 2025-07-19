@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="ec2-13-49-44-255.eu-north-1.compute.amazonaws.com" id="0000de15-a8f4-44b5-aeea-db29bdb71999" keyPath="$USER_HOME$/Downloads/aws_key.pem" port="22" nameFormat="DESCRIPTIVE" username="ec2-user" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>

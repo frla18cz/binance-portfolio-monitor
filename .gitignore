@@ -54,6 +54,8 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+test_*.py
+tests/
 
 # Deployment
 .vercel/

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="77f6d6c2-1417-4b27-b254-3c5d417aff8d" name="aws_binance_monitor">
+        <fileTransfer accessType="SFTP" host="ec2-13-49-44-255.eu-north-1.compute.amazonaws.com" port="22" sshConfigId="0000de15-a8f4-44b5-aeea-db29bdb71999" sshConfig="ec2-user@ec2-13-49-44-255.eu-north-1.compute.amazonaws.com:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

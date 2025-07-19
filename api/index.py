@@ -6,6 +6,7 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
+from api.binance_pay_helper import get_pay_transactions
 
 # Debug print removed - was causing issues on Vercel
 
@@ -1211,11 +1212,14 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
         # Fetch Binance Pay transactions (phone/email transfers)
         pay_transactions = []
         try:
-            # Call the Binance Pay API endpoint
-            pay_response = binance_client._request('GET', 'sapi/v1/pay/transactions', True, {})
+            # Use our helper to work around python-binance bug
+            api_key = binance_client.API_KEY
+            api_secret = binance_client.API_SECRET
             
-            if pay_response and 'data' in pay_response:
-                pay_transactions = pay_response['data']
+            # Get pay transactions using direct API call
+            pay_transactions = get_pay_transactions(api_key, api_secret, logger, account_id)
+            
+            if pay_transactions:
                 
                 # Filter transactions by time
                 filtered_pay_transactions = []
@@ -1231,9 +1235,17 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                                f"Fetched {len(pay_transactions)} pay transactions", account_id=account_id)
         except Exception as e:
             if logger:
+                # Log more details about the error
+                error_details = {
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "has_response": 'pay_response' in locals(),
+                    "response_type": type(pay_response).__name__ if 'pay_response' in locals() else None
+                }
+                
                 logger.warning(LogCategory.API_CALL, "pay_transactions_fetch_failed", 
-                             f"Failed to fetch pay transactions: {str(e)}", 
-                             account_id=account_id, error=str(e))
+                             f"Failed to fetch pay transactions: {type(e).__name__}: {str(e)}", 
+                             account_id=account_id, error=str(e), data=error_details)
             # Continue with empty pay transactions list
         
         # Enhanced transaction normalization with error handling

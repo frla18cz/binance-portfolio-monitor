@@ -107,13 +107,19 @@ BINANCE_API_SECRET=váš_secret
 
 ### 5. Spusťte aplikaci
 
-```bash
 # Otestujte že vše funguje
 python test_binance_aws.py
 
 # Spusťte monitoring (časovač + dashboard)
+```bash
 screen -S monitor
-python deployment/aws/run_forever.py
+```
+
+```bash
+python3 deployment/aws/run_forever.py
+```
+```bash
+
 # Tento script spustí:
 # - Dashboard na portu 8000 (jednou)
 # - Monitoring každou hodinu (opakovaně)
@@ -121,6 +127,10 @@ python deployment/aws/run_forever.py
 # Odpojte se od screen (aplikace běží dál)
 # Stiskněte: Ctrl+A, pak D
 ```
+
+
+
+
 
 **✅ Hotovo!** Aplikace běží a sbírá data každou hodinu.
 
