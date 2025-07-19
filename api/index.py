@@ -1055,9 +1055,9 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
         for txn in unprocessed_transactions:
             if txn['status'] == 'SUCCESS':  # Pouze úspěšné transakce
                 amount = float(txn['amount'])
-                if txn['type'] == 'DEPOSIT':
+                if txn['type'] in ['DEPOSIT', 'PAY_DEPOSIT']:
                     total_net_flow += amount
-                elif txn['type'] == 'WITHDRAWAL':
+                elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL']:
                     total_net_flow -= amount
                     
                 processed_txns.append({
@@ -1208,6 +1208,34 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                              account_id=account_id, error=str(e))
             # Continue with empty withdrawals list
         
+        # Fetch Binance Pay transactions (phone/email transfers)
+        pay_transactions = []
+        try:
+            # Call the Binance Pay API endpoint
+            pay_response = binance_client._request('GET', 'sapi/v1/pay/transactions', True, {})
+            
+            if pay_response and 'data' in pay_response:
+                pay_transactions = pay_response['data']
+                
+                # Filter transactions by time
+                filtered_pay_transactions = []
+                for pay_txn in pay_transactions:
+                    txn_time = int(pay_txn.get('transactionTime', 0))
+                    if txn_time >= start_timestamp:
+                        filtered_pay_transactions.append(pay_txn)
+                
+                pay_transactions = filtered_pay_transactions
+                
+                if logger:
+                    logger.debug(LogCategory.API_CALL, "pay_transactions_fetched", 
+                               f"Fetched {len(pay_transactions)} pay transactions", account_id=account_id)
+        except Exception as e:
+            if logger:
+                logger.warning(LogCategory.API_CALL, "pay_transactions_fetch_failed", 
+                             f"Failed to fetch pay transactions: {str(e)}", 
+                             account_id=account_id, error=str(e))
+            # Continue with empty pay transactions list
+        
         # Enhanced transaction normalization with error handling
         for deposit in deposits:
             try:
@@ -1267,6 +1295,76 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                                  f"Error normalizing withdrawal: {str(e)} | Data: {withdrawal}", 
                                  account_id=account_id, error=str(e))
                 continue
+                
+        # Process Binance Pay transactions (phone/email transfers)
+        for pay_txn in pay_transactions:
+            try:
+                if not pay_txn or 'transactionId' not in pay_txn:
+                    if logger:
+                        logger.warning(LogCategory.API_CALL, "invalid_pay_transaction_data", 
+                                     f"Skipping invalid pay transaction: {pay_txn}", account_id=account_id)
+                    continue
+                
+                amount = float(pay_txn.get('amount', 0))
+                if amount == 0:
+                    continue
+                
+                # Determine transaction type based on amount sign
+                if amount > 0:
+                    # Incoming payment (deposit)
+                    txn_type = 'PAY_DEPOSIT'
+                    payer_info = pay_txn.get('payerInfo', {})
+                    contact_info = {
+                        'name': payer_info.get('name', ''),
+                        'binance_id': payer_info.get('binanceId', ''),
+                        'email': payer_info.get('email', ''),
+                        'phone': payer_info.get('phone', '')
+                    }
+                else:
+                    # Outgoing payment (withdrawal)
+                    txn_type = 'PAY_WITHDRAWAL'
+                    amount = abs(amount)  # Convert to positive for processing
+                    receiver_info = pay_txn.get('receiverInfo', {})
+                    contact_info = {
+                        'name': receiver_info.get('name', ''),
+                        'email': receiver_info.get('email', ''),
+                        'phone': receiver_info.get('phone', ''),
+                        'account_id': receiver_info.get('accountId', '')
+                    }
+                
+                transactions.append({
+                    'id': f"PAY_{pay_txn['transactionId']}",
+                    'type': txn_type,
+                    'amount': amount,
+                    'timestamp': int(pay_txn.get('transactionTime', 0)),
+                    'status': 'SUCCESS',  # Pay transactions are already completed
+                    'currency': pay_txn.get('currency', ''),
+                    'metadata': {
+                        'order_type': pay_txn.get('orderType', ''),
+                        'wallet_type': pay_txn.get('walletType', ''),
+                        'contact_info': contact_info
+                    }
+                })
+                
+                # Log pay transaction for visibility
+                if logger:
+                    logger.info(LogCategory.TRANSACTION, "pay_transaction_detected",
+                               f"Pay {txn_type}: {amount} {pay_txn.get('currency', '')} - {contact_info.get('name', 'Unknown')}",
+                               account_id=account_id,
+                               data={
+                                   'transaction_id': pay_txn['transactionId'],
+                                   'type': txn_type,
+                                   'amount': amount,
+                                   'currency': pay_txn.get('currency', ''),
+                                   'contact_info': contact_info
+                               })
+                               
+            except (ValueError, TypeError, KeyError) as e:
+                if logger:
+                    logger.warning(LogCategory.API_CALL, "pay_transaction_normalization_error", 
+                                 f"Error normalizing pay transaction: {str(e)} | Data: {pay_txn}", 
+                                 account_id=account_id, error=str(e))
+                continue
             
         # Filtrujeme jen SUCCESS transakce a sortujeme podle času
         successful_txns = []
@@ -1284,6 +1382,9 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                         'coin': txn.pop('coin', ''),
                         'network': txn.pop('network', '')
                     }
+                
+                # Preserve metadata for PAY transactions (already has metadata dict)
+                # PAY transactions already have metadata from processing above
                     
                 successful_txns.append(txn)
         
