@@ -13,7 +13,7 @@
   },
   
   "scheduling": {
-    "cron_interval_minutes": 60,
+    "cron_interval_minutes": 10,
     "cron_schedule": "0 * * * *",
     "daemon_interval_seconds": 600,
     "vercel_schedule": "0 * * * *",

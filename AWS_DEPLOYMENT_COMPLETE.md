@@ -116,7 +116,7 @@ screen -S monitor
 ```
 
 ```bash
-python3 deployment/aws/run_forever.py
+python3.11 deployment/aws/run_forever.py
 ```
 ```bash
 

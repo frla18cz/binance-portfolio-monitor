@@ -29,6 +29,7 @@ sys.path.insert(0, project_root)
 
 # Import konfigurace pro načtení intervalu
 from config import settings
+from utils.process_lock import ProcessLock
 
 # Vytvoření adresáře pro logy pokud neexistuje
 os.makedirs('logs', exist_ok=True)
@@ -147,6 +148,15 @@ def main():
     logger.info(f"Project root: {project_root}")
     logger.info(f"📊 Použitý interval: {settings.scheduling.cron_interval_minutes} minut")
     
+    # Kontrola process locku
+    lock = ProcessLock("binance_monitor")
+    if not lock.acquire():
+        logger.error("❌ Jiná instance monitoringu již běží!")
+        logger.error("Pokud jste si jisti, že žádná jiná instance neběží, smažte lock soubor: /tmp/.binance_monitor.lock")
+        sys.exit(1)
+    
+    logger.info("✅ Process lock získán")
+    
     # Kontrola prostředí
     env_vars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'BINANCE_API_KEY', 'BINANCE_API_SECRET']
     missing_vars = [var for var in env_vars if not os.getenv(var)]
@@ -198,6 +208,11 @@ def main():
                 time.sleep(1)
     
     logger.info("👋 Aplikace ukončena")
+    
+    # Uvolnění process locku
+    lock.release()
+    logger.info("🔓 Process lock uvolněn")
+    
     sys.exit(0)
 
 if __name__ == "__main__":

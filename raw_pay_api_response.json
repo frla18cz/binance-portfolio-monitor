@@ -1,0 +1,192 @@
+{
+  "code": "000000",
+  "message": "success",
+  "data": [
+    {
+      "uid": 38755365,
+      "counterpartyId": 235656193,
+      "orderId": "375979407961325568",
+      "note": "",
+      "orderType": "C2C",
+      "transactionId": "P_A1UPWD4VNNS71113",
+      "transactionTime": 1752915855870,
+      "amount": "-5",
+      "currency": "USDC",
+      "walletType": 2,
+      "walletTypes": [
+        "2"
+      ],
+      "fundsDetail": [
+        {
+          "currency": "USDC",
+          "amount": "5",
+          "walletAssetCost": {
+            "2": "5"
+          }
+        }
+      ],
+      "payerInfo": {
+        "binanceId": 38755365,
+        "unmaskData": false
+      },
+      "receiverInfo": {
+        "name": "User-Tomas_",
+        "type": "USER",
+        "email": "rozirozi@seznam.cz",
+        "accountId": 235656193,
+        "unmaskData": true,
+        "extend": {
+          "phoneOrEmailChanged": false
+        }
+      },
+      "totalPaymentFee": "0"
+    },
+    {
+      "uid": 38755365,
+      "counterpartyId": 235656193,
+      "orderId": "375821370481868800",
+      "note": "",
+      "orderType": "C2C",
+      "transactionId": "P_A1UPBE6WV3H71113",
+      "transactionTime": 1752842263518,
+      "amount": "-10",
+      "currency": "USDC",
+      "walletType": 2,
+      "walletTypes": [
+        "2"
+      ],
+      "fundsDetail": [
+        {
+          "currency": "USDC",
+          "amount": "10",
+          "walletAssetCost": {
+            "2": "10"
+          }
+        }
+      ],
+      "payerInfo": {
+        "binanceId": 38755365,
+        "unmaskData": false
+      },
+      "receiverInfo": {
+        "name": "User-Tomas_",
+        "type": "USER",
+        "email": "rozirozi@seznam.cz",
+        "accountId": 235656193,
+        "unmaskData": true,
+        "extend": {
+          "phoneOrEmailChanged": false
+        }
+      },
+      "totalPaymentFee": "0"
+    },
+    {
+      "uid": 38755365,
+      "counterpartyId": 235656193,
+      "orderId": "375638668868763648",
+      "note": "",
+      "orderType": "C2C",
+      "transactionId": "P_A1UNPNHMWS171113",
+      "transactionTime": 1752757186823,
+      "amount": "-5",
+      "currency": "USDC",
+      "walletType": 2,
+      "walletTypes": [
+        "2"
+      ],
+      "fundsDetail": [
+        {
+          "currency": "USDC",
+          "amount": "5",
+          "walletAssetCost": {
+            "2": "5"
+          }
+        }
+      ],
+      "payerInfo": {
+        "binanceId": 38755365,
+        "unmaskData": false
+      },
+      "receiverInfo": {
+        "name": "User-Tomas_",
+        "type": "USER",
+        "email": "rozirozi@seznam.cz",
+        "accountId": 235656193,
+        "unmaskData": true,
+        "extend": {
+          "phoneOrEmailChanged": false
+        }
+      },
+      "totalPaymentFee": "0"
+    },
+    {
+      "uid": 38755365,
+      "counterpartyId": 829313619,
+      "orderId": "372849690903601152",
+      "note": "",
+      "orderType": "C2C",
+      "transactionId": "P_A1UBSK9SJNN71115",
+      "transactionTime": 1751458467394,
+      "amount": "6000",
+      "currency": "USDC",
+      "walletType": 1,
+      "walletTypes": [
+        "1"
+      ],
+      "fundsDetail": [
+        {
+          "currency": "USDC",
+          "amount": "6000",
+          "walletAssetCost": {
+            "1": "6000"
+          }
+        }
+      ],
+      "payerInfo": {
+        "name": "User-19af8",
+        "type": "USER",
+        "unmaskData": false
+      },
+      "receiverInfo": {
+        "binanceId": 38755365,
+        "unmaskData": false
+      },
+      "totalPaymentFee": "0"
+    },
+    {
+      "uid": 38755365,
+      "counterpartyId": 829313619,
+      "orderId": "367526714685300736",
+      "note": "",
+      "orderType": "C2C",
+      "transactionId": "P_A1TRVEDU6WH71118",
+      "transactionTime": 1748979763898,
+      "amount": "6000",
+      "currency": "USDC",
+      "walletType": 1,
+      "walletTypes": [
+        "1"
+      ],
+      "fundsDetail": [
+        {
+          "currency": "USDC",
+          "amount": "6000",
+          "walletAssetCost": {
+            "1": "6000"
+          }
+        }
+      ],
+      "payerInfo": {
+        "name": "User-19af8",
+        "type": "USER",
+        "unmaskData": false
+      },
+      "receiverInfo": {
+        "binanceId": 38755365,
+        "unmaskData": false
+      },
+      "totalPaymentFee": "0"
+    }
+  ],
+  "success": true
+}

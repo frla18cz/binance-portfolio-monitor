@@ -1056,6 +1056,16 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
         for txn in unprocessed_transactions:
             if txn['status'] == 'SUCCESS':  # Pouze úspěšné transakce
                 amount = float(txn['amount'])
+                
+                # Validate transaction type
+                valid_types = ['DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL']
+                if txn['type'] not in valid_types:
+                    if logger:
+                        logger.error(LogCategory.TRANSACTION, "invalid_transaction_type", 
+                                   f"Invalid transaction type: {txn['type']}. Valid types: {valid_types}",
+                                   account_id=account_id, data={"transaction": txn})
+                    continue
+                
                 if txn['type'] in ['DEPOSIT', 'PAY_DEPOSIT']:
                     total_net_flow += amount
                 elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL']:
@@ -1086,13 +1096,25 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
             # Žádné cashflow změny, jen uložíme tracking
             if processed_txns:
                 with OperationTimer(logger, LogCategory.DATABASE, "save_processed_transactions", account_id) if logger else nullcontext():
-                    db_client.table('processed_transactions').insert(processed_txns).execute()
-                    update_last_processed_time(db_client, account_id)
-                    
-                if logger:
-                    logger.info(LogCategory.TRANSACTION, "transactions_saved", 
-                               f"Saved {len(processed_txns)} transactions with no net cashflow",
-                               account_id=account_id)
+                    try:
+                        db_client.table('processed_transactions').insert(processed_txns).execute()
+                        update_last_processed_time(db_client, account_id)
+                        
+                        if logger:
+                            logger.info(LogCategory.TRANSACTION, "transactions_saved", 
+                                       f"Saved {len(processed_txns)} transactions with no net cashflow",
+                                       account_id=account_id)
+                    except Exception as e:
+                        # Check if it's a duplicate key error
+                        error_msg = str(e)
+                        if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
+                            if logger:
+                                logger.warning(LogCategory.TRANSACTION, "duplicate_transaction_ignored", 
+                                             f"Some transactions already processed, ignoring duplicates",
+                                             account_id=account_id)
+                        else:
+                            # Re-raise other errors
+                            raise
             return config
             
     except Exception as e:
@@ -1542,13 +1564,23 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                 
                 # 2. Insert processed transactions if any
                 if processed_txns:
-                    txn_result = db_client.table('processed_transactions').insert(processed_txns).execute()
-                    if not txn_result.data:
-                        error_msg = f"Failed to insert processed_transactions for account_id {account_id}"
-                        if logger:
-                            logger.error(LogCategory.DATABASE, "atomic_cashflow_update", error_msg,
-                                       account_id=account_id, error=error_msg, data=atomic_context)
-                        raise Exception(error_msg)
+                    try:
+                        txn_result = db_client.table('processed_transactions').insert(processed_txns).execute()
+                        if not txn_result.data:
+                            error_msg = f"Failed to insert processed_transactions for account_id {account_id}"
+                            if logger:
+                                logger.error(LogCategory.DATABASE, "atomic_cashflow_update", error_msg,
+                                           account_id=account_id, error=error_msg, data=atomic_context)
+                            raise Exception(error_msg)
+                    except Exception as txn_error:
+                        # Check if it's a duplicate key error
+                        error_msg = str(txn_error)
+                        if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
+                            if logger:
+                                logger.warning(LogCategory.DATABASE, "duplicate_in_atomic_update", 
+                                             f"Duplicate transactions in atomic update, rolling back",
+                                             account_id=account_id, data=atomic_context)
+                        raise  # Always re-raise to trigger rollback
                 
                 # 3. Update last processed timestamp
                 update_last_processed_time(db_client, account_id)
