@@ -474,6 +474,19 @@ If you see `APIError(code=0): Service unavailable from a restricted location` er
    - System automatically uses data-api.binance.vision for prices
    - EU regions (Frankfurt, Ireland) work better than US regions
 
+## Process Lock Documentation
+- **Detailní dokumentace**: Viz [docs/PROCESS_LOCK.md](docs/PROCESS_LOCK.md)
+- **Účel**: Zabraňuje spuštění více instancí monitoringu současně
+- **Lock soubor**: `/tmp/.binance_monitor.lock`
+- **Stale lock timeout**: 1 hodina (konfigurovatelné)
+- **Funguje**: Linux, macOS, AWS EC2
+
+## První běh po resetu
+- **Detailní dokumentace**: Viz [docs/FIRST_RUN_BEHAVIOR.md](docs/FIRST_RUN_BEHAVIOR.md)
+- **Klíčová funkce**: Ignoruje transakce před inicializací benchmarku
+- **Zabraňuje**: Dvojitému započítání historických transakcí
+- **initialized_at**: Timestamp určující, od kdy se transakce zpracovávají
+
 ## Development Notes
 - Always test with `python -m api.index` for proper imports
 - Dashboard runs on port 8000 (changed from 8001)
