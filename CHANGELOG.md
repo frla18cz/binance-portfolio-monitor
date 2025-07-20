@@ -2,6 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-20] - Critical Fixes for Pay Transactions and Negative Benchmark
+
+### 🐛 Fixed
+- **Negative Benchmark Values**: Fixed Ondra(test) account showing benchmark of -12.69 USD instead of ~1650 USD
+  - Root cause: Duplicate monitoring processes running every 10 minutes
+  - Each run attempted to process same Pay transactions, causing repeated benchmark adjustments
+  - Solution: Implemented process lock and data cleanup
+
+- **PAY Transaction Support**: Fixed database constraint blocking PAY_DEPOSIT and PAY_WITHDRAWAL types
+  - Applied migration to extend transaction_type check constraint
+  - System now properly handles Binance Pay (email/phone) transfers
+
+- **Duplicate Processing Protection**: Added multiple layers of protection
+  - Process lock prevents multiple instances from running simultaneously
+  - Unique constraint on (account_id, transaction_id) ensures idempotency
+  - Enhanced error handling for duplicate transaction attempts
+
+### ✨ Added
+- **Process Lock Utility** (`utils/process_lock.py`)
+  - File-based locking mechanism with PID tracking
+  - Automatic stale lock detection (1 hour timeout)
+  - Prevents accidental duplicate runs
+
+- **Full Data Cleanup** (`migrations/full_cleanup_ondra_test.sql`)
+  - Complete reset script for corrupted account data
+  - Removes all NAV history, transactions, and processing status
+  - Resets benchmark to uninitialized state for fresh start
+
+- **Enhanced Error Handling**
+  - Transaction type validation before processing
+  - Better handling of duplicate key violations
+  - Improved logging for debugging
+
+### 🔄 Changed
+- **Error Handling**: Improved handling of duplicate transactions in both regular and atomic operations
+- **Validation**: Added explicit validation of transaction types against allowed values
+- **Logging**: Enhanced error context for better debugging
+
+### 📊 Impact
+- **Ondra(test)**: Complete data reset, will reinitialize on next run
+- **Other Accounts**: No impact, continue working normally
+- **System**: More robust against duplicate runs and data corruption
+
+### 🗑️ Removed
+- Deleted 145 corrupted NAV history records for Ondra(test)
+- Cleared all incorrect benchmark calculations
+
+### 📝 Files Modified
+- `api/index.py` - Enhanced validation and error handling
+- `deployment/aws/run_forever.py` - Added process lock integration
+- `utils/process_lock.py` - New process lock utility
+- `migrations/full_cleanup_ondra_test.sql` - Data cleanup script
+- Database migrations applied directly to Supabase
+
 ## [2025-07-09] - Critical Bug Fixes
 
 ### 🐛 Fixed
