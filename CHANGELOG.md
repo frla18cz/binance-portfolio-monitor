@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-20] - Transaction Type Field Migration
+
+### 🔄 Breaking Changes
+- **Database Schema**: Migrated from `transaction_type` to `type` field in `processed_transactions` table
+  - Removed old `transaction_type` column completely
+  - Updated all constraints and indexes to use `type` field
+  - This is a one-way migration - no rollback without data loss
+
+### 🐛 Fixed
+- **Field Name Inconsistency**: Fixed mismatch between saving and reading transaction types
+  - Code was saving with `transaction_type` but reading `type` field
+  - This caused transactions to be marked as "UNKNOWN" and not processed correctly
+  - Benchmark adjustments were not applied for deposits/withdrawals
+
+### ✨ Added
+- **Database Migration** (`migrations/complete_type_migration.sql`)
+  - Safely migrates data from `transaction_type` to `type` column
+  - Adds proper constraints and indexes
+  - Includes data integrity checks
+
+- **Migration Documentation** (`docs/TRANSACTION_TYPE_MIGRATION.md`)
+  - Complete migration guide and technical details
+  - Rollback procedures if needed
+  - Impact analysis
+
+### 🔄 Changed
+- **api/index.py**: Removed backward compatibility code for field names
+- **sql/create_missing_tables.sql**: Updated schema to use `type` field with proper constraints
+- **Database Constraints**: 
+  - Added CHECK constraint on `type` field for valid transaction types
+  - Created index `idx_processed_transactions_type` for better query performance
+
+### 📊 Impact
+- **Existing Data**: All existing transactions preserved with correct type values
+- **Historical Data**: PAY_WITHDRAWAL transaction from ondra(test) will remain unprocessed (already marked as processed)
+- **Future Transactions**: Will be processed correctly with benchmark adjustments
+
+### 🗑️ Removed
+- `transaction_type` column from `processed_transactions` table
+- Old constraints: `processed_transactions_transaction_type_check`
+- Old index: `idx_processed_transactions_type` (on old column)
+
 ## [2025-07-20] - Critical Fixes for Pay Transactions and Negative Benchmark
 
 ### 🐛 Fixed

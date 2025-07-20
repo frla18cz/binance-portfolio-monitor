@@ -6,10 +6,11 @@ CREATE TABLE IF NOT EXISTS processed_transactions (
     id SERIAL PRIMARY KEY,
     account_id UUID REFERENCES binance_accounts(id),
     transaction_id VARCHAR(50) UNIQUE NOT NULL,
-    transaction_type VARCHAR(20) NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL')),
     amount DECIMAL(20,8) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     status VARCHAR(20) NOT NULL,
+    metadata JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS price_history (
 CREATE INDEX IF NOT EXISTS idx_processed_transactions_account_id ON processed_transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_processed_transactions_timestamp ON processed_transactions(timestamp);
 CREATE INDEX IF NOT EXISTS idx_processed_transactions_transaction_id ON processed_transactions(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_processed_transactions_type ON processed_transactions(type);
 
 CREATE INDEX IF NOT EXISTS idx_account_processing_status_account_id ON account_processing_status(account_id);
 CREATE INDEX IF NOT EXISTS idx_account_processing_status_updated_at ON account_processing_status(updated_at);

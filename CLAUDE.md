@@ -52,8 +52,15 @@ Trading Alpha = (Current NAV / Benchmark Value - 1) × 100%
 binance_accounts → stores API credentials
 benchmark_configs → tracks BTC/ETH units per account
 nav_history → hourly NAV and benchmark values
-processed_transactions → deposit/withdrawal history
+processed_transactions → deposit/withdrawal history (uses 'type' field)
+system_logs → operation logs with retention
+price_history → BTC/ETH price snapshots
 ```
+
+### Transaction Processing
+- **Field**: Use `type` field (NOT `transaction_type`) in processed_transactions
+- **Valid Types**: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL
+- **Unique Key**: (account_id, transaction_id) prevents duplicates
 
 ## MCP Server
 - **Supabase MCP** (`mcp__supabase__*`) available for direct database operations

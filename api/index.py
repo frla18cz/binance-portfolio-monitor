@@ -1059,6 +1059,13 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                 
                 # Validate transaction type
                 valid_types = ['DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL']
+                if not txn.get('type'):
+                    if logger:
+                        logger.error(LogCategory.TRANSACTION, "missing_transaction_type", 
+                                   f"Transaction missing 'type' field",
+                                   account_id=account_id, data={"transaction": txn})
+                    continue
+                
                 if txn['type'] not in valid_types:
                     if logger:
                         logger.error(LogCategory.TRANSACTION, "invalid_transaction_type", 
@@ -1074,7 +1081,7 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                 processed_txns.append({
                     'account_id': str(account_id),  # Ensure it's a string
                     'transaction_id': str(txn['id']),
-                    'transaction_type': txn['type'],
+                    'type': txn['type'],  # Changed from 'transaction_type' to 'type'
                     'amount': float(amount),  # Ensure it's a proper float
                     'timestamp': txn['timestamp'],
                     'status': txn['status'],
