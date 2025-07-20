@@ -126,15 +126,41 @@ def run_dashboard():
         # Dashboard není kritický, pokračujeme dál
 
 def calculate_next_run():
-    """Vypočítá čas do dalšího běhu podle konfigurace v settings.json"""
+    """Vypočítá čas do dalšího běhu synchronizovaný s hodinami
+    
+    Například:
+    - Při intervalu 10 min: běhy v :00, :10, :20, :30, :40, :50
+    - Při intervalu 15 min: běhy v :00, :15, :30, :45
+    - Při intervalu 30 min: běhy v :00, :30
+    - Při intervalu 60 min: běhy v :00
+    """
     now = datetime.now()
     
     # Načíst interval z settings.json
     interval_minutes = settings.scheduling.cron_interval_minutes
     
-    # Vypočítat další běh
-    next_run = now + timedelta(minutes=interval_minutes)
-    seconds_until_next_run = interval_minutes * 60
+    # Zaokrouhlení na nejbližší násobek intervalu
+    minutes_since_hour = now.minute
+    intervals_since_hour = minutes_since_hour // interval_minutes
+    next_interval = intervals_since_hour + 1
+    
+    # Výpočet dalšího času běhu
+    next_minute = (next_interval * interval_minutes) % 60
+    next_hour = now.hour + ((next_interval * interval_minutes) // 60)
+    
+    # Vytvoření času dalšího běhu
+    next_run = now.replace(hour=next_hour % 24, minute=next_minute, second=0, microsecond=0)
+    
+    # Pokud je další běh dnes, ale už proběhl (např. při spuštění přesně v čas intervalu)
+    if next_run <= now:
+        # Posunout na další interval
+        next_run += timedelta(minutes=interval_minutes)
+    
+    # Pokud jsme přešli na další den
+    if next_hour >= 24:
+        next_run = next_run + timedelta(days=1)
+    
+    seconds_until_next_run = (next_run - now).total_seconds()
     
     return seconds_until_next_run, next_run
 
