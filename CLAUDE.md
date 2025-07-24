@@ -50,11 +50,14 @@ Trading Alpha = (Current NAV / Benchmark Value - 1) × 100%
 ## Database Schema
 ```
 binance_accounts → stores API credentials
-benchmark_configs → tracks BTC/ETH units per account
-nav_history → hourly NAV and benchmark values
+benchmark_configs → tracks BTC/ETH units per account with rebalancing history
+nav_history → hourly NAV and benchmark values with account names
 processed_transactions → deposit/withdrawal history (uses 'type' field)
 system_logs → operation logs with retention
 price_history → BTC/ETH price snapshots
+account_processing_status → tracks last processed timestamp for each account
+system_metadata → system-wide configuration and metadata
+users → user authentication data
 ```
 
 ### Transaction Processing

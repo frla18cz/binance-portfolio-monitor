@@ -64,7 +64,7 @@ The system has three simple components with clear roles:
 
 **Simple analogy**: run_forever = alarm clock, api/index = employee, dashboard = TV screen
 
-For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For detailed architecture documentation, see [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
 ## 🚀 Deployment Options
 
@@ -72,7 +72,7 @@ For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 Best for development and testing. Run on your local machine with direct Binance API access.
 
 ### AWS EC2 Deployment (Recommended)
-Complete deployment solution for production. See **[AWS_DEPLOYMENT_COMPLETE.md](AWS_DEPLOYMENT_COMPLETE.md)** for detailed instructions.
+Complete deployment solution for production. See **[AWS_DEPLOYMENT_COMPLETE.md](docs/deployment/AWS_DEPLOYMENT_COMPLETE.md)** for detailed instructions.
 
 **Quick Start:**
 ```bash
@@ -487,7 +487,7 @@ python -c "from api.demo_mode import get_demo_controller; print(get_demo_control
 - **[📊 Dashboard & Logging Guide](./docs/DASHBOARD_GUIDE.md)** - Web dashboard, logging system, and demo mode
 - **[🔧 API Reference](./docs/API_REFERENCE.md)** - Technical documentation  
 - **[🚀 Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)** - Production deployment
-- **[📋 Project Roadmap](./PROJECT_ROADMAP.md)** - Development progress
+- **[📋 Project Roadmap](./docs/development/PROJECT_ROADMAP.md)** - Development progress
 
 ## ⚡ Quick Links
 
@@ -497,7 +497,7 @@ python -c "from api.demo_mode import get_demo_controller; print(get_demo_control
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](./CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guidelines](./docs/development/CONTRIBUTING.md) for details.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)

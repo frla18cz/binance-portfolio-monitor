@@ -263,5 +263,7 @@ binance_monitor_playground/
 ├── add_price_columns.sql    # SQL migration for price columns
 ├── dashboard.html           # Dashboard frontend
 ├── .env                     # Environment variables
-└── USAGE.md                 # Tento soubor
+└── docs/
+    └── guides/
+        └── USAGE.md                 # Tento soubor
 ```

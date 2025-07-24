@@ -160,6 +160,6 @@ If issues occur:
 4. Consider renaming to more descriptive types (e.g., `BINANCE_PAY_RECEIVED`)
 
 ## Documentation
-- **Main documentation**: `binance_pay_documentation.md`
+- **Main documentation**: `../external/binance_pay_documentation.md`
 - **Test files**: `test_pay_transactions.py`, `test_mixed_transactions.py`
-- **API reference**: See binance_pay_documentation.md for detailed API specs
+- **API reference**: See ../external/binance_pay_documentation.md for detailed API specs
