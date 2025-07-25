@@ -1058,7 +1058,7 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                 amount = float(txn['amount'])
                 
                 # Validate transaction type
-                valid_types = ['DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL']
+                valid_types = ['DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL']
                 if not txn.get('type'):
                     if logger:
                         logger.error(LogCategory.TRANSACTION, "missing_transaction_type", 
@@ -1075,7 +1075,7 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                 
                 if txn['type'] in ['DEPOSIT', 'PAY_DEPOSIT']:
                     total_net_flow += amount
-                elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL']:
+                elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL']:
                     total_net_flow -= amount
                     
                 processed_txns.append({
@@ -1308,9 +1308,23 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                                      f"Skipping invalid withdrawal data: {withdrawal}", account_id=account_id)
                     continue
                     
+                # Check if this is a fee withdrawal (can be marked in withdrawal info/description)
+                withdrawal_type = 'WITHDRAWAL'
+                withdrawal_info = withdrawal.get('info', '').lower()
+                withdrawal_note = withdrawal.get('withdrawOrderDescription', '').lower()
+                
+                # Check for fee indicators in withdrawal metadata
+                if any(fee_indicator in withdrawal_info + withdrawal_note for fee_indicator in ['fee', 'management', 'performance', 'commission']):
+                    withdrawal_type = 'FEE_WITHDRAWAL'
+                    if logger:
+                        logger.info(LogCategory.TRANSACTION, "fee_withdrawal_detected",
+                                   f"Fee withdrawal detected: {withdrawal.get('amount')} {withdrawal.get('coin')}",
+                                   account_id=account_id,
+                                   data={'withdrawal_id': withdrawal['id'], 'info': withdrawal_info})
+                
                 transactions.append({
                     'id': f"WD_{withdrawal['id']}",
-                    'type': 'WITHDRAWAL', 
+                    'type': withdrawal_type, 
                     'amount': float(withdrawal.get('amount', 0)),
                     'timestamp': withdrawal.get('applyTime', 0),
                     'status': withdrawal.get('status', 0),  # 0=pending, 1=success, etc.
@@ -1318,7 +1332,9 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                     'transfer_type': withdrawal.get('transferType', 0),  # 0=external, 1=internal
                     'tx_id': withdrawal.get('txId', ''),  # "Internal transfer" for internal
                     'coin': withdrawal.get('coin', ''),  # Currency
-                    'network': withdrawal.get('network', '')  # Network for external
+                    'network': withdrawal.get('network', ''),  # Network for external
+                    'info': withdrawal.get('info', ''),
+                    'note': withdrawal.get('withdrawOrderDescription', '')
                 })
                 
                 # Log internal transfers for debugging
@@ -1416,12 +1432,14 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                 txn['timestamp'] = datetime.fromtimestamp(txn['timestamp']/1000, UTC).isoformat()
                 
                 # Preserve metadata for withdrawals
-                if txn['type'] == 'WITHDRAWAL' and any(key in txn for key in ['transfer_type', 'tx_id', 'coin', 'network']):
+                if txn['type'] in ['WITHDRAWAL', 'FEE_WITHDRAWAL'] and any(key in txn for key in ['transfer_type', 'tx_id', 'coin', 'network', 'info', 'note']):
                     txn['metadata'] = {
                         'transfer_type': txn.pop('transfer_type', 0),
                         'tx_id': txn.pop('tx_id', ''),
                         'coin': txn.pop('coin', ''),
-                        'network': txn.pop('network', '')
+                        'network': txn.pop('network', ''),
+                        'info': txn.pop('info', ''),
+                        'note': txn.pop('note', '')
                     }
                 
                 # Preserve metadata for PAY transactions (already has metadata dict)
