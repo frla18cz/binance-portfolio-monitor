@@ -220,6 +220,18 @@ Edit `config/settings.json`:
 }
 ```
 
+### 6. Apply Database Migrations
+The database now includes alpha calculation and fee management:
+```sql
+-- Check if migrations are applied
+SELECT * FROM fee_tracking LIMIT 1;
+SELECT * FROM calculate_twr_period(
+  (SELECT id FROM binance_accounts LIMIT 1),
+  NOW() - INTERVAL '30 days',
+  NOW()
+);
+```
+
 ### 5. Test Run
 
 #### Safe Demo Mode Testing
@@ -432,6 +444,55 @@ DEMO_MODE=true  # Enables mock data and safe testing
 # Logging Configuration
 LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
 MAX_LOG_ENTRIES=10000  # Maximum logs in memory
+```
+
+## 📊 Alpha & Fee Management Usage
+
+### Checking Performance
+```bash
+# Run manual fee calculation to see performance
+python scripts/run_fee_calculation.py --show-config
+python scripts/run_fee_calculation.py --month 2025-07
+
+# Example output:
+# Account: Habitanti
+# Portfolio TWR: -11.06%
+# Benchmark TWR: +5.32%
+# Alpha: -16.38%
+# Performance Fee: $0 (no fee when alpha < 0)
+```
+
+### Monthly Investor Reporting
+```sql
+-- Monthly performance report
+WITH monthly_data AS (
+  SELECT 
+    ba.account_name,
+    f.*
+  FROM binance_accounts ba
+  CROSS JOIN LATERAL calculate_monthly_fees(ba.id, '2025-07-01'::DATE) f
+)
+SELECT 
+  account_name,
+  period_start,
+  ending_nav as current_nav,
+  portfolio_twr as portfolio_return_pct,
+  benchmark_twr as benchmark_return_pct,
+  alpha_twr as alpha_pct,
+  performance_fee
+FROM monthly_data
+ORDER BY account_name;
+```
+
+### Collecting Fees
+```bash
+# 1. Calculate fees for the month
+python scripts/run_fee_calculation.py --month 2025-06
+
+# 2. If fees > 0, withdraw from Binance
+# 3. Record the withdrawal
+curl -X POST your-domain/api/record_fee_withdrawal \
+  -d '{"amount": 1000.00, "tx_id": "binance-withdrawal-id"}'
 ```
 
 ## 🐛 Troubleshooting

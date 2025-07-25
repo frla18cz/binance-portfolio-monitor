@@ -114,3 +114,69 @@ python scripts/run_fee_calculation.py  # Manual fee calculation
 - `/api/dashboard/alpha-metrics` - TWR and alpha calculations
 - `/api/dashboard/fees` - Fee tracking and pending fees
 - `/api/calculate_fees` - Trigger fee calculation (respects schedule)
+
+## Alpha & Fee Usage Guide
+
+### 1. Set Performance Fee Rate
+```sql
+-- Set fee rate for specific account (50% = 0.50)
+UPDATE binance_accounts 
+SET performance_fee_rate = 0.50 
+WHERE account_name = 'YourAccountName';
+```
+
+### 2. Calculate Performance Metrics
+```sql
+-- Get TWR and alpha for last 30 days
+SELECT * FROM calculate_twr_period(
+  (SELECT id FROM binance_accounts WHERE account_name = 'YourAccount'),
+  NOW() - INTERVAL '30 days',
+  NOW()
+);
+
+-- Calculate fees for specific month
+SELECT * FROM calculate_monthly_fees(
+  (SELECT id FROM binance_accounts WHERE account_name = 'YourAccount'),
+  '2025-07-01'::DATE
+);
+```
+
+### 3. Manual Fee Calculation
+```bash
+# Show configuration
+python scripts/run_fee_calculation.py --show-config
+
+# List accounts with fee rates
+python scripts/run_fee_calculation.py --list-accounts
+
+# Calculate for specific month
+python scripts/run_fee_calculation.py --month 2025-07
+
+# Calculate last 3 months
+python scripts/run_fee_calculation.py --last-n-months 3
+```
+
+### 4. Automated Fee Calculation
+```bash
+# Add to crontab for monthly calculation
+0 0 1 * * curl https://your-domain/api/calculate_fees
+
+# Or for testing (hourly)
+0 * * * * curl https://your-domain/api/calculate_fees
+```
+
+### 5. Fee Collection Process
+When collecting fees:
+1. Withdraw the fee amount from Binance
+2. Record in database as FEE_WITHDRAWAL:
+```sql
+INSERT INTO processed_transactions 
+(account_id, transaction_id, type, amount, timestamp, status)
+VALUES 
+('account-uuid', 'unique-tx-id', 'FEE_WITHDRAWAL', 1000.00, NOW(), 'SUCCESS');
+```
+
+### 6. Dashboard Integration
+- Alpha metrics available at: `/api/dashboard/alpha-metrics`
+- Fee tracking available at: `/api/dashboard/fees`
+- Historical TWR analysis in dashboard charts
