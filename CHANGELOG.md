@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Successfully applied all database migrations to Supabase
 - All views, functions, and tables created and tested
 - System is production-ready
+- Comprehensive DATABASE_SCHEMA.md documentation updated with all new components
 
 ### ✨ Added
 
@@ -72,6 +73,16 @@ All notable changes to this project will be documented in this file.
 - 100% backward compatible - can calculate historical alpha
 - Fee accruals separate from collections for transparency
 - TWR methodology ensures fair performance measurement
+
+### 📚 Documentation Updates
+- **DATABASE_SCHEMA.md** - Complete rewrite with all new components:
+  - Added fee_tracking table documentation
+  - Added all 3 SQL views (nav_with_cashflows, period_returns, hwm_history)
+  - Added all 6 SQL functions with detailed descriptions
+  - Added all 4 triggers documentation
+  - Updated binance_accounts with performance_fee_rate column
+  - Updated processed_transactions with FEE_WITHDRAWAL type
+  - Expanded from ~230 to 435 lines with comprehensive coverage
 
 ## [2025-07-20] - Transaction Type Field Migration
 
