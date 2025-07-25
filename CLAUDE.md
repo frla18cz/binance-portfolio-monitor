@@ -41,26 +41,44 @@ Trading Alpha = (Current NAV / Benchmark Value - 1) × 100%
 - **Lock file**: `/tmp/.binance_monitor.lock` prevents duplicate runs
 - **Auto-recovery**: Stale locks (>1 hour) are cleared automatically
 
-### Alpha Calculation
+### Alpha Calculation & Fee Management
 - **TWR (Time-Weighted Returns)**: Eliminates deposit/withdrawal bias
 - **Alpha = Portfolio TWR - Benchmark TWR**
 - **HWM (High Water Mark)**: Adjusted for all cashflows
-- **Performance Fee**: 20% of profits above HWM (only when alpha > 0)
+- **Performance Fee**: Configurable per account (default 50%)
+  - Only charged when NAV > HWM AND alpha > 0
+  - No management fees
+  - Monthly accruals, separate collection tracking
+
+### Fee Configuration
+```json
+"fee_management": {
+  "default_performance_fee_rate": 0.50,
+  "calculation_schedule": "monthly",  // or "daily", "hourly"
+  "calculation_day": 1,
+  "calculation_hour": 0,
+  "test_mode": { "enabled": false }
+}
+```
+- Each account has `performance_fee_rate` in database
+- Manual calculation: `python scripts/run_fee_calculation.py`
 
 ## Key Files
 - `api/index.py` - Core monitoring logic
-- `api/dashboard.py` - Web UI (port 8000)
-- `api/fee_calculator.py` - Monthly fee calculations
-- `config/settings.json` - Configuration
+- `api/dashboard.py` - Web UI (port 8000) 
+- `api/fee_calculator.py` - Fee calculations with flexible scheduling
+- `api/calculate_fees.py` - Cron endpoint for fee calculations
+- `scripts/run_fee_calculation.py` - Manual fee calculation tool
+- `config/settings.json` - Configuration including fee management
 - `deployment/aws/run_forever.py` - Production runner
 
 ## Database Schema
 ```
-binance_accounts → stores API credentials
+binance_accounts → API credentials + performance_fee_rate per account
 benchmark_configs → tracks BTC/ETH units per account
 nav_history → hourly NAV and benchmark values
 processed_transactions → deposit/withdrawal history (uses 'type' field)
-fee_tracking → monthly fee accruals and collections
+fee_tracking → fee accruals and collections
 system_logs → operation logs with retention
 price_history → BTC/ETH price snapshots
 
@@ -68,6 +86,10 @@ Views:
 nav_with_cashflows → NAV data enriched with transactions
 period_returns → TWR period returns calculation
 hwm_history → High Water Mark tracking
+
+Functions:
+calculate_twr_period() → TWR for any date range
+calculate_monthly_fees() → fee calculation with account-specific rates
 ```
 
 ### Transaction Processing
@@ -81,7 +103,14 @@ hwm_history → High Water Mark tracking
 
 ## Common Commands
 ```bash
-python -m api.index          # Run monitoring manually
-python -m api.dashboard      # Start dashboard
-python debug_nav.py          # Debug NAV calculation
+python -m api.index                    # Run monitoring manually
+python -m api.dashboard                # Start dashboard (port 8000)
+python debug_nav.py                    # Debug NAV calculation
+python scripts/run_fee_calculation.py  # Manual fee calculation
 ```
+
+## API Endpoints
+- `/api/dashboard/metrics` - Current NAV and benchmark
+- `/api/dashboard/alpha-metrics` - TWR and alpha calculations
+- `/api/dashboard/fees` - Fee tracking and pending fees
+- `/api/calculate_fees` - Trigger fee calculation (respects schedule)

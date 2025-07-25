@@ -14,7 +14,9 @@
 ## 🎯 What It Does
 
 - **Tracks Performance**: Monitors your Binance futures account NAV vs a passive 50/50 BTC/ETH portfolio
+- **Alpha Calculation**: Time-Weighted Returns (TWR) for accurate performance measurement
 - **Smart Benchmarking**: Automatically adjusts benchmark for deposits/withdrawals  
+- **Fee Management**: Configurable performance fees with High Water Mark tracking
 - **Historical Analysis**: Stores performance data for trend analysis
 - **Multi-Account Support**: Monitor multiple Binance accounts simultaneously
 - **Automated Rebalancing**: Periodic benchmark rebalancing to maintain 50/50 allocation
@@ -24,13 +26,24 @@
 ### Performance Monitoring
 - Real-time NAV tracking from Binance futures API
 - Benchmark calculation using live BTC/ETH prices
+- **Alpha Tracking**: TWR-based outperformance measurement vs benchmark
+- **High Water Mark**: Dynamic tracking adjusted for deposits/withdrawals
 - Historical data storage for comparative analysis
 - **📈 Enhanced Web Dashboard** with premium UI, real-time charts, and seamless account switching
 
 ### Intelligent Deposit/Withdrawal Handling
 - **Deposits**: Automatically increases benchmark allocation (50% BTC, 50% ETH)
 - **Withdrawals**: Proportionally reduces benchmark allocation
+- **Fee Withdrawals**: Special handling for performance fee collections
 - **Idempotent Processing**: No duplicate transaction processing
+
+### Fee Management System
+- **Performance Fees Only**: No management fees, only success-based compensation
+- **Configurable Rates**: Default 50%, adjustable per account
+- **Smart Calculation**: Only charged when NAV > HWM AND alpha > 0
+- **Flexible Scheduling**: Monthly, daily, or hourly calculations
+- **Manual Tools**: Script for on-demand fee calculations
+- **Transparent Tracking**: Separate accrual and collection tracking
 
 ### Advanced Logging & Monitoring
 - **📋 Structured Logging** with JSON format and performance timing
@@ -183,13 +196,28 @@ SUPABASE_ANON_KEY=your-anon-key
 ### 4. Add Your Binance Account
 Insert your account credentials into the database:
 ```sql
--- Add your account
-INSERT INTO binance_accounts (account_name, api_key, api_secret) 
-VALUES ('My Trading Account', 'your-binance-api-key', 'your-binance-api-secret');
+-- Add your account with custom fee rate (optional, defaults to 50%)
+INSERT INTO binance_accounts (account_name, api_key, api_secret, performance_fee_rate) 
+VALUES ('My Trading Account', 'your-binance-api-key', 'your-binance-api-secret', 0.50);
 
 -- Add benchmark config
 INSERT INTO benchmark_configs (account_id, rebalance_day, rebalance_hour)
 VALUES (1, 0, 12); -- Rebalance Mondays at 12:00
+```
+
+### 5. Configure Fee Management
+Edit `config/settings.json`:
+```json
+"fee_management": {
+  "default_performance_fee_rate": 0.50,  // 50% default fee
+  "calculation_schedule": "monthly",     // or "daily", "hourly" for testing
+  "calculation_day": 1,                  // 1st of month
+  "calculation_hour": 0,                 // Midnight UTC
+  "test_mode": {
+    "enabled": false,                    // Set true for testing
+    "interval_minutes": 60
+  }
+}
 ```
 
 ### 5. Test Run
