@@ -14,7 +14,9 @@
 ## 🎯 What It Does
 
 - **Tracks Performance**: Monitors your Binance futures account NAV vs a passive 50/50 BTC/ETH portfolio
+- **Alpha Calculation**: Time-Weighted Returns (TWR) for accurate performance measurement
 - **Smart Benchmarking**: Automatically adjusts benchmark for deposits/withdrawals  
+- **Fee Management**: Configurable performance fees with High Water Mark tracking
 - **Historical Analysis**: Stores performance data for trend analysis
 - **Multi-Account Support**: Monitor multiple Binance accounts simultaneously
 - **Automated Rebalancing**: Periodic benchmark rebalancing to maintain 50/50 allocation
@@ -24,13 +26,24 @@
 ### Performance Monitoring
 - Real-time NAV tracking from Binance futures API
 - Benchmark calculation using live BTC/ETH prices
+- **Alpha Tracking**: TWR-based outperformance measurement vs benchmark
+- **High Water Mark**: Dynamic tracking adjusted for deposits/withdrawals
 - Historical data storage for comparative analysis
 - **📈 Enhanced Web Dashboard** with premium UI, real-time charts, and seamless account switching
 
 ### Intelligent Deposit/Withdrawal Handling
 - **Deposits**: Automatically increases benchmark allocation (50% BTC, 50% ETH)
 - **Withdrawals**: Proportionally reduces benchmark allocation
+- **Fee Withdrawals**: Special handling for performance fee collections
 - **Idempotent Processing**: No duplicate transaction processing
+
+### Fee Management System
+- **Performance Fees Only**: No management fees, only success-based compensation
+- **Configurable Rates**: Default 50%, adjustable per account
+- **Smart Calculation**: Only charged when NAV > HWM AND alpha > 0
+- **Flexible Scheduling**: Monthly, daily, or hourly calculations
+- **Manual Tools**: Script for on-demand fee calculations
+- **Transparent Tracking**: Separate accrual and collection tracking
 
 ### Advanced Logging & Monitoring
 - **📋 Structured Logging** with JSON format and performance timing
@@ -183,13 +196,40 @@ SUPABASE_ANON_KEY=your-anon-key
 ### 4. Add Your Binance Account
 Insert your account credentials into the database:
 ```sql
--- Add your account
-INSERT INTO binance_accounts (account_name, api_key, api_secret) 
-VALUES ('My Trading Account', 'your-binance-api-key', 'your-binance-api-secret');
+-- Add your account with custom fee rate (optional, defaults to 50%)
+INSERT INTO binance_accounts (account_name, api_key, api_secret, performance_fee_rate) 
+VALUES ('My Trading Account', 'your-binance-api-key', 'your-binance-api-secret', 0.50);
 
 -- Add benchmark config
 INSERT INTO benchmark_configs (account_id, rebalance_day, rebalance_hour)
 VALUES (1, 0, 12); -- Rebalance Mondays at 12:00
+```
+
+### 5. Configure Fee Management
+Edit `config/settings.json`:
+```json
+"fee_management": {
+  "default_performance_fee_rate": 0.50,  // 50% default fee
+  "calculation_schedule": "monthly",     // or "daily", "hourly" for testing
+  "calculation_day": 1,                  // 1st of month
+  "calculation_hour": 0,                 // Midnight UTC
+  "test_mode": {
+    "enabled": false,                    // Set true for testing
+    "interval_minutes": 60
+  }
+}
+```
+
+### 6. Apply Database Migrations
+The database now includes alpha calculation and fee management:
+```sql
+-- Check if migrations are applied
+SELECT * FROM fee_tracking LIMIT 1;
+SELECT * FROM calculate_twr_period(
+  (SELECT id FROM binance_accounts LIMIT 1),
+  NOW() - INTERVAL '30 days',
+  NOW()
+);
 ```
 
 ### 5. Test Run
@@ -404,6 +444,55 @@ DEMO_MODE=true  # Enables mock data and safe testing
 # Logging Configuration
 LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
 MAX_LOG_ENTRIES=10000  # Maximum logs in memory
+```
+
+## 📊 Alpha & Fee Management Usage
+
+### Checking Performance
+```bash
+# Run manual fee calculation to see performance
+python scripts/run_fee_calculation.py --show-config
+python scripts/run_fee_calculation.py --month 2025-07
+
+# Example output:
+# Account: Habitanti
+# Portfolio TWR: -11.06%
+# Benchmark TWR: +5.32%
+# Alpha: -16.38%
+# Performance Fee: $0 (no fee when alpha < 0)
+```
+
+### Monthly Investor Reporting
+```sql
+-- Monthly performance report
+WITH monthly_data AS (
+  SELECT 
+    ba.account_name,
+    f.*
+  FROM binance_accounts ba
+  CROSS JOIN LATERAL calculate_monthly_fees(ba.id, '2025-07-01'::DATE) f
+)
+SELECT 
+  account_name,
+  period_start,
+  ending_nav as current_nav,
+  portfolio_twr as portfolio_return_pct,
+  benchmark_twr as benchmark_return_pct,
+  alpha_twr as alpha_pct,
+  performance_fee
+FROM monthly_data
+ORDER BY account_name;
+```
+
+### Collecting Fees
+```bash
+# 1. Calculate fees for the month
+python scripts/run_fee_calculation.py --month 2025-06
+
+# 2. If fees > 0, withdraw from Binance
+# 3. Record the withdrawal
+curl -X POST your-domain/api/record_fee_withdrawal \
+  -d '{"amount": 1000.00, "tx_id": "binance-withdrawal-id"}'
 ```
 
 ## 🐛 Troubleshooting

@@ -47,6 +47,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_metrics(query_params)
             elif path == '/api/dashboard/chart-data':
                 self._handle_chart_data(query_params)
+            elif path == '/api/dashboard/fees':
+                self._handle_fees(query_params)
+            elif path == '/api/dashboard/alpha-metrics':
+                self._handle_alpha_metrics(query_params)
             elif path == '/dashboard':
                 self._serve_dashboard()
             else:
@@ -277,6 +281,119 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _handle_run_monitoring(self):
         self._send_json_response({"status": "ok"})
+    
+    def _handle_fees(self, query_params):
+        """Handle fee tracking data requests."""
+        logger = get_logger()
+        account_id = query_params.get('account_id', [None])[0]
+        
+        try:
+            from api.fee_calculator import FeeCalculator
+            calculator = FeeCalculator()
+            
+            if account_id:
+                # Get fee summary for specific account
+                fee_summary = calculator.get_fee_summary(account_id)
+                pending_fees = calculator.get_pending_fees(account_id)
+                
+                response = {
+                    "account_id": account_id,
+                    "summary": fee_summary,
+                    "pending": pending_fees
+                }
+            else:
+                # Get all pending fees
+                pending_fees = calculator.get_pending_fees()
+                response = {
+                    "pending": pending_fees,
+                    "total_pending": sum(f['performance_fee'] for f in pending_fees)
+                }
+            
+            self._send_json_response(response)
+            
+        except Exception as e:
+            logger.error(LogCategory.SYSTEM, "fees_endpoint_error", 
+                        f"Error fetching fee data: {str(e)}", error=str(e))
+            self._send_error(500, f"Failed to fetch fee data: {str(e)}")
+    
+    def _handle_alpha_metrics(self, query_params):
+        """Handle alpha and TWR metrics requests."""
+        logger = get_logger()
+        account_id = query_params.get('account_id', [None])[0]
+        period = query_params.get('period', ['1m'])[0]  # Default to 1 month
+        
+        try:
+            if not account_id:
+                # Get first account if none specified
+                first_account = supabase.table('binance_accounts').select('id').limit(1).single().execute()
+                if first_account.data:
+                    account_id = first_account.data['id']
+                else:
+                    self._send_json_response({"error": "No accounts found"})
+                    return
+            
+            # Calculate period boundaries
+            from datetime import datetime, UTC, timedelta
+            end_date = datetime.now(UTC)
+            
+            if period == '1w':
+                start_date = end_date - timedelta(weeks=1)
+            elif period == '1m':
+                start_date = end_date - timedelta(days=30)
+            elif period == '3m':
+                start_date = end_date - timedelta(days=90)
+            elif period == '1y':
+                start_date = end_date - timedelta(days=365)
+            elif period == 'ytd':
+                start_date = datetime(end_date.year, 1, 1, tzinfo=UTC)
+            else:  # all time
+                start_date = datetime(2020, 1, 1, tzinfo=UTC)
+            
+            # Call SQL function to calculate TWR
+            twr_result = supabase.rpc('calculate_twr_period', {
+                'p_account_id': account_id,
+                'p_start_date': start_date.isoformat(),
+                'p_end_date': end_date.isoformat()
+            }).execute()
+            
+            if twr_result.data:
+                twr_data = twr_result.data[0]
+                
+                # Get current HWM
+                hwm_result = supabase.table('hwm_history').select('hwm, actual_nav').eq(
+                    'account_id', account_id
+                ).order('timestamp', desc=True).limit(1).execute()
+                
+                current_hwm = 0
+                current_nav = 0
+                if hwm_result.data:
+                    current_hwm = float(hwm_result.data[0]['hwm'])
+                    current_nav = float(hwm_result.data[0]['actual_nav'])
+                
+                response = {
+                    "account_id": account_id,
+                    "period": period,
+                    "portfolio_twr": float(twr_data.get('portfolio_twr', 0)),
+                    "benchmark_twr": float(twr_data.get('benchmark_twr', 0)),
+                    "alpha": float(twr_data.get('alpha_twr', 0)),
+                    "period_count": twr_data.get('period_count', 0),
+                    "total_deposits": float(twr_data.get('total_deposits', 0)),
+                    "total_withdrawals": float(twr_data.get('total_withdrawals', 0)),
+                    "total_fees": float(twr_data.get('total_fees', 0)),
+                    "current_hwm": current_hwm,
+                    "current_nav": current_nav,
+                    "above_hwm": current_nav > current_hwm
+                }
+                
+                self._send_json_response(response)
+            else:
+                self._send_json_response({"error": "No data available for period"})
+                
+        except Exception as e:
+            logger.error(LogCategory.SYSTEM, "alpha_metrics_error", 
+                        f"Error calculating alpha metrics: {str(e)}", error=str(e))
+            traceback.print_exc()
+            self._send_error(500, f"Failed to calculate alpha metrics: {str(e)}")
 
     def _serve_dashboard(self):
         try:

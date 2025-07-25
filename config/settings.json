@@ -156,6 +156,17 @@
     "restart_delay_seconds": 10
   },
   
+  "fee_management": {
+    "default_performance_fee_rate": 0.50,
+    "calculation_schedule": "monthly",
+    "calculation_day": 1,
+    "calculation_hour": 0,
+    "test_mode": {
+      "enabled": false,
+      "interval_minutes": 60
+    }
+  },
+  
   "development": {
     "debug_mode": false,
     "verbose_logging": false,

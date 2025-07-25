@@ -2,6 +2,77 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2025-07-25] - Alpha Calculation and Fee Management
+
+### 🚀 Migration Completed
+- Successfully applied all database migrations to Supabase
+- All views, functions, and tables created and tested
+- System is production-ready
+
+### ✨ Added
+
+#### Performance Tracking
+- **Time-Weighted Return (TWR) Calculation**
+  - Accurate performance measurement independent of deposit/withdrawal timing
+  - SQL function `calculate_twr_period()` for flexible period calculations
+  - Eliminates cashflow bias from return calculations
+
+- **Alpha Tracking**
+  - Real-time calculation of portfolio outperformance vs benchmark
+  - Alpha = Portfolio TWR - Benchmark TWR
+  - Available via `/api/dashboard/alpha-metrics` endpoint
+
+- **High Water Mark (HWM) System**
+  - Dynamic calculation from historical NAV data
+  - Properly adjusted for all deposits/withdrawals
+  - SQL view `hwm_history` for transparent tracking
+
+#### Fee Management
+- **Performance Fee System**
+  - Configurable fee rate per account (default 50% from settings.json)
+  - No management fees
+  - Monthly accrual system with separate collection tracking
+  - Only charged when NAV > HWM AND alpha > 0
+
+- **Fee Infrastructure**
+  - New `fee_tracking` table for monthly accruals
+  - `FEE_WITHDRAWAL` transaction type for fee collections
+  - `api/fee_calculator.py` module with flexible scheduling
+  - `/api/calculate_fees` endpoint with schedule awareness
+  - `performance_fee_rate` column in `binance_accounts` table
+  
+- **Configuration Options**
+  - Flexible calculation schedule: monthly, daily, or hourly
+  - Test mode for frequent calculations
+  - Manual calculation script at `scripts/run_fee_calculation.py`
+  - Per-account fee rates with system-wide default
+
+#### Database Enhancements
+- **New Views**
+  - `nav_with_cashflows` - NAV enriched with transaction data
+  - `period_returns` - Period-by-period return calculations
+  - `hwm_history` - High Water Mark with cashflow adjustments
+
+- **New Functions**
+  - `calculate_twr_period()` - TWR for any date range
+  - `calculate_monthly_fees()` - Automated fee calculations
+
+#### API Enhancements
+- `/api/dashboard/fees` - Fee tracking and summary data
+- `/api/dashboard/alpha-metrics` - TWR, alpha, and HWM metrics
+- Enhanced withdrawal processing to detect fee transactions
+
+### 🔄 Changed
+- Transaction processing now supports `FEE_WITHDRAWAL` type
+- `processed_transactions` constraint updated to include new type
+- Withdrawal metadata enhanced to capture fee indicators
+
+### 📊 Technical Details
+- All calculations are performed on-demand from raw data
+- 100% backward compatible - can calculate historical alpha
+- Fee accruals separate from collections for transparency
+- TWR methodology ensures fair performance measurement
+
 ## [2025-07-20] - Transaction Type Field Migration
 
 ### 🔄 Breaking Changes
