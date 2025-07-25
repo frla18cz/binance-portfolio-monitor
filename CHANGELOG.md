@@ -24,15 +24,23 @@ All notable changes to this project will be documented in this file.
 
 #### Fee Management
 - **Performance Fee System**
-  - 20% of profits above HWM (only when alpha > 0)
+  - Configurable fee rate per account (default 50% from settings.json)
   - No management fees
   - Monthly accrual system with separate collection tracking
+  - Only charged when NAV > HWM AND alpha > 0
 
 - **Fee Infrastructure**
   - New `fee_tracking` table for monthly accruals
   - `FEE_WITHDRAWAL` transaction type for fee collections
-  - `api/fee_calculator.py` module for automated calculations
-  - `/api/calculate_fees` endpoint for monthly cron jobs
+  - `api/fee_calculator.py` module with flexible scheduling
+  - `/api/calculate_fees` endpoint with schedule awareness
+  - `performance_fee_rate` column in `binance_accounts` table
+  
+- **Configuration Options**
+  - Flexible calculation schedule: monthly, daily, or hourly
+  - Test mode for frequent calculations
+  - Manual calculation script at `scripts/run_fee_calculation.py`
+  - Per-account fee rates with system-wide default
 
 #### Database Enhancements
 - **New Views**

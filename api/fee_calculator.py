@@ -22,17 +22,54 @@ class FeeCalculator:
     def __init__(self):
         self.logger = get_logger()
         self.db = get_supabase_client()
-        self.performance_fee_rate = Decimal('0.20')      # 20% of profits above HWM
+        # Load from settings
+        from config import settings
+        self.config = settings.fee_management
+        self.default_performance_fee_rate = Decimal(str(self.config.default_performance_fee_rate))
+    
+    def should_calculate_fees(self):
+        """Check if fees should be calculated based on schedule."""
+        now = datetime.now(UTC)
+        
+        if self.config.test_mode.enabled:
+            # In test mode, always return True (manual control)
+            return True
+        
+        # Check if it's the scheduled day and hour
+        if self.config.calculation_schedule == "monthly":
+            return (now.day == self.config.calculation_day and 
+                   now.hour == self.config.calculation_hour)
+        elif self.config.calculation_schedule == "daily":
+            return now.hour == self.config.calculation_hour
+        elif self.config.calculation_schedule == "hourly":
+            return True  # Calculate every hour
+        
+        return False
+    
+    def get_calculation_period(self, reference_date=None):
+        """Get the period to calculate based on schedule."""
+        if reference_date is None:
+            reference_date = datetime.now(UTC).date()
+        
+        if self.config.calculation_schedule == "monthly":
+            # Previous month
+            return (reference_date.replace(day=1) - timedelta(days=1)).replace(day=1)
+        elif self.config.calculation_schedule == "daily":
+            # Previous day
+            return reference_date - timedelta(days=1)
+        elif self.config.calculation_schedule == "hourly":
+            # Current month up to now
+            return reference_date.replace(day=1)
+        
+        return reference_date.replace(day=1)
     
     def calculate_fees_for_all_accounts(self, month_date=None):
         """
         Calculate fees for all accounts for a given month.
-        If month_date is None, calculates for the previous month.
+        If month_date is None, calculates based on schedule configuration.
         """
         if month_date is None:
-            # Default to previous month
-            today = datetime.now(UTC).date()
-            month_date = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+            month_date = self.get_calculation_period()
         
         self.logger.info(LogCategory.SYSTEM, "fee_calculation_start", 
                         f"Starting fee calculation for month: {month_date.strftime('%Y-%m')}")
@@ -87,11 +124,24 @@ class FeeCalculator:
                                account_id=account_id, status=existing.data[0]['status'])
                 return
             
+            # Get account's fee rate
+            account_data = self.db.table('binance_accounts').select('performance_fee_rate').eq(
+                'id', account_id
+            ).single().execute()
+            
+            fee_rate = None
+            if account_data.data and account_data.data.get('performance_fee_rate'):
+                fee_rate = float(account_data.data['performance_fee_rate'])
+            
             # Call the SQL function to calculate fees
-            result = self.db.rpc('calculate_monthly_fees', {
+            params = {
                 'p_account_id': account_id,
                 'p_month': month_date.isoformat()
-            }).execute()
+            }
+            if fee_rate is not None:
+                params['p_fee_rate'] = fee_rate
+                
+            result = self.db.rpc('calculate_monthly_fees', params).execute()
             
             if not result.data or len(result.data) == 0:
                 self.logger.warning(LogCategory.SYSTEM, "no_fee_data",

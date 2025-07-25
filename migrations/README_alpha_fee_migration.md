@@ -54,7 +54,13 @@ supabase db push --file migrations/add_alpha_and_fee_tracking.sql
 
 ## Post-Migration Steps
 
-1. **Verify Migration Success**
+1. **Run Additional Migrations**
+   ```sql
+   -- Add performance_fee_rate to accounts
+   \i migrations/add_performance_fee_rate_to_accounts.sql
+   ```
+
+2. **Verify Migration Success**
    ```sql
    -- Check if fee_tracking table exists
    SELECT * FROM fee_tracking LIMIT 1;
@@ -70,19 +76,72 @@ supabase db push --file migrations/add_alpha_and_fee_tracking.sql
    );
    ```
 
-2. **Set Up Monthly Fee Calculation**
-   - Add cron job to run on 1st of each month: `/api/calculate_fees`
-   - Or manually run: `python -m api.fee_calculator`
+3. **Configure Fee Rates per Account**
+   ```sql
+   -- Update fee rate for specific account (e.g., 50%)
+   UPDATE binance_accounts 
+   SET performance_fee_rate = 0.50 
+   WHERE account_name = 'YourAccountName';
+   ```
 
-3. **Update Dashboard**
+4. **Set Up Fee Calculation Schedule**
+   
+   Edit `config/settings.json`:
+   ```json
+   "fee_management": {
+     "default_performance_fee_rate": 0.50,    // Default 50%
+     "calculation_schedule": "monthly",       // or "daily", "hourly" for testing
+     "calculation_day": 1,                    // 1st of month
+     "calculation_hour": 0,                   // Midnight UTC
+     "test_mode": {
+       "enabled": false,                      // Set true for testing
+       "interval_minutes": 60
+     }
+   }
+   ```
+
+5. **Set Up Cron Job**
+   - For production: Run on schedule based on config
+   - Endpoint: `/api/calculate_fees`
+   - Manual run: `python scripts/run_fee_calculation.py`
+   
+   Example cron entries:
+   ```bash
+   # Monthly (1st of month at midnight UTC)
+   0 0 1 * * curl https://your-domain/api/calculate_fees
+   
+   # Hourly (for testing)
+   0 * * * * curl https://your-domain/api/calculate_fees
+   ```
+
+6. **Manual Fee Calculation Options**
+   ```bash
+   # Show configuration
+   python scripts/run_fee_calculation.py --show-config
+   
+   # List all accounts with fee rates
+   python scripts/run_fee_calculation.py --list-accounts
+   
+   # Calculate for specific month
+   python scripts/run_fee_calculation.py --month 2025-06
+   
+   # Calculate for specific account
+   python scripts/run_fee_calculation.py --account [UUID]
+   
+   # Calculate last 3 months
+   python scripts/run_fee_calculation.py --last-n-months 3
+   ```
+
+7. **Update Dashboard**
    - New endpoints available:
      - `/api/dashboard/fees` - Fee tracking data
      - `/api/dashboard/alpha-metrics` - TWR and alpha metrics
 
 ## Fee Structure
 
-- **Performance Fee**: 20% of profits above High Water Mark (only when alpha > 0)
+- **Performance Fee**: Configurable per account (default 50%)
 - **No Management Fee**
+- **Calculation**: Only when NAV > HWM AND alpha > 0
 
 ## How It Works
 

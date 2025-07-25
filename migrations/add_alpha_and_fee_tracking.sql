@@ -212,7 +212,8 @@ $$ LANGUAGE plpgsql;
 -- Step 7: Function to calculate fees for a given month
 CREATE OR REPLACE FUNCTION calculate_monthly_fees(
     p_account_id UUID,
-    p_month DATE  -- First day of the month
+    p_month DATE,  -- First day of the month
+    p_fee_rate DECIMAL DEFAULT NULL  -- Optional fee rate override
 ) RETURNS TABLE (
     period_start DATE,
     period_end DATE,
@@ -231,8 +232,23 @@ CREATE OR REPLACE FUNCTION calculate_monthly_fees(
 DECLARE
     v_period_start TIMESTAMPTZ;
     v_period_end TIMESTAMPTZ;
-    v_perf_fee_rate DECIMAL := 0.20;        -- 20% of outperformance above HWM
+    v_perf_fee_rate DECIMAL;
 BEGIN
+    -- Use provided fee rate or get from account settings
+    IF p_fee_rate IS NOT NULL THEN
+        v_perf_fee_rate := p_fee_rate;
+    ELSE
+        -- Get fee rate from account settings
+        SELECT performance_fee_rate 
+        INTO v_perf_fee_rate
+        FROM binance_accounts 
+        WHERE id = p_account_id;
+        
+        -- Default to 20% if not set
+        IF v_perf_fee_rate IS NULL THEN
+            v_perf_fee_rate := 0.20;
+        END IF;
+    END IF;
     -- Define period boundaries
     v_period_start := p_month::TIMESTAMPTZ;
     v_period_end := (p_month + INTERVAL '1 month')::DATE::TIMESTAMPTZ;
