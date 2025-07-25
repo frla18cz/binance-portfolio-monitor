@@ -306,7 +306,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 pending_fees = calculator.get_pending_fees()
                 response = {
                     "pending": pending_fees,
-                    "total_pending": sum(f['total_fee'] for f in pending_fees)
+                    "total_pending": sum(f['performance_fee'] for f in pending_fees)
                 }
             
             self._send_json_response(response)

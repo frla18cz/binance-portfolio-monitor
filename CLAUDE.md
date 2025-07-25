@@ -41,9 +41,16 @@ Trading Alpha = (Current NAV / Benchmark Value - 1) × 100%
 - **Lock file**: `/tmp/.binance_monitor.lock` prevents duplicate runs
 - **Auto-recovery**: Stale locks (>1 hour) are cleared automatically
 
+### Alpha Calculation
+- **TWR (Time-Weighted Returns)**: Eliminates deposit/withdrawal bias
+- **Alpha = Portfolio TWR - Benchmark TWR**
+- **HWM (High Water Mark)**: Adjusted for all cashflows
+- **Performance Fee**: 20% of profits above HWM (only when alpha > 0)
+
 ## Key Files
 - `api/index.py` - Core monitoring logic
 - `api/dashboard.py` - Web UI (port 8000)
+- `api/fee_calculator.py` - Monthly fee calculations
 - `config/settings.json` - Configuration
 - `deployment/aws/run_forever.py` - Production runner
 
@@ -53,13 +60,19 @@ binance_accounts → stores API credentials
 benchmark_configs → tracks BTC/ETH units per account
 nav_history → hourly NAV and benchmark values
 processed_transactions → deposit/withdrawal history (uses 'type' field)
+fee_tracking → monthly fee accruals and collections
 system_logs → operation logs with retention
 price_history → BTC/ETH price snapshots
+
+Views:
+nav_with_cashflows → NAV data enriched with transactions
+period_returns → TWR period returns calculation
+hwm_history → High Water Mark tracking
 ```
 
 ### Transaction Processing
 - **Field**: Use `type` field (NOT `transaction_type`) in processed_transactions
-- **Valid Types**: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL
+- **Valid Types**: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL, FEE_WITHDRAWAL
 - **Unique Key**: (account_id, transaction_id) prevents duplicates
 
 ## MCP Server

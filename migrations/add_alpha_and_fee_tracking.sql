@@ -28,9 +28,7 @@ CREATE TABLE IF NOT EXISTS fee_tracking (
     benchmark_twr DECIMAL(10,6),
     alpha_pct DECIMAL(10,6),
     -- Fee calculations
-    management_fee DECIMAL(20,8) NOT NULL DEFAULT 0,
     performance_fee DECIMAL(20,8) NOT NULL DEFAULT 0,
-    total_fee DECIMAL(20,8) GENERATED ALWAYS AS (management_fee + performance_fee) STORED,
     -- Status tracking
     status VARCHAR(20) DEFAULT 'ACCRUED' CHECK (status IN ('ACCRUED', 'COLLECTED', 'WAIVED')),
     collected_at TIMESTAMPTZ,
@@ -226,7 +224,6 @@ CREATE OR REPLACE FUNCTION calculate_monthly_fees(
     portfolio_twr DECIMAL,
     benchmark_twr DECIMAL,
     alpha_twr DECIMAL,
-    management_fee DECIMAL,
     performance_fee DECIMAL,
     total_deposits DECIMAL,
     total_withdrawals DECIMAL
@@ -234,8 +231,7 @@ CREATE OR REPLACE FUNCTION calculate_monthly_fees(
 DECLARE
     v_period_start TIMESTAMPTZ;
     v_period_end TIMESTAMPTZ;
-    v_mgmt_fee_rate DECIMAL := 0.02 / 12;  -- 2% annually = 0.167% monthly
-    v_perf_fee_rate DECIMAL := 0.20;        -- 20% of outperformance
+    v_perf_fee_rate DECIMAL := 0.20;        -- 20% of outperformance above HWM
 BEGIN
     -- Define period boundaries
     v_period_start := p_month::TIMESTAMPTZ;
@@ -292,10 +288,7 @@ BEGIN
         ending_hwm
     FROM nav_summary;
     
-    -- Calculate fees
-    management_fee := COALESCE(avg_nav * v_mgmt_fee_rate, 0);
-    
-    -- Performance fee only if:
+    -- Calculate performance fee only if:
     -- 1. Ending NAV > Starting HWM (new high)
     -- 2. Alpha > 0 (beat benchmark)
     IF ending_nav > starting_hwm AND alpha_twr > 0 THEN
@@ -336,6 +329,7 @@ EXECUTE FUNCTION update_updated_at_column();
 -- Step 10: Add helpful comments
 COMMENT ON TABLE fee_tracking IS 'Tracks monthly fee accruals and collections for each account';
 COMMENT ON COLUMN fee_tracking.status IS 'ACCRUED: calculated but not collected, COLLECTED: fee has been withdrawn, WAIVED: fee was waived';
+COMMENT ON COLUMN fee_tracking.performance_fee IS 'Performance fee (20% of profits above HWM when alpha > 0)';
 COMMENT ON COLUMN fee_tracking.alpha_pct IS 'Time-weighted return alpha (portfolio TWR - benchmark TWR)';
 COMMENT ON VIEW nav_with_cashflows IS 'NAV history enriched with cashflow data from transactions';
 COMMENT ON VIEW period_returns IS 'Calculates period returns for TWR calculation';

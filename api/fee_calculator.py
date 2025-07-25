@@ -22,8 +22,7 @@ class FeeCalculator:
     def __init__(self):
         self.logger = get_logger()
         self.db = get_supabase_client()
-        self.management_fee_rate = Decimal('0.02') / 12  # 2% annually
-        self.performance_fee_rate = Decimal('0.20')      # 20% of alpha
+        self.performance_fee_rate = Decimal('0.20')      # 20% of profits above HWM
     
     def calculate_fees_for_all_accounts(self, month_date=None):
         """
@@ -115,7 +114,6 @@ class FeeCalculator:
                 'portfolio_twr': float(fee_data.get('portfolio_twr') or 0),
                 'benchmark_twr': float(fee_data.get('benchmark_twr') or 0),
                 'alpha_pct': float(fee_data.get('alpha_twr') or 0),
-                'management_fee': float(fee_data.get('management_fee') or 0),
                 'performance_fee': float(fee_data.get('performance_fee') or 0),
                 'status': 'ACCRUED'
             }
@@ -124,20 +122,15 @@ class FeeCalculator:
             insert_result = self.db.table('fee_tracking').insert(fee_record).execute()
             
             if insert_result.data:
-                total_fee = fee_record['management_fee'] + fee_record['performance_fee']
-                
                 self.logger.info(LogCategory.SYSTEM, "fees_calculated",
                                f"Fees calculated for {account_name}: "
-                               f"Management: ${fee_record['management_fee']:.2f}, "
-                               f"Performance: ${fee_record['performance_fee']:.2f}, "
-                               f"Total: ${total_fee:.2f}",
+                               f"Performance fee: ${fee_record['performance_fee']:.2f}",
                                account_id=account_id,
                                data={
                                    'month': month_date.isoformat(),
                                    'alpha': fee_record['alpha_pct'],
                                    'ending_nav': fee_record['ending_nav'],
                                    'ending_hwm': fee_record['ending_hwm'],
-                                   'management_fee': fee_record['management_fee'],
                                    'performance_fee': fee_record['performance_fee']
                                })
     
@@ -194,25 +187,19 @@ class FeeCalculator:
         
         if not result.data:
             return {
-                'total_management_fees': 0,
                 'total_performance_fees': 0,
-                'total_fees': 0,
                 'collected_fees': 0,
                 'pending_fees': 0,
                 'periods': []
             }
         
         periods = result.data
-        total_mgmt = sum(p['management_fee'] for p in periods)
         total_perf = sum(p['performance_fee'] for p in periods)
-        total_fees = sum(p['total_fee'] for p in periods)
-        collected = sum(p['total_fee'] for p in periods if p['status'] == 'COLLECTED')
-        pending = sum(p['total_fee'] for p in periods if p['status'] == 'ACCRUED')
+        collected = sum(p['performance_fee'] for p in periods if p['status'] == 'COLLECTED')
+        pending = sum(p['performance_fee'] for p in periods if p['status'] == 'ACCRUED')
         
         return {
-            'total_management_fees': total_mgmt,
             'total_performance_fees': total_perf,
-            'total_fees': total_fees,
             'collected_fees': collected,
             'pending_fees': pending,
             'periods': periods

@@ -81,8 +81,8 @@ supabase db push --file migrations/add_alpha_and_fee_tracking.sql
 
 ## Fee Structure
 
-- **Management Fee**: 2% annually (0.167% monthly)
 - **Performance Fee**: 20% of profits above High Water Mark (only when alpha > 0)
+- **No Management Fee**
 
 ## How It Works
 
