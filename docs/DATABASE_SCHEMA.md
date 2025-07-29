@@ -99,7 +99,7 @@ Tracks all processed deposit/withdrawal transactions including fee collections.
 | amount | NUMERIC(20,8) | NOT NULL | Transaction amount |
 | timestamp | TIMESTAMPTZ | NOT NULL | Transaction timestamp |
 | status | VARCHAR(20) | NOT NULL | Transaction status |
-| metadata | JSONB | | Additional data (transfer_type, tx_id, coin, network) |
+| metadata | JSONB | | Additional data - see Metadata Structure section below |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Record creation time |
 
 **Constraints:**
@@ -410,6 +410,39 @@ erDiagram
 1. **Transaction Types**: The `processed_transactions` table uses the `type` field with values: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL, FEE_WITHDRAWAL.
 2. **Unique Constraints**: The combination of (account_id, transaction_id) prevents duplicate transaction processing.
 3. **Fee Withdrawals**: When performance fees are collected, they should be recorded as FEE_WITHDRAWAL type.
+
+### Deposit Metadata Structure
+The `metadata` field in `processed_transactions` stores different data based on transaction type:
+
+**For DEPOSIT transactions:**
+```json
+{
+  "coin": "SOL",              // Cryptocurrency symbol
+  "network": "SOL",           // Network used for deposit
+  "usd_value": 500.00,        // USD value at time of deposit
+  "coin_price": 100.00,       // Price per coin in USD
+  "price_source": "direct",   // "direct" or "via_btc"
+  "price_missing": false,     // true if price couldn't be determined
+  "tx_id": "0x123...",       // Blockchain transaction ID
+  "transfer_type": "deposit", // Legacy field
+  "price_updated_at": "...",  // ISO timestamp if price updated later
+  "price_updated_by": "..."   // Script/process that updated price
+}
+```
+
+**For WITHDRAWAL/FEE_WITHDRAWAL transactions:**
+```json
+{
+  "transfer_type": "withdrawal",
+  "tx_id": "0x123..."
+}
+```
+
+**Price Fallback Mechanism:**
+1. First tries direct USDT pair (e.g., SOLUSDT)
+2. Falls back to BTC routing (SOL→BTC→USD)
+3. Marks as `price_missing: true` if no price available
+4. Missing prices can be updated retroactively
 
 ### Performance Calculation
 1. **Time-Weighted Returns (TWR)**: Used to eliminate the impact of deposits/withdrawals on performance measurement.

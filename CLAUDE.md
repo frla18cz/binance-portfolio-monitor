@@ -32,6 +32,26 @@ Trading Alpha = (Current NAV / Benchmark Value - 1) × 100%
 - **Solution**: `initialized_at` timestamp - only process transactions after initialization
 - **Unique constraint**: (account_id, transaction_id) prevents duplicates
 
+### Deposit Processing & Multi-Coin Support
+- **Supports all cryptocurrencies** - not limited to BTC/ETH
+- **Automatic USD conversion** with fallback mechanism:
+  1. Try direct USDT pair (e.g., SOLUSDT)
+  2. Fall back to BTC routing (SOL→BTC→USD)
+  3. Mark as `price_missing` if no price available
+- **Metadata storage** for each deposit:
+  ```json
+  {
+    "coin": "SOL",
+    "network": "SOL",
+    "usd_value": 500.00,
+    "coin_price": 100.00,
+    "price_source": "direct",  // or "via_btc"
+    "price_missing": false
+  }
+  ```
+- **Cashflow handling**: Deposits with missing prices are stored but excluded from NAV calculations
+- **Retroactive updates**: Utility scripts can update historical deposits with missing prices
+
 ### Geographic Restrictions
 - **Binance blocks cloud IPs** (AWS, Vercel, etc.)
 - **Solution**: Use `data-api.binance.vision` for public data (prices)
@@ -110,6 +130,12 @@ python -m api.index                    # Run monitoring manually
 python -m api.dashboard                # Start dashboard (port 8000)
 python debug_nav.py                    # Debug NAV calculation
 python scripts/run_fee_calculation.py  # Manual fee calculation
+
+# Deposit utilities
+python scripts/test_coin_pricing.py    # Test coin pricing for various cryptocurrencies
+python scripts/simulate_deposit_flow.py # Simulate deposit processing without DB changes
+python scripts/fix_deposit_metadata.py  # Fix metadata for existing BTC deposits
+python scripts/update_missing_prices.py # Update deposits with missing prices
 ```
 
 ## API Endpoints
