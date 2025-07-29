@@ -362,6 +362,64 @@ def process_single_account(account, prices=None):
 
 # --- Helper functions ---
 
+def get_coin_usd_value(client, coin, amount, btc_usd_price=None, logger=None, account_id=None):
+    """
+    Get USD value for any cryptocurrency amount.
+    Tries multiple approaches: direct USDT pair, then via BTC.
+    Returns tuple: (usd_value, coin_price, price_source)
+    """
+    if amount <= 0:
+        return (0.0, None, None)
+    
+    # Check if it's a stablecoin
+    if coin in settings.get_supported_stablecoins():
+        return (amount, 1.0, 'stablecoin')
+    
+    # Try direct USDT pair first
+    try:
+        ticker = client.get_symbol_ticker(symbol=f"{coin}USDT")
+        price = float(ticker['price'])
+        usd_value = amount * price
+        
+        if logger:
+            logger.debug(LogCategory.PRICE_UPDATE, "coin_price_direct", 
+                        f"Got {coin} price via USDT: ${price:.6f}",
+                        account_id=account_id, data={"coin": coin, "price": price, "source": "direct_usdt"})
+        
+        return (usd_value, price, 'direct_usdt')
+    except Exception as e:
+        if logger:
+            logger.debug(LogCategory.PRICE_UPDATE, "coin_price_direct_failed", 
+                        f"Failed to get {coin}USDT price: {str(e)}", account_id=account_id)
+    
+    # Try via BTC if we have BTC price
+    if btc_usd_price and btc_usd_price > 0:
+        try:
+            btc_ticker = client.get_symbol_ticker(symbol=f"{coin}BTC")
+            btc_price = float(btc_ticker['price'])
+            coin_usd_price = btc_price * btc_usd_price
+            usd_value = amount * coin_usd_price
+            
+            if logger:
+                logger.debug(LogCategory.PRICE_UPDATE, "coin_price_via_btc", 
+                            f"Got {coin} price via BTC: ${coin_usd_price:.6f} ({btc_price:.8f} BTC @ ${btc_usd_price:.2f})",
+                            account_id=account_id, 
+                            data={"coin": coin, "btc_price": btc_price, "usd_price": coin_usd_price, "source": "via_btc"})
+            
+            return (usd_value, coin_usd_price, 'via_btc')
+        except Exception as e:
+            if logger:
+                logger.debug(LogCategory.PRICE_UPDATE, "coin_price_btc_failed", 
+                            f"Failed to get {coin}BTC price: {str(e)}", account_id=account_id)
+    
+    # All attempts failed
+    if logger:
+        logger.warning(LogCategory.PRICE_UPDATE, "coin_price_not_found", 
+                      f"Could not determine price for {coin}", 
+                      account_id=account_id, data={"coin": coin, "amount": amount})
+    
+    return (None, None, None)
+
 def get_prices(client, logger=None, account_id=None, account_name=None):
     try:
         # ALWAYS force data API for price queries to bypass geographic restrictions
@@ -1013,7 +1071,7 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
             last_processed = get_last_processed_time(db_client, account_id)
         
         with OperationTimer(logger, LogCategory.TRANSACTION, "fetch_new_transactions", account_id) if logger else nullcontext():
-            new_transactions = fetch_new_transactions(binance_client, last_processed, logger, account_id)
+            new_transactions = fetch_new_transactions(binance_client, last_processed, logger, account_id, prices)
         
         # Filter out transactions that have already been processed
         unprocessed_transactions = filter_unprocessed_transactions(db_client, new_transactions, account_id, logger)
@@ -1073,8 +1131,26 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                                    account_id=account_id, data={"transaction": txn})
                     continue
                 
+                # For deposits, check if we have USD value in metadata
                 if txn['type'] in ['DEPOSIT', 'PAY_DEPOSIT']:
-                    total_net_flow += amount
+                    # Try to get USD value from metadata if available
+                    if txn['type'] == 'DEPOSIT' and txn.get('metadata') and txn['metadata'].get('usd_value') is not None:
+                        usd_amount = float(txn['metadata']['usd_value'])
+                        total_net_flow += usd_amount
+                        if logger:
+                            logger.debug(LogCategory.TRANSACTION, "deposit_usd_value",
+                                       f"Using USD value for deposit: ${usd_amount:.2f} (from {amount} {txn['metadata'].get('coin', 'UNKNOWN')})",
+                                       account_id=account_id)
+                    elif txn['type'] == 'DEPOSIT' and txn.get('metadata') and txn['metadata'].get('price_missing'):
+                        # Skip deposits without USD value for cashflow calculation
+                        if logger:
+                            logger.warning(LogCategory.TRANSACTION, "deposit_skipped_no_price",
+                                         f"Skipping deposit without USD value: {amount} {txn['metadata'].get('coin', 'UNKNOWN')}",
+                                         account_id=account_id,
+                                         data={'transaction_id': txn['id'], 'amount': amount, 'coin': txn['metadata'].get('coin')})
+                    else:
+                        # Fallback to raw amount (assumes USD for stablecoins or PAY deposits)
+                        total_net_flow += amount
                 elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL']:
                     total_net_flow -= amount
                     
@@ -1187,10 +1263,11 @@ def filter_unprocessed_transactions(db_client, transactions, account_id, logger=
         # V případě chyby vrátíme původní seznam (lepší než ztratit transakce)
         return transactions
 
-def fetch_new_transactions(binance_client, start_time, logger=None, account_id=None):
+def fetch_new_transactions(binance_client, start_time, logger=None, account_id=None, prices=None):
     """
     Optimalizovaně fetchne deposits + withdrawals od start_time.
     Kombinuje oba API calls pro minimální latenci.
+    Includes USD conversion for crypto deposits/withdrawals.
     """
     try:
         transactions = []
@@ -1285,14 +1362,72 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                         logger.warning(LogCategory.API_CALL, "invalid_deposit_data", 
                                      f"Skipping invalid deposit data: {deposit}", account_id=account_id)
                     continue
+                
+                # Extract deposit details
+                coin = deposit.get('coin', '')
+                amount = float(deposit.get('amount', 0))
+                
+                # Calculate USD value for any coin
+                usd_value = None
+                coin_price = None
+                price_source = None
+                
+                if coin:
+                    # Get BTC price from prices dict if available
+                    btc_price = prices.get('BTCUSDT') if prices else None
                     
+                    # Use our utility function to get USD value
+                    usd_value, coin_price, price_source = get_coin_usd_value(
+                        binance_client, coin, amount, btc_price, logger, account_id
+                    )
+                    
+                    # If we couldn't get the price, mark it for later processing
+                    if usd_value is None:
+                        if logger:
+                            logger.warning(LogCategory.TRANSACTION, "deposit_price_missing",
+                                         f"Could not determine USD value for {amount} {coin}",
+                                         account_id=account_id,
+                                         data={'coin': coin, 'amount': amount})
+                
                 transactions.append({
                     'id': f"DEP_{deposit['txId']}",
                     'type': 'DEPOSIT',
                     'amount': float(deposit.get('amount', 0)),
                     'timestamp': deposit.get('insertTime', 0),
-                    'status': deposit.get('status', 0)  # 0=pending, 1=success
+                    'status': deposit.get('status', 0),  # 0=pending, 1=success
+                    # Metadata for deposits
+                    'coin': coin,
+                    'network': deposit.get('network', ''),
+                    'address': deposit.get('address', ''),
+                    'address_tag': deposit.get('addressTag', ''),
+                    'tx_id': deposit.get('txId', ''),
+                    'usd_value': usd_value,
+                    'coin_price': coin_price,
+                    'price_source': price_source,
+                    'price_missing': usd_value is None
                 })
+                
+                # Log deposit for visibility
+                if logger:
+                    if usd_value:
+                        log_msg = f"Deposit: {amount} {coin} (${usd_value:.2f} @ ${coin_price:.2f} via {price_source})"
+                    else:
+                        log_msg = f"Deposit: {amount} {coin} (USD value unknown)"
+                    
+                    logger.info(LogCategory.TRANSACTION, "deposit_detected",
+                               log_msg,
+                               account_id=account_id,
+                               data={
+                                   'tx_id': deposit['txId'],
+                                   'coin': coin,
+                                   'amount': amount,
+                                   'usd_value': usd_value,
+                                   'coin_price': coin_price,
+                                   'price_source': price_source,
+                                   'network': deposit.get('network', ''),
+                                   'price_missing': usd_value is None
+                               })
+                               
             except (ValueError, TypeError, KeyError) as e:
                 if logger:
                     logger.warning(LogCategory.API_CALL, "deposit_normalization_error", 
@@ -1430,6 +1565,20 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
             if (txn['status'] == 1 or txn['status'] == 6 or txn['status'] == 'SUCCESS'):  # Binance používá různé formáty
                 txn['status'] = 'SUCCESS'
                 txn['timestamp'] = datetime.fromtimestamp(txn['timestamp']/1000, UTC).isoformat()
+                
+                # Preserve metadata for deposits
+                if txn['type'] == 'DEPOSIT' and any(key in txn for key in ['coin', 'network', 'address', 'address_tag', 'tx_id', 'usd_value', 'coin_price', 'price_source', 'price_missing']):
+                    txn['metadata'] = {
+                        'coin': txn.pop('coin', ''),
+                        'network': txn.pop('network', ''),
+                        'address': txn.pop('address', ''),
+                        'address_tag': txn.pop('address_tag', ''),
+                        'tx_id': txn.pop('tx_id', ''),
+                        'usd_value': txn.pop('usd_value', None),
+                        'coin_price': txn.pop('coin_price', None),
+                        'price_source': txn.pop('price_source', None),
+                        'price_missing': txn.pop('price_missing', False)
+                    }
                 
                 # Preserve metadata for withdrawals
                 if txn['type'] in ['WITHDRAWAL', 'FEE_WITHDRAWAL'] and any(key in txn for key in ['transfer_type', 'tx_id', 'coin', 'network', 'info', 'note']):

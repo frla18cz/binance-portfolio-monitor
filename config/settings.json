@@ -13,9 +13,9 @@
   },
   
   "scheduling": {
-    "cron_interval_minutes": 10,
+    "cron_interval_minutes": 60,
     "cron_schedule": "0 * * * *",
-    "daemon_interval_seconds": 600,
+    "daemon_interval_seconds": 3600,
     "vercel_schedule": "0 * * * *",
     "log_retention_hours": 720,
     "log_retention_entries": 10000000,
@@ -44,6 +44,7 @@
       "data_api_url": "https://data-api.binance.vision/api",
       "supported_symbols": ["BTCUSDT", "ETHUSDT"],
       "supported_stablecoins": ["USDT", "BUSD", "USDC", "BNFCR"],
+      "common_coins": ["BTC", "ETH", "BNB", "SOL", "MATIC", "AVAX", "DOT", "ATOM", "LINK", "UNI", "ADA", "DOGE", "TRX", "TON", "SHIB", "LTC", "BCH", "NEAR", "XLM", "XRP", "ALGO", "VET", "ICP", "FTM", "SAND", "MANA"],
       "timeout_seconds": 30,
       "max_retries": 3
     },
