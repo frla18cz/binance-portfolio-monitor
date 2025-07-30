@@ -1,5 +1,7 @@
 # Binance Portfolio Monitor
 
+*This file serves as context for AI assistants. It contains only the most critical information needed to understand and work with the codebase. For detailed documentation, see the `docs/` directory.*
+
 ## Core Purpose
 Tracks cryptocurrency trading performance by comparing actual portfolio NAV (Net Asset Value) against a passive 50/50 BTC/ETH benchmark strategy.
 
@@ -217,51 +219,6 @@ VALUES
 - Historical TWR analysis in dashboard charts
 
 ## Benchmark Metadata Tracking
-
-### Overview
-Complete audit trail for all benchmark operations - every rebalancing and modification is tracked with full calculation details.
-
-### New Tables
-- **benchmark_rebalance_history** - Stores complete rebalancing history with before/after states
-- **benchmark_modifications** - Tracks all deposit/withdrawal impacts on benchmark
-- **benchmark_configs** - Extended with audit columns for last modification
-
-### Key Features
-1. **Full Auditability** - Can reconstruct benchmark state at any point in time
-2. **Validation** - Script to verify benchmark consistency
-3. **Automatic Tracking** - All changes are logged automatically
-
-### Usage Examples
-```sql
--- View recent rebalancing operations
-SELECT * FROM benchmark_rebalance_history 
-WHERE rebalance_timestamp > NOW() - INTERVAL '7 days'
-ORDER BY rebalance_timestamp DESC;
-
--- Check deposit/withdrawal impacts
-SELECT * FROM benchmark_modifications
-WHERE account_name = 'Simple'
-AND modification_type = 'deposit'
-ORDER BY modification_timestamp DESC;
-
--- Validate calculations
-SELECT 
-    btc_units_before * btc_price as calculated_value,
-    btc_value_before as stored_value,
-    ABS(btc_units_before * btc_price - btc_value_before) as difference
-FROM benchmark_rebalance_history;
-```
-
-### Validation Tool
-```bash
-# Validate all accounts
-python scripts/validate_benchmark_consistency.py
-
-# Validate specific account
-python scripts/validate_benchmark_consistency.py --account "Simple"
-```
-
-For detailed documentation, see:
-- `docs/BENCHMARK_METADATA_IMPROVEMENTS.md` - Complete feature guide
-- `docs/DATABASE_SCHEMA.md` - Table structures
-- `migrations/README.md` - How to apply migrations
+- **New tables**: `benchmark_rebalance_history` and `benchmark_modifications` track all benchmark changes with full audit trail
+- **Validation script**: `scripts/validate_benchmark_consistency.py` verifies calculation accuracy
+- **Details**: See `docs/BENCHMARK_METADATA_IMPROVEMENTS.md` for complete documentation
