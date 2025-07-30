@@ -9,7 +9,7 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.supabase_client import get_supabase_client
+from utils.database_manager import get_supabase_client
 
 def apply_migrations():
     """Apply SQL migrations for benchmark metadata improvements"""

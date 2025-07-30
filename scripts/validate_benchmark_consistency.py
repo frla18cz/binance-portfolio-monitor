@@ -19,8 +19,8 @@ from typing import Dict, List, Tuple, Optional
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.supabase_client import get_supabase_client
-from config.settings import Settings
+from utils.database_manager import get_supabase_client
+from config import settings
 
 UTC = timezone.utc
 
@@ -223,7 +223,6 @@ def main():
     args = parser.parse_args()
     
     # Initialize
-    settings = Settings()
     db_client = get_supabase_client()
     
     # Get accounts to validate
