@@ -95,7 +95,7 @@ Trading Alpha = (Current NAV / Benchmark Value - 1) × 100%
 ## Database Schema
 ```
 binance_accounts → API credentials + performance_fee_rate per account
-benchmark_configs → tracks BTC/ETH units per account with rebalancing history
+benchmark_configs → tracks BTC/ETH units per account with rebalancing history + audit columns
 nav_history → hourly NAV and benchmark values with account names
 processed_transactions → deposit/withdrawal history (uses 'type' field)
 fee_tracking → fee accruals and collections
@@ -104,6 +104,8 @@ price_history → BTC/ETH price snapshots
 account_processing_status → tracks last processed timestamp for each account
 system_metadata → system-wide configuration and metadata
 users → user authentication data
+benchmark_rebalance_history → complete history of all rebalancing operations with calculations
+benchmark_modifications → tracks all deposit/withdrawal impacts on benchmark
 
 Views:
 nav_with_cashflows → NAV data enriched with transactions
@@ -136,6 +138,10 @@ python scripts/test_coin_pricing.py    # Test coin pricing for various cryptocur
 python scripts/simulate_deposit_flow.py # Simulate deposit processing without DB changes
 python scripts/fix_deposit_metadata.py  # Fix metadata for existing BTC deposits
 python scripts/update_missing_prices.py # Update deposits with missing prices
+
+# Benchmark validation
+python scripts/validate_benchmark_consistency.py  # Validate benchmark calculations
+python scripts/validate_benchmark_consistency.py --account "Simple"  # Validate specific account
 ```
 
 ## API Endpoints
@@ -209,3 +215,53 @@ VALUES
 - Alpha metrics available at: `/api/dashboard/alpha-metrics`
 - Fee tracking available at: `/api/dashboard/fees`
 - Historical TWR analysis in dashboard charts
+
+## Benchmark Metadata Tracking
+
+### Overview
+Complete audit trail for all benchmark operations - every rebalancing and modification is tracked with full calculation details.
+
+### New Tables
+- **benchmark_rebalance_history** - Stores complete rebalancing history with before/after states
+- **benchmark_modifications** - Tracks all deposit/withdrawal impacts on benchmark
+- **benchmark_configs** - Extended with audit columns for last modification
+
+### Key Features
+1. **Full Auditability** - Can reconstruct benchmark state at any point in time
+2. **Validation** - Script to verify benchmark consistency
+3. **Automatic Tracking** - All changes are logged automatically
+
+### Usage Examples
+```sql
+-- View recent rebalancing operations
+SELECT * FROM benchmark_rebalance_history 
+WHERE rebalance_timestamp > NOW() - INTERVAL '7 days'
+ORDER BY rebalance_timestamp DESC;
+
+-- Check deposit/withdrawal impacts
+SELECT * FROM benchmark_modifications
+WHERE account_name = 'Simple'
+AND modification_type = 'deposit'
+ORDER BY modification_timestamp DESC;
+
+-- Validate calculations
+SELECT 
+    btc_units_before * btc_price as calculated_value,
+    btc_value_before as stored_value,
+    ABS(btc_units_before * btc_price - btc_value_before) as difference
+FROM benchmark_rebalance_history;
+```
+
+### Validation Tool
+```bash
+# Validate all accounts
+python scripts/validate_benchmark_consistency.py
+
+# Validate specific account
+python scripts/validate_benchmark_consistency.py --account "Simple"
+```
+
+For detailed documentation, see:
+- `docs/BENCHMARK_METADATA_IMPROVEMENTS.md` - Complete feature guide
+- `docs/DATABASE_SCHEMA.md` - Table structures
+- `migrations/README.md` - How to apply migrations
