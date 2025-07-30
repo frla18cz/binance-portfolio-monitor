@@ -930,6 +930,13 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
     old_eth_units = float(config.get('eth_units', 0))
     rebalance_timestamp = datetime.now(UTC)
     
+    # Calculate values before rebalancing
+    btc_value_before = old_btc_units * prices['BTCUSDT']
+    eth_value_before = old_eth_units * prices['ETHUSDT']
+    total_value_before = btc_value_before + eth_value_before
+    btc_percentage_before = (btc_value_before / total_value_before * 100) if total_value_before > 0 else 0
+    eth_percentage_before = (eth_value_before / total_value_before * 100) if total_value_before > 0 else 0
+    
     if logger:
         logger.info(LogCategory.REBALANCING, "rebalance_start", 
                    f"Rebalancing benchmark with current value: ${current_value:.2f}",
@@ -962,6 +969,49 @@ def rebalance_benchmark(db_client, config, account_id, current_value, prices, lo
     # Get current rebalance count
     current_count = config.get('rebalance_count', 0)
     new_count = current_count + 1
+    
+    # Calculate values after rebalancing
+    btc_value_after = btc_units * prices['BTCUSDT']
+    eth_value_after = eth_units * prices['ETHUSDT']
+    total_value_after = btc_value_after + eth_value_after
+    
+    # Save rebalance history
+    try:
+        rebalance_history_data = {
+            'account_id': account_id,
+            'rebalance_timestamp': rebalance_timestamp.isoformat(),
+            'btc_units_before': old_btc_units,
+            'eth_units_before': old_eth_units,
+            'btc_price': prices['BTCUSDT'],
+            'eth_price': prices['ETHUSDT'],
+            'btc_value_before': btc_value_before,
+            'eth_value_before': eth_value_before,
+            'total_value_before': total_value_before,
+            'btc_percentage_before': btc_percentage_before,
+            'eth_percentage_before': eth_percentage_before,
+            'btc_units_after': btc_units,
+            'eth_units_after': eth_units,
+            'btc_value_after': btc_value_after,
+            'eth_value_after': eth_value_after,
+            'total_value_after': total_value_after,
+            'rebalance_type': 'scheduled',
+            'status': rebalance_status,
+            'error_message': rebalance_error,
+            'validation_error': validation_error * 100  # Store as percentage
+        }
+        
+        db_client.table('benchmark_rebalance_history').insert(rebalance_history_data).execute()
+        
+        if logger:
+            logger.info(LogCategory.DATABASE, "rebalance_history_saved", 
+                       "Saved rebalance history record",
+                       account_id=account_id,
+                       data={"history_data": rebalance_history_data})
+    except Exception as e:
+        if logger:
+            logger.error(LogCategory.DATABASE, "rebalance_history_error", 
+                        f"Failed to save rebalance history: {str(e)}",
+                        account_id=account_id, error=str(e))
     
     with OperationTimer(logger, LogCategory.DATABASE, "update_rebalance_config", account_id) if logger else nullcontext():
         response = db_client.table('benchmark_configs').update({
@@ -1709,6 +1759,42 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                                 "reduction_ratio": reduction_ratio if current_benchmark_value > 0 else 0,
                                 "new_btc_units": new_btc_units, "new_eth_units": new_eth_units})
         
+        # Determine modification type from processed transactions
+        modification_type = 'deposit' if net_flow > 0 else 'withdrawal'
+        
+        # Check if it's a fee withdrawal
+        if processed_txns and any(txn['type'] == 'FEE_WITHDRAWAL' for txn in processed_txns):
+            modification_type = 'fee_withdrawal'
+        
+        # Get transaction details for reference
+        transaction_id = None
+        transaction_type = None
+        if processed_txns:
+            # Use the first transaction as primary reference
+            transaction_id = processed_txns[0].get('transaction_id')
+            transaction_type = processed_txns[0].get('type')
+        
+        # Prepare modification history data
+        modification_timestamp = datetime.now(UTC)
+        modification_data = {
+            'account_id': account_id,
+            'modification_timestamp': modification_timestamp.isoformat(),
+            'modification_type': modification_type,
+            'btc_units_before': current_btc_units,
+            'eth_units_before': current_eth_units,
+            'cashflow_amount': net_flow,
+            'btc_price': prices['BTCUSDT'],
+            'eth_price': prices['ETHUSDT'],
+            'btc_allocation': btc_investment if net_flow > 0 else None,
+            'eth_allocation': eth_investment if net_flow > 0 else None,
+            'btc_units_bought': (btc_investment / prices['BTCUSDT']) if net_flow > 0 else -(current_btc_units - new_btc_units),
+            'eth_units_bought': (eth_investment / prices['ETHUSDT']) if net_flow > 0 else -(current_eth_units - new_eth_units),
+            'btc_units_after': new_btc_units,
+            'eth_units_after': new_eth_units,
+            'transaction_id': transaction_id,
+            'transaction_type': transaction_type
+        }
+        
         # Enhanced atomic database update with transaction safety
         # Convert to Decimal for proper JSON serialization
         from decimal import Decimal
@@ -1756,7 +1842,34 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                                              account_id=account_id, data=atomic_context)
                         raise  # Always re-raise to trigger rollback
                 
-                # 3. Update last processed timestamp
+                # 3. Save modification history
+                try:
+                    # Get the modification_id if we need to reference it
+                    mod_result = db_client.table('benchmark_modifications').insert(modification_data).execute()
+                    if mod_result.data and len(mod_result.data) > 0:
+                        modification_id = mod_result.data[0].get('id')
+                        
+                        # Update benchmark_configs with last modification info
+                        db_client.table('benchmark_configs').update({
+                            'last_modification_type': modification_type,
+                            'last_modification_timestamp': modification_timestamp.isoformat(),
+                            'last_modification_amount': net_flow,
+                            'last_modification_id': modification_id
+                        }).eq('account_id', account_id).execute()
+                        
+                        if logger:
+                            logger.info(LogCategory.DATABASE, "modification_history_saved", 
+                                       "Saved benchmark modification history",
+                                       account_id=account_id,
+                                       data={"modification_id": modification_id, "modification_data": modification_data})
+                except Exception as mod_error:
+                    if logger:
+                        logger.error(LogCategory.DATABASE, "modification_history_error", 
+                                   f"Failed to save modification history: {str(mod_error)}",
+                                   account_id=account_id, error=str(mod_error))
+                    # Don't fail the whole transaction if history save fails
+                
+                # 4. Update last processed timestamp
                 update_last_processed_time(db_client, account_id)
                 
                 if logger:

@@ -60,6 +60,10 @@ Tracks BTC/ETH units per account and rebalancing configuration.
 | last_rebalance_btc_units | NUMERIC | | BTC units before last rebalance |
 | last_rebalance_eth_units | NUMERIC | | ETH units before last rebalance |
 | initialized_at | TIMESTAMPTZ | | Benchmark initialization timestamp |
+| last_modification_type | VARCHAR(20) | | Type of last modification (deposit/withdrawal/fee_withdrawal) |
+| last_modification_timestamp | TIMESTAMPTZ | | Timestamp of last modification |
+| last_modification_amount | NUMERIC(20,8) | | Amount of last modification in USD |
+| last_modification_id | BIGINT | FOREIGN KEY → benchmark_modifications(id) | Reference to last modification record |
 
 **Triggers:**
 - `benchmark_configs_account_name_trigger` - Populates account_name on INSERT/UPDATE
@@ -219,6 +223,81 @@ System-wide configuration and metadata storage.
 | created_at | TIMESTAMPTZ | DEFAULT CURRENT_TIMESTAMP | Creation time |
 | updated_at | TIMESTAMPTZ | DEFAULT CURRENT_TIMESTAMP | Last update time |
 
+### 11. benchmark_rebalance_history
+Complete history of all benchmark rebalancing operations with full audit trail.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | BIGSERIAL | PRIMARY KEY | Auto-incrementing ID |
+| account_id | UUID | NOT NULL, FOREIGN KEY → binance_accounts(id) | Account reference |
+| account_name | VARCHAR(255) | | Cached account name (auto-populated via trigger) |
+| rebalance_timestamp | TIMESTAMPTZ | NOT NULL | When rebalancing occurred |
+| btc_units_before | NUMERIC(20,10) | NOT NULL | BTC units before rebalancing |
+| eth_units_before | NUMERIC(20,10) | NOT NULL | ETH units before rebalancing |
+| btc_price | NUMERIC(20,8) | NOT NULL | BTC price at rebalance time |
+| eth_price | NUMERIC(20,8) | NOT NULL | ETH price at rebalance time |
+| btc_value_before | NUMERIC(20,8) | NOT NULL | BTC value before rebalancing |
+| eth_value_before | NUMERIC(20,8) | NOT NULL | ETH value before rebalancing |
+| total_value_before | NUMERIC(20,8) | NOT NULL | Total benchmark value before |
+| btc_percentage_before | NUMERIC(6,4) | | BTC allocation % before |
+| eth_percentage_before | NUMERIC(6,4) | | ETH allocation % before |
+| btc_units_after | NUMERIC(20,10) | NOT NULL | BTC units after rebalancing |
+| eth_units_after | NUMERIC(20,10) | NOT NULL | ETH units after rebalancing |
+| btc_value_after | NUMERIC(20,8) | NOT NULL | BTC value after rebalancing |
+| eth_value_after | NUMERIC(20,8) | NOT NULL | ETH value after rebalancing |
+| total_value_after | NUMERIC(20,8) | NOT NULL | Total benchmark value after |
+| btc_units_change | NUMERIC(20,10) | GENERATED | Change in BTC units |
+| eth_units_change | NUMERIC(20,10) | GENERATED | Change in ETH units |
+| rebalance_type | VARCHAR(20) | DEFAULT 'scheduled' | Type: scheduled/manual/init |
+| status | VARCHAR(20) | DEFAULT 'success' | Status: success/failed/validated |
+| error_message | TEXT | | Error details if failed |
+| validation_error | NUMERIC(6,4) | | % deviation from expected value |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | Record creation time |
+
+**Indexes:**
+- idx_rebalance_history_account_timestamp ON (account_id, rebalance_timestamp DESC)
+- idx_rebalance_history_timestamp ON (rebalance_timestamp DESC)
+- idx_rebalance_history_account_name ON (account_name)
+
+**Triggers:**
+- `rebalance_history_account_name_trigger` - Populates account_name on INSERT
+
+### 12. benchmark_modifications
+Tracks all benchmark adjustments for deposits/withdrawals with full calculation details.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | BIGSERIAL | PRIMARY KEY | Auto-incrementing ID |
+| account_id | UUID | NOT NULL, FOREIGN KEY → binance_accounts(id) | Account reference |
+| account_name | VARCHAR(255) | | Cached account name (auto-populated via trigger) |
+| modification_timestamp | TIMESTAMPTZ | NOT NULL | When modification occurred |
+| modification_type | VARCHAR(20) | NOT NULL | Type: deposit/withdrawal/fee_withdrawal |
+| btc_units_before | NUMERIC(20,10) | NOT NULL | BTC units before modification |
+| eth_units_before | NUMERIC(20,10) | NOT NULL | ETH units before modification |
+| cashflow_amount | NUMERIC(20,8) | NOT NULL | Amount of cashflow (+ for deposit, - for withdrawal) |
+| btc_price | NUMERIC(20,8) | NOT NULL | BTC price at modification time |
+| eth_price | NUMERIC(20,8) | NOT NULL | ETH price at modification time |
+| btc_allocation | NUMERIC(20,8) | | 50% of cashflow for deposits |
+| eth_allocation | NUMERIC(20,8) | | 50% of cashflow for deposits |
+| btc_units_bought | NUMERIC(20,10) | | BTC units added/removed |
+| eth_units_bought | NUMERIC(20,10) | | ETH units added/removed |
+| btc_units_after | NUMERIC(20,10) | NOT NULL | BTC units after modification |
+| eth_units_after | NUMERIC(20,10) | NOT NULL | ETH units after modification |
+| total_value_before | NUMERIC(20,8) | GENERATED | Total value before modification |
+| total_value_after | NUMERIC(20,8) | GENERATED | Total value after modification |
+| transaction_id | VARCHAR(255) | | Reference to original transaction |
+| transaction_type | VARCHAR(50) | | Original transaction type |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | Record creation time |
+
+**Indexes:**
+- idx_benchmark_mods_account_timestamp ON (account_id, modification_timestamp DESC)
+- idx_benchmark_mods_timestamp ON (modification_timestamp DESC)
+- idx_benchmark_mods_transaction_id ON (transaction_id)
+- idx_benchmark_mods_type ON (modification_type)
+
+**Triggers:**
+- `benchmark_mods_account_name_trigger` - Populates account_name on INSERT
+
 ## Views
 
 ### 1. nav_with_cashflows
@@ -318,6 +397,12 @@ Trigger function that populates the `account_name` field from `binance_accounts`
 ### 6. populate_nav_history_account_name()
 Trigger function that populates the `account_name` field from `binance_accounts`.
 
+### 7. populate_rebalance_history_account_name()
+Trigger function that populates the `account_name` field in `benchmark_rebalance_history` from `binance_accounts`.
+
+### 8. populate_benchmark_mods_account_name()
+Trigger function that populates the `account_name` field in `benchmark_modifications` from `binance_accounts`.
+
 ## Triggers
 
 ### 1. benchmark_configs_account_name_trigger
@@ -337,6 +422,18 @@ Trigger function that populates the `account_name` field from `binance_accounts`
 - **Events**: BEFORE UPDATE
 - **Function**: update_updated_at_column()
 - **Purpose**: Maintains accurate updated_at timestamps
+
+### 4. rebalance_history_account_name_trigger
+- **Table**: benchmark_rebalance_history
+- **Events**: BEFORE INSERT
+- **Function**: populate_rebalance_history_account_name()
+- **Purpose**: Automatically populates account_name for historical consistency
+
+### 5. benchmark_mods_account_name_trigger
+- **Table**: benchmark_modifications
+- **Events**: BEFORE INSERT
+- **Function**: populate_benchmark_mods_account_name()
+- **Purpose**: Automatically populates account_name for historical consistency
 
 ## Relationships
 
