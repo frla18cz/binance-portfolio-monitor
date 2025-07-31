@@ -124,6 +124,18 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 - **Valid Types**: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL, FEE_WITHDRAWAL
 - **Unique Key**: (account_id, transaction_id) prevents duplicates
 
+### Sub-Account Transfers
+- **Problem**: Binance API doesn't return internal transfers via standard withdrawal/deposit endpoints
+- **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
+- **Detection**: Run from sub-account perspective (master accounts can't access this endpoint)
+- **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
+- **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
+- **Metadata includes**: `coin`, `usd_value`, `coin_price`, `price_source`, `transfer_type=1` (internal)
+- **Scripts**:
+  - `detect_sub_transfers.py` - Manual detection of sub-account transfers
+  - `process_sub_account_transfers.py` - Batch processing for all accounts
+- **Database fields**: `email`, `is_sub_account`, `master_account_id` in binance_accounts table
+
 ## MCP Server
 - **Supabase MCP** (`mcp__supabase__*`) available for direct database operations
 - Project ID: `axvqumsxlncbqzecjlxy` (binance_strategy_monitoring)
@@ -145,6 +157,10 @@ python scripts/update_missing_prices.py # Update deposits with missing prices
 # Benchmark validation
 python scripts/validate_benchmark_consistency.py  # Validate benchmark calculations
 python scripts/validate_benchmark_consistency.py --account "Simple"  # Validate specific account
+
+# Sub-account transfers
+python detect_sub_transfers.py        # Detect and record sub-account transfers
+python process_sub_account_transfers.py # Process transfers for all master accounts
 ```
 
 ## API Endpoints
