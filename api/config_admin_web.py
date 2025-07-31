@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import settings
 from config.runtime_config import get_runtime_config
+from scripts.reset_account_data import get_accounts, reset_account_data
 from utils.database_manager import DatabaseManager
 
 app = Flask(__name__, 
@@ -302,6 +303,49 @@ def validate_value():
             'valid': False,
             'errors': [str(e)]
         })
+
+
+@app.route('/accounts')
+def accounts():
+    """Account management page."""
+    try:
+        accounts_list = get_accounts()
+        return render_template('admin/accounts.html', accounts=accounts_list)
+    except Exception as e:
+        flash(f'Error loading accounts: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/accounts/reset/<account_id>', methods=['POST'])
+def reset_account(account_id):
+    """Reset account data."""
+    try:
+        # Get account name for display
+        accounts_list = get_accounts()
+        account = next((acc for acc in accounts_list if acc['id'] == account_id), None)
+        
+        if not account:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+        
+        # Reset the account (skip confirmation since it's from web UI)
+        success = reset_account_data(account_id, account['account_name'], skip_confirmation=True)
+        
+        if success:
+            return jsonify({
+                'success': True, 
+                'message': f"Account '{account['account_name']}' has been reset successfully"
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to reset account'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        }), 500
 
 
 @app.errorhandler(404)

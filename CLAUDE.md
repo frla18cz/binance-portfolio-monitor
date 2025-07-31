@@ -136,6 +136,14 @@ calculate_monthly_fees() → fee calculation with account-specific rates
   - `process_sub_account_transfers.py` - Batch processing for all accounts
 - **Database fields**: `email`, `is_sub_account`, `master_account_id` in binance_accounts table
 
+### Account Reset
+- **Purpose**: Clear all historical data for an account while preserving configuration
+- **CLI Script**: `scripts/reset_account_data.py` - interactive or command-line reset
+- **Web Admin**: Available in Config Admin under "Account Management" tab
+- **Clears**: processed_transactions, nav_history, benchmark data, processing status
+- **Preserves**: Account configuration, API keys, account name
+- **Use Case**: Testing, fresh start, or fixing data issues
+
 ## MCP Server
 - **Supabase MCP** (`mcp__supabase__*`) available for direct database operations
 - Project ID: `axvqumsxlncbqzecjlxy` (binance_strategy_monitoring)
@@ -161,6 +169,12 @@ python scripts/validate_benchmark_consistency.py --account "Simple"  # Validate 
 # Sub-account transfers
 python detect_sub_transfers.py        # Detect and record sub-account transfers
 python process_sub_account_transfers.py # Process transfers for all master accounts
+
+# Account management
+python scripts/reset_account_data.py  # Reset account data for fresh start
+python scripts/reset_account_data.py --list  # List all accounts
+python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1"  # Reset specific account
+python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1" --yes  # Skip confirmation
 ```
 
 ## API Endpoints
