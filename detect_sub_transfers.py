@@ -10,9 +10,11 @@ from datetime import datetime, timezone
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from binance.client import Client as BinanceClient
 from api.sub_account_helper import get_sub_account_transfers
 from api.logger import MonitorLogger, LogCategory
 from utils.database_manager import get_supabase_client
+from api.index import get_coin_usd_value
 
 # Create logger instance
 logger = MonitorLogger()
@@ -20,6 +22,11 @@ logger = MonitorLogger()
 def main():
     """Main function to detect sub-account transfers"""
     db_client = get_supabase_client()
+    
+    # Create Binance client for price fetching
+    # We can use empty credentials since we only need public price data
+    binance_client = BinanceClient('', '')
+    binance_client.API_URL = 'https://data-api.binance.vision/api'
     
     # Get sub-account credentials directly
     sub_account = {
@@ -70,6 +77,13 @@ def main():
             tran_id = transfer.get('tranId', '')
             timestamp = transfer.get('time', 0)
             
+            # Get USD value for the asset
+            usd_value, coin_price, price_source = get_coin_usd_value(
+                binance_client, asset, amount, logger=logger
+            )
+            
+            print(f"\n💰 USD Value: ${usd_value:.2f} (${coin_price:.2f} per {asset} via {price_source})" if usd_value else "\n⚠️ Could not determine USD value")
+            
             # Type 2 = transfer out from sub to master
             if transfer_type == 2:
                 print("\n→ Recording as withdrawal from sub-account")
@@ -77,7 +91,7 @@ def main():
                     db_client, sub_account['id'], f"SUB_WD_{tran_id}",
                     'WITHDRAWAL', amount, timestamp, asset,
                     {'transfer_type': 1, 'to': 'master', 'network': 'INTERNAL'},
-                    logger
+                    logger, usd_value, coin_price, price_source
                 )
                 
                 print("→ Recording as deposit to master account")
@@ -85,7 +99,7 @@ def main():
                     db_client, master_account['id'], f"SUB_DEP_{tran_id}",
                     'DEPOSIT', amount, timestamp, asset,
                     {'transfer_type': 1, 'from_email': sub_account['email'], 'network': 'INTERNAL'},
-                    logger
+                    logger, usd_value, coin_price, price_source
                 )
             
             # Type 1 = transfer in from master to sub
@@ -95,7 +109,7 @@ def main():
                     db_client, master_account['id'], f"SUB_WD_{tran_id}",
                     'WITHDRAWAL', amount, timestamp, asset,
                     {'transfer_type': 1, 'to_email': sub_account['email'], 'network': 'INTERNAL'},
-                    logger
+                    logger, usd_value, coin_price, price_source
                 )
                 
                 print("→ Recording as deposit to sub-account")
@@ -103,12 +117,12 @@ def main():
                     db_client, sub_account['id'], f"SUB_DEP_{tran_id}",
                     'DEPOSIT', amount, timestamp, asset,
                     {'transfer_type': 1, 'from': 'master', 'network': 'INTERNAL'},
-                    logger
+                    logger, usd_value, coin_price, price_source
                 )
 
 def record_transaction(db_client, account_id, transaction_id, transaction_type, 
-                      amount, timestamp, coin, metadata, logger):
-    """Record a transaction in the database"""
+                      amount, timestamp, coin, metadata, logger, usd_value=None, coin_price=None, price_source=None):
+    """Record a transaction in the database with USD value"""
     try:
         # Check if already exists
         existing = db_client.table('processed_transactions')\
@@ -129,7 +143,14 @@ def record_transaction(db_client, account_id, transaction_id, transaction_type,
             'amount': str(amount),
             'timestamp': datetime.fromtimestamp(timestamp/1000, timezone.utc).isoformat(),
             'status': 'SUCCESS',
-            'metadata': {**metadata, 'coin': coin}
+            'metadata': {
+                **metadata, 
+                'coin': coin,
+                'usd_value': usd_value,
+                'coin_price': coin_price,
+                'price_source': price_source,
+                'price_missing': usd_value is None
+            }
         }
         
         result = db_client.table('processed_transactions')\
@@ -137,11 +158,14 @@ def record_transaction(db_client, account_id, transaction_id, transaction_type,
             .execute()
             
         if result.data:
-            print(f"   ✅ Transaction recorded: {transaction_type} {amount} {coin}")
+            if usd_value:
+                print(f"   ✅ Transaction recorded: {transaction_type} {amount} {coin} (${usd_value:.2f})")
+            else:
+                print(f"   ✅ Transaction recorded: {transaction_type} {amount} {coin} (USD value missing)")
             logger.info(LogCategory.TRANSACTION, "sub_transfer_recorded",
-                       f"Recorded sub-account {transaction_type}: {amount} {coin}",
+                       f"Recorded sub-account {transaction_type}: {amount} {coin}" + (f" (${usd_value:.2f})" if usd_value else " (no USD value)"),
                        account_id=account_id,
-                       data={'transaction_id': transaction_id, 'metadata': metadata})
+                       data={'transaction_id': transaction_id, 'metadata': transaction_data['metadata']})
         
     except Exception as e:
         print(f"   ❌ Error recording transaction: {str(e)}")

@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from binance.client import Client as BinanceClient
 from api.sub_account_helper import get_sub_account_transfers, normalize_sub_account_transfers
 from api.logger import MonitorLogger, LogCategory
+from api.index import get_coin_usd_value
 
 # Create logger instance
 logger = MonitorLogger()
@@ -23,6 +24,10 @@ from config import settings
 def process_sub_account_transfers_for_all():
     """Process sub-account transfers for all master accounts"""
     db_client = get_supabase_client()
+    
+    # Create Binance client for price fetching
+    binance_client = BinanceClient('', '')
+    binance_client.API_URL = 'https://data-api.binance.vision/api'
     
     # Get all master accounts (not sub-accounts)
     response = db_client.table('binance_accounts')\
@@ -39,9 +44,9 @@ def process_sub_account_transfers_for_all():
     
     # Process each master account
     for account in response.data:
-        process_master_account_transfers(account, db_client, logger)
+        process_master_account_transfers(account, db_client, logger, binance_client)
 
-def process_master_account_transfers(master_account, db_client, logger):
+def process_master_account_transfers(master_account, db_client, logger, binance_client):
     """Process sub-account transfers for a specific master account"""
     account_id = master_account['id']
     account_name = master_account['account_name']
@@ -94,7 +99,7 @@ def process_master_account_transfers(master_account, db_client, logger):
         
         # Process transfers
         for transfer in transfers:
-            process_single_transfer(transfer, master_account, sub_accounts_by_email, db_client, logger)
+            process_single_transfer(transfer, master_account, sub_accounts_by_email, db_client, logger, binance_client)
             
     except Exception as e:
         import traceback
@@ -103,7 +108,7 @@ def process_master_account_transfers(master_account, db_client, logger):
                     account_id=account_id, error=str(e))
         traceback.print_exc()
 
-def process_single_transfer(transfer, master_account, sub_accounts_by_email, db_client, logger):
+def process_single_transfer(transfer, master_account, sub_accounts_by_email, db_client, logger, binance_client):
     """Process a single sub-account transfer"""
     # Sub-account transfer API has different format:
     # - email: the sub-account email
@@ -133,6 +138,11 @@ def process_single_transfer(transfer, master_account, sub_accounts_by_email, db_
                       data={'transfer': transfer})
         return
         
+    # Get USD value for the asset
+    usd_value, coin_price, price_source = get_coin_usd_value(
+        binance_client, asset, amount, logger=logger
+    )
+    
     # Process based on transfer type
     if transfer_type == 2:  # Transfer out from sub-account
         # Sub-account is sending (withdrawal) to master
@@ -140,14 +150,14 @@ def process_single_transfer(transfer, master_account, sub_accounts_by_email, db_
             db_client, sub_account['id'], f"SUB_WD_{tran_id}",
             'WITHDRAWAL', amount, timestamp, asset, 
             {'transfer_type': 1, 'to': 'master', 'network': 'INTERNAL'},
-            logger
+            logger, usd_value, coin_price, price_source
         )
         # Master account is receiving (deposit) from sub
         record_transaction(
             db_client, master_account['id'], f"SUB_DEP_{tran_id}",
             'DEPOSIT', amount, timestamp, asset,
             {'transfer_type': 1, 'from_email': sub_email, 'network': 'INTERNAL'},
-            logger
+            logger, usd_value, coin_price, price_source
         )
     elif transfer_type == 1:  # Transfer in to sub-account
         # Master account is sending (withdrawal) to sub
@@ -155,14 +165,14 @@ def process_single_transfer(transfer, master_account, sub_accounts_by_email, db_
             db_client, master_account['id'], f"SUB_WD_{tran_id}",
             'WITHDRAWAL', amount, timestamp, asset,
             {'transfer_type': 1, 'to_email': sub_email, 'network': 'INTERNAL'},
-            logger
+            logger, usd_value, coin_price, price_source
         )
         # Sub-account is receiving (deposit) from master
         record_transaction(
             db_client, sub_account['id'], f"SUB_DEP_{tran_id}",
             'DEPOSIT', amount, timestamp, asset,
             {'transfer_type': 1, 'from': 'master', 'network': 'INTERNAL'},
-            logger
+            logger, usd_value, coin_price, price_source
         )
     else:
         logger.warning(LogCategory.TRANSACTION, "unknown_transfer_type",
@@ -170,8 +180,8 @@ def process_single_transfer(transfer, master_account, sub_accounts_by_email, db_
                       data={'transfer': transfer})
 
 def record_transaction(db_client, account_id, transaction_id, transaction_type, 
-                      amount, timestamp, coin, metadata, logger):
-    """Record a transaction in the database"""
+                      amount, timestamp, coin, metadata, logger, usd_value=None, coin_price=None, price_source=None):
+    """Record a transaction in the database with USD value"""
     try:
         # Check if already exists
         existing = db_client.table('processed_transactions')\
@@ -194,7 +204,14 @@ def record_transaction(db_client, account_id, transaction_id, transaction_type,
             'amount': str(amount),
             'timestamp': datetime.fromtimestamp(timestamp/1000, timezone.utc).isoformat(),
             'status': 'SUCCESS',
-            'metadata': {**metadata, 'coin': coin}
+            'metadata': {
+                **metadata, 
+                'coin': coin,
+                'usd_value': usd_value,
+                'coin_price': coin_price,
+                'price_source': price_source,
+                'price_missing': usd_value is None
+            }
         }
         
         result = db_client.table('processed_transactions')\
@@ -203,9 +220,9 @@ def record_transaction(db_client, account_id, transaction_id, transaction_type,
             
         if result.data:
             logger.info(LogCategory.TRANSACTION, "sub_transfer_recorded",
-                       f"Recorded sub-account {transaction_type}: {amount} {coin}",
+                       f"Recorded sub-account {transaction_type}: {amount} {coin}" + (f" (${usd_value:.2f})" if usd_value else " (no USD value)"),
                        account_id=account_id,
-                       data={'transaction_id': transaction_id, 'metadata': metadata})
+                       data={'transaction_id': transaction_id, 'metadata': transaction_data['metadata']})
         
     except Exception as e:
         logger.error(LogCategory.TRANSACTION, "record_transaction_error",
