@@ -12,6 +12,58 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         margin-bottom: 30px;
     }
+    .deprecated-section {
+        background-color: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    .deprecated-section h3 {
+        color: #856404;
+        margin-top: 0;
+    }
+    .deprecated-table {
+        width: 100%;
+        margin-top: 15px;
+    }
+    .deprecated-table td {
+        padding: 8px;
+        border-bottom: 1px solid #ffeeba;
+    }
+    .deprecated-key {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+    }
+    .deprecated-reason {
+        color: #856404;
+        font-size: 13px;
+    }
+    .deprecated-alternative {
+        color: #0c5460;
+        font-size: 13px;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: bold;
+        margin-left: 8px;
+    }
+    .status-active {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    .status-deprecated {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    .restart-required {
+        color: #dc3545;
+        font-size: 12px;
+        margin-left: 8px;
+    }
     .config-table th {
         background-color: #f8f9fa;
         padding: 12px;
@@ -68,6 +120,34 @@
 
 <h2>Runtime Configurations</h2>
 
+{% if deprecated_configs %}
+<div class="deprecated-section">
+    <h3>⚠️ Deprecated/Unused Configurations</h3>
+    <p>These configurations are defined but not actively used in the codebase:</p>
+    <table class="deprecated-table">
+        {% for config in deprecated_configs %}
+        <tr>
+            <td>
+                <span class="deprecated-key">{{ config.key }}</span>
+                <span class="status-badge status-deprecated">DEPRECATED</span>
+            </td>
+            <td>
+                <div class="deprecated-reason">{{ config.metadata.reason }}</div>
+                {% if config.metadata.alternative %}
+                <div class="deprecated-alternative">→ Use: <code>{{ config.metadata.alternative }}</code></div>
+                {% endif %}
+            </td>
+            <td style="text-align: right;">
+                <a href="{{ url_for('edit_config', key=config.key) }}" style="color: #856404;">View</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+
+<h3>Active Configurations</h3>
+
 {% if configs_by_category %}
     <table class="config-table">
         <thead>
@@ -88,6 +168,12 @@
                         <tr>
                             <td>
                                 <code>{{ config.key }}</code>
+                                {% if config.metadata.status == 'active' %}
+                                    <span class="status-badge status-active">ACTIVE</span>
+                                {% endif %}
+                                {% if config.metadata.requires_restart %}
+                                    <span class="restart-required" title="Requires restart of {{ config.metadata.requires_restart }}">🔄 Restart required</span>
+                                {% endif %}
                             </td>
                             <td class="value-cell clickable" onclick="window.location.href='{{ url_for('edit_config', key=config.key) }}'">
                                 {% if config.current_value is mapping %}

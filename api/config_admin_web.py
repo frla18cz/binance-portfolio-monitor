@@ -39,6 +39,45 @@ CATEGORIES = [
     'development'
 ]
 
+# Configuration metadata
+CONFIG_METADATA = {
+    # Deprecated/unused configs
+    'financial.performance_alert_thresholds': {
+        'status': 'deprecated',
+        'reason': 'Not implemented - alert functionality not built',
+        'alternative': None
+    },
+    'scheduling.daemon_interval_seconds': {
+        'status': 'deprecated', 
+        'reason': 'Replaced by scheduling.cron_interval_minutes',
+        'alternative': 'scheduling.cron_interval_minutes'
+    },
+    'financial.rebalance_frequency': {
+        'status': 'deprecated',
+        'reason': 'Rebalancing uses rebalance_day/hour in benchmark_configs table',
+        'alternative': 'benchmark_configs table'
+    },
+    
+    # Active configs with special handling
+    'scheduling.cron_interval_minutes': {
+        'status': 'active',
+        'requires_restart': 'run_forever.py',
+        'options': [5, 10, 15, 30, 60]
+    },
+    'fee_management.calculation_schedule': {
+        'status': 'active',
+        'options': ['monthly', 'daily', 'hourly']
+    },
+    'fee_management.calculation_day': {
+        'status': 'active',
+        'range': [1, 28]
+    },
+    'fee_management.calculation_hour': {
+        'status': 'active',
+        'range': [0, 23]
+    }
+}
+
 
 @app.route('/')
 def index():
@@ -57,20 +96,32 @@ def index():
         
         # Group by category
         configs_by_category = {}
+        deprecated_configs = []
+        
         for item in response.data:
             cat = item['category'] or 'uncategorized'
-            if cat not in configs_by_category:
-                configs_by_category[cat] = []
             
             # Add current value (might differ from database due to cache)
             item['current_value'] = runtime_config.get(item['key'], use_cache=True)
-            configs_by_category[cat].append(item)
+            
+            # Add metadata
+            metadata = CONFIG_METADATA.get(item['key'], {})
+            item['metadata'] = metadata
+            
+            # Separate deprecated configs
+            if metadata.get('status') == 'deprecated':
+                deprecated_configs.append(item)
+            else:
+                if cat not in configs_by_category:
+                    configs_by_category[cat] = []
+                configs_by_category[cat].append(item)
         
         # Get cache info
         cache_ttl = runtime_config.cache.ttl_seconds
         
         return render_template('admin/config_list.html',
                              configs_by_category=configs_by_category,
+                             deprecated_configs=deprecated_configs,
                              categories=CATEGORIES,
                              cache_ttl=cache_ttl)
         
@@ -78,6 +129,7 @@ def index():
         flash(f'Error loading configurations: {str(e)}', 'error')
         return render_template('admin/config_list.html', 
                              configs_by_category={}, 
+                             deprecated_configs=[],
                              categories=CATEGORIES)
 
 
@@ -121,6 +173,9 @@ def edit_config(key):
             value_type = 'json'
         else:
             value_type = 'text'
+        
+        # Add metadata
+        config['metadata'] = CONFIG_METADATA.get(key, {})
         
         return render_template('admin/config_edit.html',
                              config=config,

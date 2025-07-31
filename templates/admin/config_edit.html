@@ -4,6 +4,18 @@
 
 {% block content %}
 <style>
+    .warning-banner {
+        background-color: #fff3cd;
+        border: 1px solid #ffeeba;
+        color: #856404;
+        padding: 15px 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .warning-banner strong {
+        display: block;
+        margin-bottom: 5px;
+    }
     .edit-form {
         background-color: white;
         padding: 30px;
@@ -95,6 +107,19 @@
 
 <h2>Edit Configuration</h2>
 
+{% if config.key in ['financial.performance_alert_thresholds', 'scheduling.daemon_interval_seconds', 'financial.rebalance_frequency'] %}
+<div class="warning-banner">
+    <strong>⚠️ Warning: This configuration is not currently used</strong>
+    {% if config.key == 'financial.performance_alert_thresholds' %}
+        This configuration is defined but not implemented. Alert functionality has not been built yet.
+    {% elif config.key == 'scheduling.daemon_interval_seconds' %}
+        This configuration is deprecated. Use <code>scheduling.cron_interval_minutes</code> instead.
+    {% elif config.key == 'financial.rebalance_frequency' %}
+        This configuration is not used. Rebalancing is controlled by the <code>rebalance_day</code> and <code>rebalance_hour</code> fields in the benchmark_configs table.
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="current-info">
     <strong>Key:</strong> <code>{{ config.key }}</code><br>
     <strong>Category:</strong> {{ config.category }}<br>
@@ -103,6 +128,8 @@
     {% else %}
         <strong>Version:</strong> {{ config.version or 1 }}
     {% endif %}
+    <br><br>
+    <strong>Cache TTL:</strong> Changes take up to 5 minutes to apply, or use "Refresh Cache" button
 </div>
 
 <form class="edit-form" action="{{ url_for('save_config', key=config.key) }}" method="POST" onsubmit="return validateForm()">
@@ -123,12 +150,92 @@
                 </label>
             </div>
         {% elif value_type == 'json' %}
-            <textarea name="value" id="value" required>{{ value_json }}</textarea>
-            <div class="help-text">Enter valid JSON. Objects and arrays are supported.</div>
+            {% if config.key == 'logging.database_logging.log_levels' %}
+                <div style="margin-bottom: 10px;">
+                    <label><input type="checkbox" class="log-level" value="DEBUG"> DEBUG</label><br>
+                    <label><input type="checkbox" class="log-level" value="INFO" checked> INFO</label><br>
+                    <label><input type="checkbox" class="log-level" value="WARNING" checked> WARNING</label><br>
+                    <label><input type="checkbox" class="log-level" value="ERROR" checked> ERROR</label><br>
+                    <label><input type="checkbox" class="log-level" value="CRITICAL" checked> CRITICAL</label>
+                </div>
+                <textarea name="value" id="value" style="display:none;" required>{{ value_json }}</textarea>
+                <div class="help-text">Select which log levels to store in the database</div>
+                <script>
+                    // Initialize checkboxes based on current value
+                    const currentLevels = {{ value_json|safe }};
+                    document.querySelectorAll('.log-level').forEach(cb => {
+                        cb.checked = currentLevels.includes(cb.value);
+                    });
+                    
+                    // Update hidden textarea when checkboxes change
+                    document.querySelectorAll('.log-level').forEach(cb => {
+                        cb.addEventListener('change', () => {
+                            const selected = Array.from(document.querySelectorAll('.log-level:checked'))
+                                .map(cb => cb.value);
+                            document.getElementById('value').value = JSON.stringify(selected, null, 2);
+                        });
+                    });
+                    
+                    // Initialize the textarea
+                    const initialSelected = Array.from(document.querySelectorAll('.log-level:checked'))
+                        .map(cb => cb.value);
+                    document.getElementById('value').value = JSON.stringify(initialSelected, null, 2);
+                </script>
+            {% else %}
+                <textarea name="value" id="value" required>{{ value_json }}</textarea>
+                <div class="help-text">Enter valid JSON. Objects and arrays are supported.</div>
+            {% endif %}
         {% elif value_type == 'number' %}
-            <input type="number" name="value" id="value" value="{{ config.current_value }}" step="any" required>
+            {% if config.key == 'fee_management.calculation_schedule' %}
+                <select name="value" id="value" required>
+                    <option value="monthly" {% if config.current_value == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="daily" {% if config.current_value == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="hourly" {% if config.current_value == 'hourly' %}selected{% endif %}>Hourly</option>
+                </select>
+                <div class="help-text">How often to calculate performance fees</div>
+            {% elif config.key == 'fee_management.calculation_day' %}
+                <select name="value" id="value" required>
+                    {% for day in range(1, 29) %}
+                        <option value="{{ day }}" {% if config.current_value == day %}selected{% endif %}>{{ day }}</option>
+                    {% endfor %}
+                </select>
+                <div class="help-text">Day of month for monthly fee calculations (1-28)</div>
+            {% elif config.key == 'fee_management.calculation_hour' %}
+                <select name="value" id="value" required>
+                    {% for hour in range(24) %}
+                        <option value="{{ hour }}" {% if config.current_value == hour %}selected{% endif %}>{{ hour }}:00 UTC</option>
+                    {% endfor %}
+                </select>
+                <div class="help-text">Hour of day for fee calculations (UTC timezone)</div>
+            {% elif config.key == 'scheduling.cron_interval_minutes' %}
+                <select name="value" id="value" required>
+                    <option value="5" {% if config.current_value == 5 %}selected{% endif %}>5 minutes</option>
+                    <option value="10" {% if config.current_value == 10 %}selected{% endif %}>10 minutes</option>
+                    <option value="15" {% if config.current_value == 15 %}selected{% endif %}>15 minutes</option>
+                    <option value="30" {% if config.current_value == 30 %}selected{% endif %}>30 minutes</option>
+                    <option value="60" {% if config.current_value == 60 %}selected{% endif %}>60 minutes (1 hour)</option>
+                </select>
+                <div class="help-text">How often to run portfolio monitoring. Note: Requires restart of run_forever.py</div>
+            {% elif config.key.endswith('_rate') or config.key.endswith('percentage') %}
+                <input type="number" name="value" id="value" value="{{ config.current_value }}" step="0.01" min="0" max="1" required>
+                <div class="help-text">Enter a decimal between 0.0 and 1.0 (e.g., 0.5 for 50%)</div>
+            {% elif 'threshold' in config.key %}
+                <input type="number" name="value" id="value" value="{{ config.current_value }}" step="0.001" min="0" required>
+                <div class="help-text">Minimum value in USD to include in calculations</div>
+            {% else %}
+                <input type="number" name="value" id="value" value="{{ config.current_value }}" step="any" required>
+            {% endif %}
         {% else %}
-            <input type="text" name="value" id="value" value="{{ config.current_value }}" required>
+            {% if config.key == 'fee_management.calculation_schedule' %}
+                <select name="value" id="value" required>
+                    <option value="monthly" {% if config.current_value == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="daily" {% if config.current_value == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="hourly" {% if config.current_value == 'hourly' %}selected{% endif %}>Hourly</option>
+                </select>
+                <div class="help-text">How often to calculate performance fees</div>
+            {% else %}
+                <input type="text" name="value" id="value" value="{{ config.current_value }}" required>
+            {% endif %}
         {% endif %}
         
         <div class="validation-error" id="validation-error"></div>
