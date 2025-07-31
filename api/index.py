@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
 from api.binance_pay_helper import get_pay_transactions
+from api.sub_account_helper import get_sub_account_transfers, normalize_sub_account_transfers
 
 # Debug print removed - was causing issues on Vercel
 
@@ -1607,6 +1608,10 @@ def fetch_new_transactions(binance_client, start_time, logger=None, account_id=N
                                  f"Error normalizing pay transaction: {str(e)} | Data: {pay_txn}", 
                                  account_id=account_id, error=str(e))
                 continue
+            
+        # Fetch sub-account transfers if we have account email
+        # This needs to be done from the perspective of the master account
+        # We'll handle this separately in process_single_account
             
         # Filtrujeme jen SUCCESS transakce a sortujeme podle času
         successful_txns = []
