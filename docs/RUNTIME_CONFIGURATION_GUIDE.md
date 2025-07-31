@@ -21,7 +21,11 @@ psql $DATABASE_URL < migrations/populate_runtime_config.sql
 
 ### 2. Start Web Admin
 ```bash
-python -m api.config_admin_web
+# Install dependencies (first time only)
+pip install flask flask-cors
+
+# Run web admin
+python api/config_admin_web.py
 # Open http://localhost:8002
 ```
 
@@ -105,7 +109,7 @@ class MyService:
 
 1. **Start Web Admin:**
    ```bash
-   python -m api.config_admin_web
+   python api/config_admin_web.py
    ```
 
 2. **Open Browser:**

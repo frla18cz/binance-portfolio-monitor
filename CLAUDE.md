@@ -126,6 +126,7 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 
 ## MCP Server
 - **Supabase MCP** (`mcp__supabase__*`) available for direct database operations
+- Project ID: `axvqumsxlncbqzecjlxy` (binance_strategy_monitoring)
 - Useful for debugging, running migrations, checking logs
 
 ## Common Commands

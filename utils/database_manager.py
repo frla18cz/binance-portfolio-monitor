@@ -50,9 +50,12 @@ class DatabaseManager:
         """Initialize the Supabase client with retry logic."""
         for attempt in range(self._retry_count):
             try:
+                # Use service role key if available for admin operations
+                supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY', self._config.database.supabase_key)
+                
                 self._client = create_client(
                     self._config.database.supabase_url,
-                    self._config.database.supabase_key
+                    supabase_key
                 )
                 self._last_health_check = time.time()
                 return

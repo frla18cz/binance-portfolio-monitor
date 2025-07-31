@@ -135,25 +135,26 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Row Level Security
-ALTER TABLE runtime_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE runtime_config_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE account_config_overrides ENABLE ROW LEVEL SECURITY;
+-- Row Level Security - DISABLED for easier development
+-- Uncomment these lines to enable RLS in production:
+-- ALTER TABLE runtime_config ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE runtime_config_history ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE account_config_overrides ENABLE ROW LEVEL SECURITY;
 
--- Policies for service role
-CREATE POLICY "Service role can manage runtime config" ON runtime_config
-    FOR ALL
-    USING (auth.role() = 'service_role')
-    WITH CHECK (auth.role() = 'service_role');
+-- Policies for service role (only needed if RLS is enabled)
+-- CREATE POLICY "Service role can manage runtime config" ON runtime_config
+--     FOR ALL
+--     USING (auth.role() = 'service_role')
+--     WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY "Service role can view config history" ON runtime_config_history
-    FOR SELECT
-    USING (auth.role() = 'service_role');
+-- CREATE POLICY "Service role can view config history" ON runtime_config_history
+--     FOR SELECT
+--     USING (auth.role() = 'service_role');
 
-CREATE POLICY "Service role can manage account overrides" ON account_config_overrides
-    FOR ALL
-    USING (auth.role() = 'service_role')
-    WITH CHECK (auth.role() = 'service_role');
+-- CREATE POLICY "Service role can manage account overrides" ON account_config_overrides
+--     FOR ALL
+--     USING (auth.role() = 'service_role')
+--     WITH CHECK (auth.role() = 'service_role');
 
 -- Comments for documentation
 COMMENT ON TABLE runtime_config IS 'Global runtime configuration that can be changed without application restart';

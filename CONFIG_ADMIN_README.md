@@ -17,7 +17,11 @@
 
 ### Option 1: Web Admin (Visual Interface)
 ```bash
-python -m api.config_admin_web
+# Install dependencies (if not already installed)
+pip install flask flask-cors
+
+# Run web admin
+python api/config_admin_web.py
 ```
 Then open: http://localhost:8002
 
