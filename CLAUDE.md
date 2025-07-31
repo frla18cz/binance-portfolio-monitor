@@ -222,3 +222,10 @@ VALUES
 - **New tables**: `benchmark_rebalance_history` and `benchmark_modifications` track all benchmark changes with full audit trail
 - **Validation script**: `scripts/validate_benchmark_consistency.py` verifies calculation accuracy
 - **Details**: See `docs/BENCHMARK_METADATA_IMPROVEMENTS.md` for complete documentation
+
+## Data Architecture Guidelines
+- **RAW data**: Data from external APIs (Binance) - never modify, store as-is
+- **CALCULATED data**: Our computations - keep separate from raw data
+- **Mixed tables**: Use database comments to mark each column (RAW/CALCULATED/SYSTEM)
+- **New features**: Create separate tables/views for raw vs calculated data
+- **Details**: See `docs/DATA_FLOW_ARCHITECTURE.md` for patterns and examples
