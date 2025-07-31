@@ -1,0 +1,131 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Configuration List{% endblock %}
+
+{% block content %}
+<style>
+    .config-table {
+        width: 100%;
+        background-color: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+    .config-table th {
+        background-color: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .config-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .config-table tr:hover {
+        background-color: #f8f9fa;
+    }
+    .category-header {
+        background-color: #e9ecef;
+        padding: 10px 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 14px;
+        color: #495057;
+    }
+    .value-cell {
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+    }
+    .value-cell.clickable {
+        cursor: pointer;
+        color: #3498db;
+        text-decoration: underline;
+    }
+    .value-cell.clickable:hover {
+        color: #2980b9;
+    }
+    .description {
+        font-size: 13px;
+        color: #6c757d;
+    }
+    .timestamp {
+        font-size: 12px;
+        color: #6c757d;
+    }
+    .json-value {
+        max-width: 400px;
+        overflow-x: auto;
+        white-space: pre;
+    }
+    .no-configs {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+    }
+</style>
+
+<h2>Runtime Configurations</h2>
+
+{% if configs_by_category %}
+    <table class="config-table">
+        <thead>
+            <tr>
+                <th style="width: 35%">Key</th>
+                <th style="width: 25%">Current Value</th>
+                <th style="width: 25%">Description</th>
+                <th style="width: 15%">Last Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category in categories %}
+                {% if category in configs_by_category %}
+                    <tr>
+                        <td colspan="4" class="category-header">{{ category }}</td>
+                    </tr>
+                    {% for config in configs_by_category[category] %}
+                        <tr>
+                            <td>
+                                <code>{{ config.key }}</code>
+                            </td>
+                            <td class="value-cell clickable" onclick="window.location.href='{{ url_for('edit_config', key=config.key) }}'">
+                                {% if config.current_value is mapping %}
+                                    <div class="json-value">{{ config.current_value | tojson(indent=2) }}</div>
+                                {% elif config.current_value is boolean %}
+                                    {{ 'true' if config.current_value else 'false' }}
+                                {% else %}
+                                    {{ config.current_value }}
+                                {% endif %}
+                            </td>
+                            <td class="description">
+                                {{ config.description or '-' }}
+                            </td>
+                            <td class="timestamp">
+                                {% if config.updated_at %}
+                                    {{ config.updated_at[:16] }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="no-configs">
+        <p>No runtime configurations found.</p>
+        <p>Run the migration script to populate initial values:</p>
+        <code>psql $DATABASE_URL < migrations/populate_runtime_config.sql</code>
+    </div>
+{% endif %}
+
+<script>
+    // Auto-refresh every 30 seconds to show latest values
+    setTimeout(() => {
+        window.location.reload();
+    }, 30000);
+</script>
+{% endblock %}

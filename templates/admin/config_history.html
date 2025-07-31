@@ -1,0 +1,173 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Configuration History{% endblock %}
+
+{% block content %}
+<style>
+    .history-table {
+        width: 100%;
+        background-color: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .history-table th {
+        background-color: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .history-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .history-table tr:hover {
+        background-color: #f8f9fa;
+    }
+    .key-cell {
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+    }
+    .value-cell {
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .value-cell.expanded {
+        white-space: pre-wrap;
+        max-width: none;
+    }
+    .timestamp {
+        font-size: 13px;
+        color: #495057;
+    }
+    .user {
+        font-size: 13px;
+    }
+    .no-history {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+        background-color: white;
+        border-radius: 8px;
+    }
+    .expand-btn {
+        color: #3498db;
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 5px;
+    }
+    .expand-btn:hover {
+        color: #2980b9;
+        text-decoration: underline;
+    }
+    .value-added {
+        color: #28a745;
+    }
+    .value-removed {
+        color: #dc3545;
+        text-decoration: line-through;
+    }
+    .value-changed {
+        color: #ffc107;
+    }
+</style>
+
+<h2>Configuration Change History</h2>
+<p>Last 100 changes across all configurations.</p>
+
+{% if history %}
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th style="width: 20%">Timestamp</th>
+                <th style="width: 25%">Key</th>
+                <th style="width: 20%">Old Value</th>
+                <th style="width: 20%">New Value</th>
+                <th style="width: 15%">Changed By</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in history %}
+                <tr>
+                    <td class="timestamp">
+                        {{ item.changed_at[:19].replace('T', ' ') }}
+                    </td>
+                    <td class="key-cell">
+                        {{ item.key }}
+                    </td>
+                    <td>
+                        {% if item.old_value is none %}
+                            <span class="value-cell value-added">-</span>
+                        {% else %}
+                            <span class="value-cell" id="old-{{ loop.index }}">
+                                {% if item.old_value is mapping %}
+                                    {{ item.old_value | tojson }}
+                                {% else %}
+                                    {{ item.old_value }}
+                                {% endif %}
+                            </span>
+                            {% if item.old_value is mapping %}
+                                <span class="expand-btn" onclick="toggleExpand('old-{{ loop.index }}')">expand</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="value-cell {% if item.old_value is none %}value-added{% endif %}" id="new-{{ loop.index }}">
+                            {% if item.new_value is mapping %}
+                                {{ item.new_value | tojson }}
+                            {% else %}
+                                {{ item.new_value }}
+                            {% endif %}
+                        </span>
+                        {% if item.new_value is mapping %}
+                            <span class="expand-btn" onclick="toggleExpand('new-{{ loop.index }}')">expand</span>
+                        {% endif %}
+                    </td>
+                    <td class="user">
+                        {{ item.changed_by }}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="no-history">
+        <p>No configuration changes recorded yet.</p>
+    </div>
+{% endif %}
+
+<script>
+function toggleExpand(id) {
+    const element = document.getElementById(id);
+    element.classList.toggle('expanded');
+    
+    // If expanding, format JSON nicely
+    if (element.classList.contains('expanded')) {
+        try {
+            const json = JSON.parse(element.textContent);
+            element.textContent = JSON.stringify(json, null, 2);
+        } catch (e) {
+            // Not JSON, leave as is
+        }
+    } else {
+        // Collapse back to single line
+        try {
+            const json = JSON.parse(element.textContent);
+            element.textContent = JSON.stringify(json);
+        } catch (e) {
+            // Not JSON, leave as is
+        }
+    }
+}
+
+// Auto-refresh every 60 seconds
+setTimeout(() => {
+    window.location.reload();
+}, 60000);
+</script>
+{% endblock %}

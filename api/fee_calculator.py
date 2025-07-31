@@ -24,6 +24,8 @@ class FeeCalculator:
         self.db = get_supabase_client()
         # Load from settings
         from config import settings
+        self.settings = settings
+        # Keep backward compatibility with config attribute
         self.config = settings.fee_management
         self.default_performance_fee_rate = Decimal(str(self.config.default_performance_fee_rate))
     
@@ -31,33 +33,54 @@ class FeeCalculator:
         """Check if fees should be calculated based on schedule."""
         now = datetime.now(UTC)
         
-        if self.config.test_mode.enabled:
+        # Get dynamic configuration
+        test_mode = self.settings.get_dynamic('fee_management.test_mode', default=self.config.test_mode)
+        if test_mode.get('enabled', False):
             # In test mode, always return True (manual control)
             return True
         
+        # Get schedule configuration dynamically
+        calculation_schedule = self.settings.get_dynamic(
+            'fee_management.calculation_schedule', 
+            default=self.config.calculation_schedule
+        )
+        calculation_day = self.settings.get_dynamic(
+            'fee_management.calculation_day',
+            default=self.config.calculation_day
+        )
+        calculation_hour = self.settings.get_dynamic(
+            'fee_management.calculation_hour',
+            default=self.config.calculation_hour
+        )
+        
         # Check if it's the scheduled day and hour
-        if self.config.calculation_schedule == "monthly":
-            return (now.day == self.config.calculation_day and 
-                   now.hour == self.config.calculation_hour)
-        elif self.config.calculation_schedule == "daily":
-            return now.hour == self.config.calculation_hour
-        elif self.config.calculation_schedule == "hourly":
+        if calculation_schedule == "monthly":
+            return (now.day == calculation_day and 
+                   now.hour == calculation_hour)
+        elif calculation_schedule == "daily":
+            return now.hour == calculation_hour
+        elif calculation_schedule == "hourly":
             return True  # Calculate every hour
         
         return False
     
     def get_calculation_period(self, reference_date=None):
         """Get the period to calculate based on schedule."""
+        # Get schedule configuration dynamically
+        calculation_schedule = self.settings.get_dynamic(
+            'fee_management.calculation_schedule', 
+            default=self.config.calculation_schedule
+        )
         if reference_date is None:
             reference_date = datetime.now(UTC).date()
         
-        if self.config.calculation_schedule == "monthly":
+        if calculation_schedule == "monthly":
             # Previous month
             return (reference_date.replace(day=1) - timedelta(days=1)).replace(day=1)
-        elif self.config.calculation_schedule == "daily":
+        elif calculation_schedule == "daily":
             # Previous day
             return reference_date - timedelta(days=1)
-        elif self.config.calculation_schedule == "hourly":
+        elif calculation_schedule == "hourly":
             # Current month up to now
             return reference_date.replace(day=1)
         

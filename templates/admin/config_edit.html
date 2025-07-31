@@ -1,0 +1,216 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Edit Configuration{% endblock %}
+
+{% block content %}
+<style>
+    .edit-form {
+        background-color: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        max-width: 800px;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #495057;
+    }
+    .form-group input, 
+    .form-group textarea, 
+    .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    .form-group textarea {
+        min-height: 150px;
+        font-family: 'Courier New', monospace;
+    }
+    .form-group input:focus, 
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    }
+    .help-text {
+        font-size: 13px;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    .current-info {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .current-info code {
+        background-color: #e9ecef;
+        padding: 2px 5px;
+        border-radius: 3px;
+    }
+    .btn-group {
+        margin-top: 20px;
+    }
+    .btn-primary {
+        background-color: #28a745;
+        margin-right: 10px;
+    }
+    .btn-primary:hover {
+        background-color: #218838;
+    }
+    .btn-secondary {
+        background-color: #6c757d;
+    }
+    .btn-secondary:hover {
+        background-color: #5a6268;
+    }
+    .validation-error {
+        color: #dc3545;
+        font-size: 13px;
+        margin-top: 5px;
+        display: none;
+    }
+    .radio-group {
+        display: flex;
+        gap: 20px;
+    }
+    .radio-group label {
+        font-weight: normal;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+    }
+    .radio-group input {
+        width: auto;
+        margin-right: 5px;
+    }
+</style>
+
+<h2>Edit Configuration</h2>
+
+<div class="current-info">
+    <strong>Key:</strong> <code>{{ config.key }}</code><br>
+    <strong>Category:</strong> {{ config.category }}<br>
+    {% if config.source == 'static' %}
+        <strong>Source:</strong> Static configuration (will create database override)
+    {% else %}
+        <strong>Version:</strong> {{ config.version or 1 }}
+    {% endif %}
+</div>
+
+<form class="edit-form" action="{{ url_for('save_config', key=config.key) }}" method="POST" onsubmit="return validateForm()">
+    <input type="hidden" name="value_type" value="{{ value_type }}">
+    
+    <div class="form-group">
+        <label for="value">Value</label>
+        
+        {% if value_type == 'boolean' %}
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="value" value="true" {% if config.current_value %}checked{% endif %}>
+                    True
+                </label>
+                <label>
+                    <input type="radio" name="value" value="false" {% if not config.current_value %}checked{% endif %}>
+                    False
+                </label>
+            </div>
+        {% elif value_type == 'json' %}
+            <textarea name="value" id="value" required>{{ value_json }}</textarea>
+            <div class="help-text">Enter valid JSON. Objects and arrays are supported.</div>
+        {% elif value_type == 'number' %}
+            <input type="number" name="value" id="value" value="{{ config.current_value }}" step="any" required>
+        {% else %}
+            <input type="text" name="value" id="value" value="{{ config.current_value }}" required>
+        {% endif %}
+        
+        <div class="validation-error" id="validation-error"></div>
+    </div>
+    
+    <div class="form-group">
+        <label for="description">Change Description (optional)</label>
+        <input type="text" name="description" id="description" placeholder="Reason for this change">
+        <div class="help-text">This will be recorded in the change history.</div>
+    </div>
+    
+    <div class="btn-group">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+
+<script>
+function validateForm() {
+    const valueInput = document.getElementById('value');
+    const errorDiv = document.getElementById('validation-error');
+    const valueType = '{{ value_type }}';
+    const key = '{{ config.key }}';
+    
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+    
+    // Type validation
+    if (valueType === 'json') {
+        try {
+            JSON.parse(valueInput.value);
+        } catch (e) {
+            errorDiv.textContent = 'Invalid JSON format: ' + e.message;
+            errorDiv.style.display = 'block';
+            return false;
+        }
+    }
+    
+    // Key-specific validation
+    const value = valueInput.value;
+    
+    if (key.includes('_rate') || key.includes('percentage')) {
+        const numVal = parseFloat(value);
+        if (numVal < 0 || numVal > 1) {
+            errorDiv.textContent = 'Rate must be between 0 and 1';
+            errorDiv.style.display = 'block';
+            return false;
+        }
+    }
+    
+    if (key === 'fee_management.calculation_schedule') {
+        if (!['monthly', 'daily', 'hourly'].includes(value)) {
+            errorDiv.textContent = 'Schedule must be monthly, daily, or hourly';
+            errorDiv.style.display = 'block';
+            return false;
+        }
+    }
+    
+    if (key.includes('_minutes') || key.includes('_seconds') || key.includes('_hours')) {
+        const numVal = parseFloat(value);
+        if (numVal < 0) {
+            errorDiv.textContent = 'Time value must be positive';
+            errorDiv.style.display = 'block';
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Real-time JSON validation
+{% if value_type == 'json' %}
+document.getElementById('value').addEventListener('input', function() {
+    const errorDiv = document.getElementById('validation-error');
+    try {
+        JSON.parse(this.value);
+        errorDiv.style.display = 'none';
+    } catch (e) {
+        errorDiv.textContent = 'Invalid JSON: ' + e.message;
+        errorDiv.style.display = 'block';
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

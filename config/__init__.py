@@ -22,7 +22,7 @@ Usage:
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -102,6 +102,7 @@ class Settings:
     
     def __init__(self, config_data: Dict[str, Any]):
         self.metadata = config_data.get("metadata", {})
+        self._runtime_config = None  # Lazy-loaded runtime config service
         
         # Database configuration
         db_config = config_data.get("database", {})
@@ -212,6 +213,74 @@ class Settings:
         
         # Store raw config for additional access
         self.raw_config = config_data
+        
+        # Additional config attributes
+        self.fee_management = config_data.get("fee_management", {})
+    
+    @property
+    def runtime_config(self):
+        """Lazy-loaded runtime configuration service."""
+        if self._runtime_config is None:
+            try:
+                from config.runtime_config import get_runtime_config
+                self._runtime_config = get_runtime_config()
+            except Exception as e:
+                # Fallback if runtime config not available
+                print(f"Runtime config not available: {e}")
+                self._runtime_config = None
+        return self._runtime_config
+    
+    def get_dynamic(self, key: str, account_id: Optional[str] = None, 
+                    default: Any = None, use_cache: bool = True) -> Any:
+        """
+        Get configuration value with dynamic override support.
+        
+        This method first checks runtime configuration (database),
+        then falls back to static configuration.
+        
+        Args:
+            key: Configuration key in dot notation (e.g., 'scheduling.cron_interval_minutes')
+            account_id: Optional account ID for account-specific overrides
+            default: Default value if not found
+            use_cache: Whether to use cache
+            
+        Returns:
+            Configuration value
+        """
+        if self.runtime_config:
+            return self.runtime_config.get(key, account_id, default, use_cache)
+        
+        # Fallback to static config
+        parts = key.split('.')
+        value = self.raw_config
+        
+        for part in parts:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                return default
+        
+        return value
+    
+    def set_dynamic(self, key: str, value: Any, account_id: Optional[str] = None,
+                    description: Optional[str] = None, updated_by: str = 'system') -> bool:
+        """
+        Set dynamic configuration value.
+        
+        Args:
+            key: Configuration key
+            value: Configuration value
+            account_id: Optional account ID for account-specific override
+            description: Optional description of the change
+            updated_by: User/system making the change
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if self.runtime_config:
+            category = key.split('.')[0] if '.' in key else 'general'
+            return self.runtime_config.set(key, value, account_id, description, category, updated_by)
+        return False
     
     # Helper methods for backward compatibility and convenience
     def get_benchmark_allocation(self) -> Dict[str, float]:
