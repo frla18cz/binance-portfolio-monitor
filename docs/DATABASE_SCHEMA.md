@@ -5,10 +5,10 @@ This document provides a comprehensive overview of the database schema for the B
 ## Overview
 
 The database is hosted on Supabase (PostgreSQL) and consists of:
-- **10 main tables** that track cryptocurrency trading performance, benchmark comparisons, and system operations
+- **12 main tables** that track cryptocurrency trading performance, benchmark comparisons, and system operations
 - **3 views** for performance calculations and analytics
-- **6 functions** for business logic and maintenance
-- **4 triggers** for automated data population
+- **8 functions** for business logic and maintenance
+- **5 triggers** for automated data population
 
 ## Tables
 
