@@ -4,3 +4,5 @@ httpx
 python-dateutil
 python-dotenv
 requests
+flask
+flask-cors
