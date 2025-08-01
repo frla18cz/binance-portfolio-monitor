@@ -1,0 +1,127 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ 'Edit' if account else 'Create' }} Account - Config Admin{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h1 style="color: #2c3e50; margin-bottom: 30px;">
+        {{ 'Edit' if account else 'Create New' }} Account
+        <a href="{{ url_for('accounts') }}" style="float: right; font-size: 16px; color: #3498db; text-decoration: none;">
+            ← Back to Accounts
+        </a>
+    </h1>
+    
+    <form method="POST" style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="margin-bottom: 20px;">
+            <label for="account_name" style="display: block; margin-bottom: 5px; font-weight: bold;">Account Name *</label>
+            <input type="text" id="account_name" name="account_name" 
+                   value="{{ account['account_name'] if account else '' }}" 
+                   required
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label for="api_key" style="display: block; margin-bottom: 5px; font-weight: bold;">API Key *</label>
+            <input type="text" id="api_key" name="api_key" 
+                   value="{{ account['api_key'] if account else '' }}" 
+                   required
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-family: monospace;">
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label for="api_secret" style="display: block; margin-bottom: 5px; font-weight: bold;">API Secret *</label>
+            <input type="password" id="api_secret" name="api_secret" 
+                   value="{{ account['api_secret'] if account else '' }}" 
+                   required
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-family: monospace;">
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label for="email" style="display: block; margin-bottom: 5px; font-weight: bold;">Email</label>
+            <input type="email" id="email" name="email" 
+                   value="{{ account['email'] if account else '' }}" 
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+            <small style="color: #7f8c8d;">Required for sub-account transfer detection</small>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label for="performance_fee_rate" style="display: block; margin-bottom: 5px; font-weight: bold;">Performance Fee Rate</label>
+            <input type="number" id="performance_fee_rate" name="performance_fee_rate" 
+                   value="{{ account['performance_fee_rate'] if account else 0.5 }}" 
+                   min="0" max="1" step="0.01"
+                   style="width: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+            <small style="color: #7f8c8d;">Default: 0.5 (50%). Used for fee calculations when alpha > 0</small>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: bold;">
+                <input type="checkbox" id="is_sub_account" name="is_sub_account" 
+                       {% if account and account['is_sub_account'] %}checked{% endif %}
+                       onchange="toggleSubAccountFields()">
+                This is a sub-account
+            </label>
+        </div>
+        
+        <div id="sub_account_fields" style="display: {% if account and account['is_sub_account'] %}block{% else %}none{% endif %}; background: #f8f9fa; padding: 20px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #34495e;">Sub-Account Settings</h3>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="master_account_id" style="display: block; margin-bottom: 5px; font-weight: bold;">Master Account</label>
+                <select id="master_account_id" name="master_account_id" 
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+                    <option value="">-- Select Master Account --</option>
+                    {% for master in master_accounts %}
+                        <option value="{{ master['id'] }}" 
+                                {% if account and account['master_account_id'] == master['id'] %}selected{% endif %}>
+                            {{ master['account_name'] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="master_api_key" style="display: block; margin-bottom: 5px; font-weight: bold;">Master API Key</label>
+                <input type="text" id="master_api_key" name="master_api_key" 
+                       value="{{ account['master_api_key'] if account else '' }}" 
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-family: monospace;">
+                <small style="color: #7f8c8d;">Required for automatic sub-account transfer detection</small>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="master_api_secret" style="display: block; margin-bottom: 5px; font-weight: bold;">Master API Secret</label>
+                <input type="password" id="master_api_secret" name="master_api_secret" 
+                       value="{{ account['master_api_secret'] if account else '' }}" 
+                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-family: monospace;">
+            </div>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <button type="submit" 
+                    style="background: #2ecc71; color: white; border: none; padding: 12px 30px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px;"
+                    onmouseover="this.style.background='#27ae60'"
+                    onmouseout="this.style.background='#2ecc71'">
+                {{ 'Update' if account else 'Create' }} Account
+            </button>
+            <a href="{{ url_for('accounts') }}" 
+               style="background: #95a5a6; color: white; padding: 12px 30px; border-radius: 4px; text-decoration: none; display: inline-block; font-size: 16px;">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+function toggleSubAccountFields() {
+    const checkbox = document.getElementById('is_sub_account');
+    const fields = document.getElementById('sub_account_fields');
+    fields.style.display = checkbox.checked ? 'block' : 'none';
+    
+    // Clear sub-account fields if unchecked
+    if (!checkbox.checked) {
+        document.getElementById('master_account_id').value = '';
+        document.getElementById('master_api_key').value = '';
+        document.getElementById('master_api_secret').value = '';
+    }
+}
+</script>
+{% endblock %}

@@ -127,8 +127,11 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 ### Sub-Account Transfers
 - **Problem**: Binance API doesn't return internal transfers via standard withdrawal/deposit endpoints
 - **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
-- **Automatic Detection**: Sub-accounts now automatically check for transfers during monitoring
-- **Manual Detection**: Can still use scripts for batch processing or debugging
+- **Automatic Detection**: Works with proper credentials:
+  - Master accounts: automatically detect transfers for all their sub-accounts
+  - Sub-accounts with master credentials: can detect their own transfers
+  - Sub-accounts without master credentials: cannot detect transfers (manual only)
+- **Master Credentials**: Sub-accounts can have `master_api_key` and `master_api_secret` for transfer detection
 - **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
 - **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
 - **Benchmark Updates**: SUB_ transactions now properly trigger benchmark adjustments
@@ -136,7 +139,14 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 - **Scripts**:
   - `detect_sub_transfers.py` - Manual detection of sub-account transfers
   - `process_sub_account_transfers.py` - Batch processing for all accounts
-- **Database fields**: `email`, `is_sub_account`, `master_account_id` in binance_accounts table
+- **Database fields**: 
+  - `email`, `is_sub_account`, `master_account_id` - account identification
+  - `master_api_key`, `master_api_secret` - for sub-accounts to detect transfers
+- **Admin UI**: Account Management page provides full CRUD operations:
+  - Create new accounts (master or sub)
+  - Edit all account fields including API keys and master credentials
+  - Delete accounts with all related data
+  - Set performance fee rates per account
 
 ### Account Reset
 - **Purpose**: Clear all historical data for an account while preserving configuration

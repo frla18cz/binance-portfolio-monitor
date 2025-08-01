@@ -275,52 +275,76 @@ def process_all_accounts():
         logger.error(LogCategory.SYSTEM, "log_cleanup_error", 
                     f"Failed to run log cleanup: {str(e)}", error=str(e))
 
-def process_sub_account_transfers(db_client, binance_client, account_id, email, logger):
+
+def process_account_transfers(db_client, account, binance_client, prices, logger):
     """
-    Fetch and record sub-account transfers for the given account.
-    Only processes transfers not already in the database.
+    Process sub-account transfers for any account type.
+    Uses master credentials if available for sub-accounts.
     """
     try:
-        # Get last processed timestamp for sub-account transfers
+        # Skip if no email
+        if not account.get('email'):
+            return
+            
+        account_id = account['id']
+        account_name = account.get('account_name', 'Unknown')
+        
+        # Choose the right client based on account type
+        if account.get('is_sub_account') and account.get('master_api_key') and account.get('master_api_secret'):
+            # Use master credentials for sub-account
+            transfer_client = BinanceClient(account['master_api_key'], account['master_api_secret'])
+            logger.info(LogCategory.TRANSACTION, "using_master_credentials",
+                       f"Using master credentials for sub-account {account_name}",
+                       account_id=account_id)
+        else:
+            # Use own credentials
+            transfer_client = binance_client
+            
+        # Get last processed transfer time
         last_result = db_client.table('processed_transactions').select('timestamp').eq(
             'account_id', account_id
         ).like('transaction_id', 'SUB_%').order('timestamp', desc=True).limit(1).execute()
         
         start_time = None
         if last_result.data:
-            # Start from 1 minute after last processed to avoid duplicates
             last_timestamp = datetime.fromisoformat(last_result.data[0]['timestamp'].replace('Z', '+00:00'))
             start_time = int((last_timestamp + timedelta(minutes=1)).timestamp() * 1000)
-        
-        # Get transfers
+        else:
+            # Default to 30 days ago if no previous transfers
+            start_time = int((datetime.now(UTC) - timedelta(days=30)).timestamp() * 1000)
+            
+        # Get transfers using the email
         transfers = get_sub_account_transfers(
-            binance_client.API_KEY,
-            binance_client.SECRET,
-            email=email,
+            transfer_client.API_KEY,
+            transfer_client.SECRET,
+            email=account['email'],
             start_time=start_time,
             logger=logger,
             account_id=account_id
         )
         
         if not transfers:
+            logger.debug(LogCategory.TRANSACTION, "no_sub_transfers",
+                        f"No sub-account transfers found for {account_name}",
+                        account_id=account_id)
             return
-        
+            
         # Normalize and convert to USD
-        normalized = normalize_sub_account_transfers(transfers, binance_client, logger, account_id)
+        normalized = normalize_sub_account_transfers(transfers, transfer_client, logger, account_id)
         
         # Convert to processed_transactions format
         transactions_to_insert = []
         for transfer in normalized:
-            # Skip if already processed
+            # Check if already processed
             existing = db_client.table('processed_transactions').select('id').eq(
                 'account_id', account_id
             ).eq('transaction_id', transfer['transaction_id']).execute()
             
             if existing.data:
                 continue
-            
+                
             transactions_to_insert.append({
-                'account_id': account_id,
+                'account_id': str(account_id),
                 'transaction_id': transfer['transaction_id'],
                 'type': transfer['type'],
                 'amount': transfer['amount'],
@@ -328,17 +352,18 @@ def process_sub_account_transfers(db_client, binance_client, account_id, email, 
                 'status': 'SUCCESS',
                 'metadata': transfer.get('metadata')
             })
-        
+            
         if transactions_to_insert:
             db_client.table('processed_transactions').insert(transactions_to_insert).execute()
             logger.info(LogCategory.TRANSACTION, "sub_transfers_recorded",
-                       f"Recorded {len(transactions_to_insert)} new sub-account transfers",
+                       f"Recorded {len(transactions_to_insert)} new sub-account transfers for {account_name}",
                        account_id=account_id)
                        
     except Exception as e:
-        logger.error(LogCategory.TRANSACTION, "sub_transfer_error",
-                    f"Error processing sub-account transfers: {str(e)}",
-                    account_id=account_id, error=str(e))
+        # Log error but don't fail the whole process
+        logger.warning(LogCategory.TRANSACTION, "sub_transfer_detection_failed",
+                      f"Failed to detect sub-account transfers: {str(e)}",
+                      account_id=account.get('id'), error=str(e))
 
 def process_single_account(account, prices=None):
     """Kompletní logika pro jeden Binance účet."""
@@ -405,15 +430,12 @@ def process_single_account(account, prices=None):
                    data={"initial_nav": nav})
         config = initialize_benchmark(db_client, config, account_id, nav, prices, logger)
 
-    # Process sub-account transfers if this is a sub-account
-    if account.get('is_sub_account') and account.get('email'):
-        logger.info(LogCategory.TRANSACTION, "checking_sub_transfers", 
-                   f"Checking for sub-account transfers for {account_name}",
-                   account_id=account_id)
-        process_sub_account_transfers(db_client, binance_client, account_id, account.get('email'), logger)
     
     # Zpracování vkladů a výběrů
     config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
+    
+    # Process sub-account transfers
+    process_account_transfers(db_client, account, binance_client, prices, logger)
 
     # Kontrola a provedení rebalance
     now_utc = datetime.now(UTC)
