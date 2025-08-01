@@ -68,7 +68,8 @@
             <div style="margin-bottom: 15px;">
                 <label for="master_account_id" style="display: block; margin-bottom: 5px; font-weight: bold;">Master Account</label>
                 <select id="master_account_id" name="master_account_id" 
-                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;"
+                        onchange="updateMasterAccountInfo()">
                     <option value="">-- Select Master Account --</option>
                     {% for master in master_accounts %}
                         <option value="{{ master['id'] }}" 
@@ -77,21 +78,37 @@
                         </option>
                     {% endfor %}
                 </select>
+                <small id="master_account_info" style="color: #27ae60; display: none;">
+                    ✓ API credentials will be automatically loaded from the selected master account
+                </small>
+            </div>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                <strong>Advanced Settings (Optional)</strong>
+                <p style="margin: 10px 0 0 0; font-size: 14px;">
+                    Leave empty to automatically use credentials from the selected master account.<br>
+                    Only fill these if you need to override with different credentials.
+                </p>
             </div>
             
             <div style="margin-bottom: 15px;">
-                <label for="master_api_key" style="display: block; margin-bottom: 5px; font-weight: bold;">Master API Key</label>
+                <label for="master_api_key" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                    Override Master API Key <span style="font-weight: normal; color: #7f8c8d;">(Optional)</span>
+                </label>
                 <input type="text" id="master_api_key" name="master_api_key" 
                        value="{{ account['master_api_key'] if account else '' }}" 
                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-family: monospace;">
-                <small style="color: #7f8c8d;">Required for automatic sub-account transfer detection</small>
+                <small style="color: #7f8c8d;">Only if different from master account's API key</small>
             </div>
             
             <div style="margin-bottom: 15px;">
-                <label for="master_api_secret" style="display: block; margin-bottom: 5px; font-weight: bold;">Master API Secret</label>
+                <label for="master_api_secret" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                    Override Master API Secret <span style="font-weight: normal; color: #7f8c8d;">(Optional)</span>
+                </label>
                 <input type="password" id="master_api_secret" name="master_api_secret" 
                        value="{{ account['master_api_secret'] if account else '' }}" 
                        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; font-family: monospace;">
+                <small style="color: #7f8c8d;">Only if different from master account's API secret</small>
             </div>
         </div>
         
@@ -123,5 +140,23 @@ function toggleSubAccountFields() {
         document.getElementById('master_api_secret').value = '';
     }
 }
+
+function updateMasterAccountInfo() {
+    const select = document.getElementById('master_account_id');
+    const info = document.getElementById('master_account_info');
+    
+    if (select.value) {
+        info.style.display = 'block';
+    } else {
+        info.style.display = 'none';
+    }
+}
+
+// Call on page load if master account is already selected
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('master_account_id').value) {
+        updateMasterAccountInfo();
+    }
+});
 </script>
 {% endblock %}
