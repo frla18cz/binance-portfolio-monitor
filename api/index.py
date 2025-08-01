@@ -289,16 +289,14 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
         account_id = account['id']
         account_name = account.get('account_name', 'Unknown')
         
-        # Choose the right client based on account type
-        if account.get('is_sub_account') and account.get('master_api_key') and account.get('master_api_secret'):
-            # Use master credentials for sub-account
-            transfer_client = BinanceClient(account['master_api_key'], account['master_api_secret'])
-            logger.info(LogCategory.TRANSACTION, "using_master_credentials",
-                       f"Using master credentials for sub-account {account_name}",
+        # For sub-account transfer history, we need to use the sub-account's own credentials
+        # The API endpoint /sapi/v1/sub-account/transfer/subUserHistory only works from sub-account perspective
+        transfer_client = binance_client
+        
+        if account.get('is_sub_account'):
+            logger.info(LogCategory.TRANSACTION, "using_sub_account_credentials",
+                       f"Using sub-account's own credentials for transfer detection: {account_name}",
                        account_id=account_id)
-        else:
-            # Use own credentials
-            transfer_client = binance_client
             
         # Get last processed transfer time
         last_result = db_client.table('processed_transactions').select('timestamp').eq(
