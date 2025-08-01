@@ -136,8 +136,18 @@ def calculate_next_run():
     """
     now = datetime.now()
     
-    # Načíst interval z settings.json
-    interval_minutes = settings.scheduling.cron_interval_minutes
+    # Načíst interval z runtime konfigurace (databáze) s fallbackem na settings.json
+    try:
+        from config.runtime_config import get_runtime_config
+        runtime_config = get_runtime_config()
+        interval_minutes = runtime_config.get(
+            'scheduling.cron_interval_minutes',
+            default=settings.scheduling.cron_interval_minutes
+        )
+        logger.info(f"📊 Načten interval z runtime konfigurace: {interval_minutes} minut")
+    except Exception as e:
+        logger.warning(f"⚠️ Nelze načíst runtime konfiguraci: {e}, používám settings.json")
+        interval_minutes = settings.scheduling.cron_interval_minutes
     
     # Zaokrouhlení na nejbližší násobek intervalu
     minutes_since_hour = now.minute
@@ -172,7 +182,19 @@ def main():
     logger.info(f"Python: {sys.version}")
     logger.info(f"Pracovní adresář: {os.getcwd()}")
     logger.info(f"Project root: {project_root}")
-    logger.info(f"📊 Použitý interval: {settings.scheduling.cron_interval_minutes} minut")
+    
+    # Načíst aktuální interval z runtime konfigurace
+    try:
+        from config.runtime_config import get_runtime_config
+        runtime_config = get_runtime_config()
+        current_interval = runtime_config.get(
+            'scheduling.cron_interval_minutes',
+            default=settings.scheduling.cron_interval_minutes
+        )
+    except:
+        current_interval = settings.scheduling.cron_interval_minutes
+    
+    logger.info(f"📊 Použitý interval: {current_interval} minut")
     
     # Kontrola process locku
     lock = ProcessLock("binance_monitor")
