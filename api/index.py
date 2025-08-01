@@ -329,29 +329,77 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
                         account_id=account_id)
             return
             
-        # Normalize and convert to USD
-        normalized = normalize_sub_account_transfers(transfers, transfer_client, logger, account_id)
+        # Normalize transfers with account email
+        normalized = normalize_sub_account_transfers(transfers, account['email'], logger, account_id)
         
-        # Convert to processed_transactions format
+        # Get BTC price for fallback conversion
+        btc_price = prices.get('BTCUSDT', 0) if prices else 0
+        
+        # Convert to processed_transactions format with USD conversion
         transactions_to_insert = []
         for transfer in normalized:
+            # Generate unique transaction ID with SUB_ prefix
+            transaction_id = f"SUB_{transfer.get('id', '').replace('SUB_', '')}"
+            
             # Check if already processed
             existing = db_client.table('processed_transactions').select('id').eq(
                 'account_id', account_id
-            ).eq('transaction_id', transfer['transaction_id']).execute()
+            ).eq('transaction_id', transaction_id).execute()
             
             if existing.data:
                 continue
-                
+            
+            # Get USD value for the transfer
+            coin = transfer.get('coin', '')
+            amount = transfer.get('amount', 0)
+            
+            usd_value, coin_price, price_source = get_coin_usd_value(
+                transfer_client, coin, amount, btc_price, logger, account_id
+            )
+            
+            # Build metadata
+            metadata = {
+                'coin': coin,
+                'from_email': transfer.get('from_email', ''),
+                'to_email': transfer.get('to_email', ''),
+                'direction': transfer.get('direction', ''),
+                'transfer_type': transfer.get('transfer_type', 1),  # 1 = internal
+                'network': 'INTERNAL'
+            }
+            
+            # Add USD conversion info if available
+            if usd_value is not None:
+                metadata['usd_value'] = usd_value
+                metadata['coin_price'] = coin_price
+                metadata['price_source'] = price_source
+                metadata['price_missing'] = False
+            else:
+                metadata['price_missing'] = True
+                usd_value = 0  # Default to 0 for database
+            
+            # Create the transaction record
             transactions_to_insert.append({
                 'account_id': str(account_id),
-                'transaction_id': transfer['transaction_id'],
-                'type': transfer['type'],
-                'amount': transfer['amount'],
-                'timestamp': transfer['timestamp'],
+                'transaction_id': transaction_id,
+                'type': f"SUB_{transfer['type']}",  # SUB_DEPOSIT or SUB_WITHDRAWAL
+                'amount': usd_value if usd_value > 0 else amount,  # Use USD value if available
+                'timestamp': datetime.fromtimestamp(transfer['timestamp'] / 1000, UTC).isoformat(),
                 'status': 'SUCCESS',
-                'metadata': transfer.get('metadata')
+                'metadata': metadata
             })
+            
+            # Log the transfer
+            if logger:
+                logger.info(LogCategory.TRANSACTION, f"sub_{transfer['type'].lower()}_prepared",
+                           f"SUB_{transfer['type']}: {amount} {coin} (${usd_value:.2f} @ ${coin_price:.2f} {price_source})" if usd_value else f"SUB_{transfer['type']}: {amount} {coin} (price missing)",
+                           account_id=account_id,
+                           data={
+                               'coin': coin,
+                               'amount': amount,
+                               'usd_value': usd_value,
+                               'direction': transfer.get('direction', ''),
+                               'counterparty': transfer.get('from_email') if transfer['type'] == 'DEPOSIT' else transfer.get('to_email')
+                           })
             
         if transactions_to_insert:
             db_client.table('processed_transactions').insert(transactions_to_insert).execute()
