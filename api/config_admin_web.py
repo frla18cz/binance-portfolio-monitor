@@ -360,7 +360,7 @@ def update_master_credentials(account_id):
             return jsonify({'success': False, 'error': 'Both API key and secret are required'}), 400
         
         # Update in database
-        from api.supabase_client import get_supabase_client
+        from utils.database_manager import get_supabase_client
         supabase = get_supabase_client()
         
         result = supabase.table('binance_accounts').update({
@@ -389,7 +389,7 @@ def update_master_credentials(account_id):
 @app.route('/accounts/create', methods=['GET', 'POST'])
 def create_account():
     """Create new account."""
-    from api.supabase_client import get_supabase_client
+    from utils.database_manager import get_supabase_client
     supabase = get_supabase_client()
     
     if request.method == 'GET':
@@ -467,7 +467,7 @@ def create_account():
 @app.route('/accounts/edit/<account_id>', methods=['GET', 'POST'])
 def edit_account(account_id):
     """Edit existing account."""
-    from api.supabase_client import get_supabase_client
+    from utils.database_manager import get_supabase_client
     supabase = get_supabase_client()
     
     # Get account
@@ -549,7 +549,7 @@ def edit_account(account_id):
 def delete_account(account_id):
     """Delete account and all related data."""
     try:
-        from api.supabase_client import get_supabase_client
+        from utils.database_manager import get_supabase_client
         supabase = get_supabase_client()
         
         # Get account name for message
