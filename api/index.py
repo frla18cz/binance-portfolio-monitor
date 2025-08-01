@@ -316,7 +316,7 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
         # Get transfers using the email
         transfers = get_sub_account_transfers(
             transfer_client.API_KEY,
-            transfer_client.SECRET,
+            transfer_client.API_SECRET,
             email=account['email'],
             start_time=start_time,
             logger=logger,
