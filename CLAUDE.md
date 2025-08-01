@@ -129,11 +129,10 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 - **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
 - **Automatic Detection**: Works with proper credentials:
   - Master accounts: automatically detect transfers for all their sub-accounts
-  - Sub-accounts: automatically use master account's API credentials when linked
-  - Override option: can specify different master credentials if needed
-- **Credential Inheritance**: 
-  - When `master_account_id` is set, API credentials are automatically loaded from master
-  - `master_api_key` and `master_api_secret` are optional overrides
+  - Sub-accounts: require master API credentials to detect transfers
+- **Simple Setup**: 
+  - For sub-accounts, manually enter master API key and secret
+  - No complex linking or inheritance - everything is explicit
 - **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
 - **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
 - **Benchmark Updates**: SUB_ transactions now properly trigger benchmark adjustments

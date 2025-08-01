@@ -290,40 +290,14 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
         account_name = account.get('account_name', 'Unknown')
         
         # Choose the right client based on account type
-        if account.get('is_sub_account'):
-            # First check for explicit master credentials
-            if account.get('master_api_key') and account.get('master_api_secret'):
-                # Use explicitly set master credentials
-                transfer_client = BinanceClient(account['master_api_key'], account['master_api_secret'])
-                logger.info(LogCategory.TRANSACTION, "using_explicit_master_credentials",
-                           f"Using explicitly set master credentials for sub-account {account_name}",
-                           account_id=account_id)
-            elif account.get('master_account_id'):
-                # Try to load credentials from master account
-                master_result = db_client.table('binance_accounts').select('api_key, api_secret, account_name').eq(
-                    'id', account['master_account_id']
-                ).execute()
-                
-                if master_result.data:
-                    master = master_result.data[0]
-                    transfer_client = BinanceClient(master['api_key'], master['api_secret'])
-                    logger.info(LogCategory.TRANSACTION, "using_master_account_credentials",
-                               f"Using credentials from master account '{master['account_name']}' for sub-account {account_name}",
-                               account_id=account_id)
-                else:
-                    # Master account not found, use own credentials
-                    transfer_client = binance_client
-                    logger.warning(LogCategory.TRANSACTION, "master_account_not_found",
-                                 f"Master account not found for sub-account {account_name}, using own credentials",
-                                 account_id=account_id)
-            else:
-                # No master account configured, use own credentials
-                transfer_client = binance_client
-                logger.debug(LogCategory.TRANSACTION, "no_master_configured",
-                           f"No master account configured for sub-account {account_name}, using own credentials",
-                           account_id=account_id)
+        if account.get('is_sub_account') and account.get('master_api_key') and account.get('master_api_secret'):
+            # Use master credentials for sub-account
+            transfer_client = BinanceClient(account['master_api_key'], account['master_api_secret'])
+            logger.info(LogCategory.TRANSACTION, "using_master_credentials",
+                       f"Using master credentials for sub-account {account_name}",
+                       account_id=account_id)
         else:
-            # Use own credentials for master accounts
+            # Use own credentials
             transfer_client = binance_client
             
         # Get last processed transfer time
