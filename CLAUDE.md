@@ -127,8 +127,12 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 ### Sub-Account Transfers
 - **Problem**: Binance API doesn't return internal transfers via standard withdrawal/deposit endpoints
 - **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
-- **Automatic Detection**: Sub-accounts now automatically check for transfers during monitoring
-- **Manual Detection**: Can still use scripts for batch processing or debugging
+- **Automatic Detection**: Works with proper credentials:
+  - Master accounts: automatically detect transfers for all their sub-accounts
+  - Sub-accounts: require master API credentials to detect transfers
+- **Simple Setup**: 
+  - For sub-accounts, manually enter master API key and secret
+  - No complex linking or inheritance - everything is explicit
 - **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
 - **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
 - **Benchmark Updates**: SUB_ transactions now properly trigger benchmark adjustments
@@ -136,7 +140,14 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 - **Scripts**:
   - `detect_sub_transfers.py` - Manual detection of sub-account transfers
   - `process_sub_account_transfers.py` - Batch processing for all accounts
-- **Database fields**: `email`, `is_sub_account`, `master_account_id` in binance_accounts table
+- **Database fields**: 
+  - `email`, `is_sub_account`, `master_account_id` - account identification
+  - `master_api_key`, `master_api_secret` - for sub-accounts to detect transfers
+- **Admin UI**: Account Management page provides full CRUD operations:
+  - Create new accounts (master or sub)
+  - Edit all account fields including API keys and master credentials
+  - Delete accounts with all related data
+  - Set performance fee rates per account
 
 ### Account Reset
 - **Purpose**: Clear all historical data for an account while preserving configuration
@@ -155,6 +166,7 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 ```bash
 python -m api.index                    # Run monitoring manually
 python -m api.dashboard                # Start dashboard (port 8000)
+python -m api.config_admin_web         # Start config admin (port 8002)
 python debug_nav.py                    # Debug NAV calculation
 python scripts/run_fee_calculation.py  # Manual fee calculation
 
@@ -178,6 +190,10 @@ python scripts/reset_account_data.py --list  # List all accounts
 python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1"  # Reset specific account
 python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1" --yes  # Skip confirmation
 ```
+
+## Testing
+For detailed testing instructions, see:
+- `docs/TESTING_SUB_ACCOUNTS.md` - Complete guide for testing sub-account transfers and admin UI
 
 ## API Endpoints
 - `/api/dashboard/metrics` - Current NAV and benchmark

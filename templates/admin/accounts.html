@@ -6,9 +6,14 @@
 <div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
     <h1 style="color: #2c3e50; margin-bottom: 30px;">
         Account Management
-        <a href="{{ url_for('index') }}" style="float: right; font-size: 16px; color: #3498db; text-decoration: none;">
-            ← Back to Config
-        </a>
+        <div style="float: right;">
+            <a href="{{ url_for('create_account') }}" style="background: #2ecc71; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-size: 16px; margin-right: 10px;">
+                + Create New Account
+            </a>
+            <a href="{{ url_for('index') }}" style="font-size: 16px; color: #3498db; text-decoration: none;">
+                ← Back to Config
+            </a>
+        </div>
     </h1>
     
     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
@@ -28,7 +33,9 @@
         <thead>
             <tr style="background: #3498db; color: white;">
                 <th style="padding: 15px; text-align: left;">Account Name</th>
-                <th style="padding: 15px; text-align: left;">Account ID</th>
+                <th style="padding: 15px; text-align: left;">Type</th>
+                <th style="padding: 15px; text-align: left;">Email</th>
+                <th style="padding: 15px; text-align: left;">Master Credentials</th>
                 <th style="padding: 15px; text-align: center;">Actions</th>
             </tr>
         </thead>
@@ -36,19 +43,61 @@
             {% for account in accounts %}
             <tr style="border-bottom: 1px solid #ecf0f1;">
                 <td style="padding: 15px;">
-                    <strong>{{ account.account_name }}</strong>
+                    <strong>{{ account['account_name'] }}</strong>
                 </td>
-                <td style="padding: 15px; font-family: monospace; font-size: 12px; color: #7f8c8d;">
-                    {{ account.id }}
+                <td style="padding: 15px;">
+                    {% if account['is_sub_account'] %}
+                        <span style="background: #f39c12; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px;">SUB</span>
+                    {% else %}
+                        <span style="background: #2ecc71; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px;">MASTER</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 15px;">
+                    {{ account['email'] or '-' }}
+                </td>
+                <td style="padding: 15px;">
+                    {% if account['is_sub_account'] %}
+                        {% if account['master_api_key'] %}
+                            <span style="color: #27ae60;">✓ Set</span>
+                            <button 
+                                onclick="editMasterCredentials('{{ account['id'] }}', '{{ account['account_name'] }}')"
+                                style="margin-left: 10px; background: #3498db; color: white; border: none; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px;"
+                            >
+                                Edit
+                            </button>
+                        {% else %}
+                            <span style="color: #e74c3c;">✗ Not Set</span>
+                            <button 
+                                onclick="editMasterCredentials('{{ account['id'] }}', '{{ account['account_name'] }}')"
+                                style="margin-left: 10px; background: #2ecc71; color: white; border: none; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px;"
+                            >
+                                Add
+                            </button>
+                        {% endif %}
+                    {% else %}
+                        <span style="color: #95a5a6;">N/A</span>
+                    {% endif %}
                 </td>
                 <td style="padding: 15px; text-align: center;">
+                    <a href="{{ url_for('edit_account', account_id=account['id']) }}" 
+                       style="background: #3498db; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px; margin-right: 5px; display: inline-block;">
+                        Edit
+                    </a>
                     <button 
-                        onclick="resetAccount('{{ account.id }}', '{{ account.account_name }}')"
+                        onclick="resetAccount('{{ account['id'] }}', '{{ account['account_name'] }}')"
+                        style="background: #f39c12; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 5px;"
+                        onmouseover="this.style.background='#e67e22'"
+                        onmouseout="this.style.background='#f39c12'"
+                    >
+                        Reset
+                    </button>
+                    <button 
+                        onclick="deleteAccount('{{ account['id'] }}', '{{ account['account_name'] }}')"
                         style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;"
                         onmouseover="this.style.background='#c0392b'"
                         onmouseout="this.style.background='#e74c3c'"
                     >
-                        Reset Account
+                        Delete
                     </button>
                 </td>
             </tr>
@@ -85,6 +134,89 @@ function resetAccount(accountId, accountName) {
         if (data.success) {
             alert(data.message);
             // Optionally reload the page to show updated state
+            window.location.reload();
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`Error: ${error.message}`);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.textContent = originalText;
+    });
+}
+
+function editMasterCredentials(accountId, accountName) {
+    const apiKey = prompt(`Enter master API key for sub-account '${accountName}':`);
+    if (!apiKey) return;
+    
+    const apiSecret = prompt(`Enter master API secret for sub-account '${accountName}':`);
+    if (!apiSecret) return;
+    
+    // Show loading state
+    const button = event.target;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving...';
+    
+    fetch(`/accounts/update-master-credentials/${accountId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            master_api_key: apiKey,
+            master_api_secret: apiSecret
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Master credentials updated successfully!');
+            window.location.reload();
+        } else {
+            alert(`Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        alert(`Error: ${error.message}`);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.textContent = originalText;
+    });
+}
+
+function deleteAccount(accountId, accountName) {
+    if (!confirm(`Are you sure you want to DELETE the account '${accountName}'?\n\nThis will permanently remove the account and ALL its data. This action cannot be undone!`)) {
+        return;
+    }
+    
+    // Double confirmation for safety
+    const confirmName = prompt(`Type the account name '${accountName}' to confirm deletion:`);
+    if (confirmName !== accountName) {
+        alert('Account name does not match. Deletion cancelled.');
+        return;
+    }
+    
+    // Show loading state
+    const button = event.target;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Deleting...';
+    
+    fetch(`/accounts/delete/${accountId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
             window.location.reload();
         } else {
             alert(`Error: ${data.error}`);

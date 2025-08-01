@@ -348,6 +348,252 @@ def reset_account(account_id):
         }), 500
 
 
+@app.route('/accounts/update-master-credentials/<account_id>', methods=['POST'])
+def update_master_credentials(account_id):
+    """Update master API credentials for a sub-account."""
+    try:
+        data = request.get_json()
+        master_api_key = data.get('master_api_key')
+        master_api_secret = data.get('master_api_secret')
+        
+        if not master_api_key or not master_api_secret:
+            return jsonify({'success': False, 'error': 'Both API key and secret are required'}), 400
+        
+        # Update in database
+        from utils.database_manager import get_supabase_client
+        supabase = get_supabase_client()
+        
+        result = supabase.table('binance_accounts').update({
+            'master_api_key': master_api_key,
+            'master_api_secret': master_api_secret
+        }).eq('id', account_id).execute()
+        
+        if result.data:
+            return jsonify({
+                'success': True, 
+                'message': 'Master credentials updated successfully'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to update credentials'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        }), 500
+
+
+@app.route('/accounts/create', methods=['GET', 'POST'])
+def create_account():
+    """Create new account."""
+    from utils.database_manager import get_supabase_client
+    supabase = get_supabase_client()
+    
+    if request.method == 'GET':
+        # Get master accounts for dropdown
+        try:
+            master_accounts = supabase.table('binance_accounts').select('*').eq('is_sub_account', False).execute()
+            print(f"DEBUG: Rendering create account form with {len(master_accounts.data or [])} master accounts")
+            return render_template('admin/account_form.html', 
+                                 account=None, 
+                                 master_accounts=master_accounts.data or [])
+        except Exception as e:
+            print(f"ERROR in create_account GET: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            flash(f'Error loading form: {str(e)}', 'error')
+            return redirect(url_for('accounts'))
+    
+    # POST - create account
+    try:
+        # Get form data
+        account_name = request.form.get('account_name', '').strip()
+        api_key = request.form.get('api_key', '').strip()
+        api_secret = request.form.get('api_secret', '').strip()
+        email = request.form.get('email', '').strip() or None
+        is_sub_account = request.form.get('is_sub_account') == 'on'
+        master_account_id = request.form.get('master_account_id') or None
+        master_api_key = request.form.get('master_api_key', '').strip() or None
+        master_api_secret = request.form.get('master_api_secret', '').strip() or None
+        performance_fee_rate = float(request.form.get('performance_fee_rate', 0.5))
+        
+        # Validate required fields
+        if not account_name or not api_key or not api_secret:
+            flash('Account name, API key and API secret are required', 'error')
+            return redirect(url_for('create_account'))
+        
+        # Check if account name already exists
+        existing = supabase.table('binance_accounts').select('id').eq('account_name', account_name).execute()
+        if existing.data:
+            flash(f'Account name "{account_name}" already exists', 'error')
+            return redirect(url_for('create_account'))
+        
+        # Create account data
+        account_data = {
+            'account_name': account_name,
+            'api_key': api_key,
+            'api_secret': api_secret,
+            'email': email,
+            'is_sub_account': is_sub_account,
+            'performance_fee_rate': performance_fee_rate
+        }
+        
+        # Add sub-account specific fields
+        if is_sub_account:
+            if master_account_id:
+                account_data['master_account_id'] = master_account_id
+            if master_api_key and master_api_secret:
+                account_data['master_api_key'] = master_api_key
+                account_data['master_api_secret'] = master_api_secret
+        
+        # Insert account
+        result = supabase.table('binance_accounts').insert(account_data).execute()
+        
+        if result.data:
+            flash(f'Account "{account_name}" created successfully', 'success')
+            return redirect(url_for('accounts'))
+        else:
+            flash('Failed to create account', 'error')
+            return redirect(url_for('create_account'))
+            
+    except Exception as e:
+        flash(f'Error creating account: {str(e)}', 'error')
+        return redirect(url_for('create_account'))
+
+
+@app.route('/accounts/edit/<account_id>', methods=['GET', 'POST'])
+def edit_account(account_id):
+    """Edit existing account."""
+    from utils.database_manager import get_supabase_client
+    supabase = get_supabase_client()
+    
+    # Get account
+    account_result = supabase.table('binance_accounts').select('*').eq('id', account_id).execute()
+    if not account_result.data:
+        flash('Account not found', 'error')
+        return redirect(url_for('accounts'))
+    
+    account = account_result.data[0]
+    
+    if request.method == 'GET':
+        # Get master accounts for dropdown
+        master_accounts = supabase.table('binance_accounts').select('*').eq('is_sub_account', False).execute()
+        return render_template('admin/account_form.html', 
+                             account=account, 
+                             master_accounts=master_accounts.data or [])
+    
+    # POST - update account
+    try:
+        # Get form data
+        account_name = request.form.get('account_name', '').strip()
+        api_key = request.form.get('api_key', '').strip()
+        api_secret = request.form.get('api_secret', '').strip()
+        email = request.form.get('email', '').strip() or None
+        is_sub_account = request.form.get('is_sub_account') == 'on'
+        master_account_id = request.form.get('master_account_id') or None
+        master_api_key = request.form.get('master_api_key', '').strip() or None
+        master_api_secret = request.form.get('master_api_secret', '').strip() or None
+        performance_fee_rate = float(request.form.get('performance_fee_rate', 0.5))
+        
+        # Validate required fields
+        if not account_name or not api_key or not api_secret:
+            flash('Account name, API key and API secret are required', 'error')
+            return redirect(url_for('edit_account', account_id=account_id))
+        
+        # Check if account name already exists (excluding current account)
+        existing = supabase.table('binance_accounts').select('id').eq('account_name', account_name).neq('id', account_id).execute()
+        if existing.data:
+            flash(f'Account name "{account_name}" already exists', 'error')
+            return redirect(url_for('edit_account', account_id=account_id))
+        
+        # Update account data
+        update_data = {
+            'account_name': account_name,
+            'api_key': api_key,
+            'api_secret': api_secret,
+            'email': email,
+            'is_sub_account': is_sub_account,
+            'performance_fee_rate': performance_fee_rate
+        }
+        
+        # Handle sub-account fields
+        if is_sub_account:
+            update_data['master_account_id'] = master_account_id
+            update_data['master_api_key'] = master_api_key
+            update_data['master_api_secret'] = master_api_secret
+        else:
+            # Clear sub-account fields if not a sub-account
+            update_data['master_account_id'] = None
+            update_data['master_api_key'] = None
+            update_data['master_api_secret'] = None
+        
+        # Update account
+        result = supabase.table('binance_accounts').update(update_data).eq('id', account_id).execute()
+        
+        if result.data:
+            flash(f'Account "{account_name}" updated successfully', 'success')
+            return redirect(url_for('accounts'))
+        else:
+            flash('Failed to update account', 'error')
+            return redirect(url_for('edit_account', account_id=account_id))
+            
+    except Exception as e:
+        flash(f'Error updating account: {str(e)}', 'error')
+        return redirect(url_for('edit_account', account_id=account_id))
+
+
+@app.route('/accounts/delete/<account_id>', methods=['POST'])
+def delete_account(account_id):
+    """Delete account and all related data."""
+    try:
+        from utils.database_manager import get_supabase_client
+        supabase = get_supabase_client()
+        
+        # Get account name for message
+        account_result = supabase.table('binance_accounts').select('account_name').eq('id', account_id).execute()
+        if not account_result.data:
+            return jsonify({'success': False, 'error': 'Account not found'}), 404
+        
+        account_name = account_result.data[0]['account_name']
+        
+        # Delete related data in order
+        tables_to_clean = [
+            'processed_transactions',
+            'nav_history',
+            'benchmark_configs',
+            'benchmark_modifications',
+            'benchmark_rebalance_history',
+            'account_processing_status',
+            'fee_tracking'
+        ]
+        
+        for table in tables_to_clean:
+            supabase.table(table).delete().eq('account_id', account_id).execute()
+        
+        # Finally delete the account
+        result = supabase.table('binance_accounts').delete().eq('id', account_id).execute()
+        
+        if result.data:
+            return jsonify({
+                'success': True,
+                'message': f'Account "{account_name}" and all related data deleted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to delete account'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template('admin/base.html', content='Page not found'), 404
