@@ -166,6 +166,7 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 ```bash
 python -m api.index                    # Run monitoring manually
 python -m api.dashboard                # Start dashboard (port 8000)
+python -m api.config_admin_web         # Start config admin (port 8002)
 python debug_nav.py                    # Debug NAV calculation
 python scripts/run_fee_calculation.py  # Manual fee calculation
 
@@ -189,6 +190,10 @@ python scripts/reset_account_data.py --list  # List all accounts
 python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1"  # Reset specific account
 python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1" --yes  # Skip confirmation
 ```
+
+## Testing
+For detailed testing instructions, see:
+- `docs/TESTING_SUB_ACCOUNTS.md` - Complete guide for testing sub-account transfers and admin UI
 
 ## API Endpoints
 - `/api/dashboard/metrics` - Current NAV and benchmark
