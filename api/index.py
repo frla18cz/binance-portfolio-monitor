@@ -275,6 +275,71 @@ def process_all_accounts():
         logger.error(LogCategory.SYSTEM, "log_cleanup_error", 
                     f"Failed to run log cleanup: {str(e)}", error=str(e))
 
+def process_sub_account_transfers(db_client, binance_client, account_id, email, logger):
+    """
+    Fetch and record sub-account transfers for the given account.
+    Only processes transfers not already in the database.
+    """
+    try:
+        # Get last processed timestamp for sub-account transfers
+        last_result = db_client.table('processed_transactions').select('timestamp').eq(
+            'account_id', account_id
+        ).like('transaction_id', 'SUB_%').order('timestamp', desc=True).limit(1).execute()
+        
+        start_time = None
+        if last_result.data:
+            # Start from 1 minute after last processed to avoid duplicates
+            last_timestamp = datetime.fromisoformat(last_result.data[0]['timestamp'].replace('Z', '+00:00'))
+            start_time = int((last_timestamp + timedelta(minutes=1)).timestamp() * 1000)
+        
+        # Get transfers
+        transfers = get_sub_account_transfers(
+            binance_client.API_KEY,
+            binance_client.SECRET,
+            email=email,
+            start_time=start_time,
+            logger=logger,
+            account_id=account_id
+        )
+        
+        if not transfers:
+            return
+        
+        # Normalize and convert to USD
+        normalized = normalize_sub_account_transfers(transfers, binance_client, logger, account_id)
+        
+        # Convert to processed_transactions format
+        transactions_to_insert = []
+        for transfer in normalized:
+            # Skip if already processed
+            existing = db_client.table('processed_transactions').select('id').eq(
+                'account_id', account_id
+            ).eq('transaction_id', transfer['transaction_id']).execute()
+            
+            if existing.data:
+                continue
+            
+            transactions_to_insert.append({
+                'account_id': account_id,
+                'transaction_id': transfer['transaction_id'],
+                'type': transfer['type'],
+                'amount': transfer['amount'],
+                'timestamp': transfer['timestamp'],
+                'status': 'SUCCESS',
+                'metadata': transfer.get('metadata')
+            })
+        
+        if transactions_to_insert:
+            db_client.table('processed_transactions').insert(transactions_to_insert).execute()
+            logger.info(LogCategory.TRANSACTION, "sub_transfers_recorded",
+                       f"Recorded {len(transactions_to_insert)} new sub-account transfers",
+                       account_id=account_id)
+                       
+    except Exception as e:
+        logger.error(LogCategory.TRANSACTION, "sub_transfer_error",
+                    f"Error processing sub-account transfers: {str(e)}",
+                    account_id=account_id, error=str(e))
+
 def process_single_account(account, prices=None):
     """Kompletní logika pro jeden Binance účet."""
     logger = get_logger()
@@ -340,6 +405,13 @@ def process_single_account(account, prices=None):
                    data={"initial_nav": nav})
         config = initialize_benchmark(db_client, config, account_id, nav, prices, logger)
 
+    # Process sub-account transfers if this is a sub-account
+    if account.get('is_sub_account') and account.get('email'):
+        logger.info(LogCategory.TRANSACTION, "checking_sub_transfers", 
+                   f"Checking for sub-account transfers for {account_name}",
+                   account_id=account_id)
+        process_sub_account_transfers(db_client, binance_client, account_id, account.get('email'), logger)
+    
     # Zpracování vkladů a výběrů
     config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
 
@@ -1167,7 +1239,7 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                 amount = float(txn['amount'])
                 
                 # Validate transaction type
-                valid_types = ['DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL']
+                valid_types = ['DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL', 'SUB_DEPOSIT', 'SUB_WITHDRAWAL']
                 if not txn.get('type'):
                     if logger:
                         logger.error(LogCategory.TRANSACTION, "missing_transaction_type", 
@@ -1183,26 +1255,26 @@ def process_deposits_withdrawals(db_client, binance_client, account_id, config, 
                     continue
                 
                 # For deposits, check if we have USD value in metadata
-                if txn['type'] in ['DEPOSIT', 'PAY_DEPOSIT']:
+                if txn['type'] in ['DEPOSIT', 'PAY_DEPOSIT', 'SUB_DEPOSIT']:
                     # Try to get USD value from metadata if available
-                    if txn['type'] == 'DEPOSIT' and txn.get('metadata') and txn['metadata'].get('usd_value') is not None:
+                    if txn['type'] in ['DEPOSIT', 'SUB_DEPOSIT'] and txn.get('metadata') and txn['metadata'].get('usd_value') is not None:
                         usd_amount = float(txn['metadata']['usd_value'])
                         total_net_flow += usd_amount
                         if logger:
                             logger.debug(LogCategory.TRANSACTION, "deposit_usd_value",
-                                       f"Using USD value for deposit: ${usd_amount:.2f} (from {amount} {txn['metadata'].get('coin', 'UNKNOWN')})",
+                                       f"Using USD value for {txn['type'].lower()}: ${usd_amount:.2f} (from {amount} {txn['metadata'].get('coin', 'UNKNOWN')})",
                                        account_id=account_id)
-                    elif txn['type'] == 'DEPOSIT' and txn.get('metadata') and txn['metadata'].get('price_missing'):
+                    elif txn['type'] in ['DEPOSIT', 'SUB_DEPOSIT'] and txn.get('metadata') and txn['metadata'].get('price_missing'):
                         # Skip deposits without USD value for cashflow calculation
                         if logger:
                             logger.warning(LogCategory.TRANSACTION, "deposit_skipped_no_price",
-                                         f"Skipping deposit without USD value: {amount} {txn['metadata'].get('coin', 'UNKNOWN')}",
+                                         f"Skipping {txn['type'].lower()} without USD value: {amount} {txn['metadata'].get('coin', 'UNKNOWN')}",
                                          account_id=account_id,
                                          data={'transaction_id': txn['id'], 'amount': amount, 'coin': txn['metadata'].get('coin')})
                     else:
                         # Fallback to raw amount (assumes USD for stablecoins or PAY deposits)
                         total_net_flow += amount
-                elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL']:
+                elif txn['type'] in ['WITHDRAWAL', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL', 'SUB_WITHDRAWAL']:
                     total_net_flow -= amount
                     
                 processed_txns.append({

@@ -121,15 +121,17 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 
 ### Transaction Processing
 - **Field**: Use `type` field (NOT `transaction_type`) in processed_transactions
-- **Valid Types**: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL, FEE_WITHDRAWAL
+- **Valid Types**: DEPOSIT, WITHDRAWAL, PAY_DEPOSIT, PAY_WITHDRAWAL, FEE_WITHDRAWAL, SUB_DEPOSIT, SUB_WITHDRAWAL
 - **Unique Key**: (account_id, transaction_id) prevents duplicates
 
 ### Sub-Account Transfers
 - **Problem**: Binance API doesn't return internal transfers via standard withdrawal/deposit endpoints
 - **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
-- **Detection**: Run from sub-account perspective (master accounts can't access this endpoint)
+- **Automatic Detection**: Sub-accounts now automatically check for transfers during monitoring
+- **Manual Detection**: Can still use scripts for batch processing or debugging
 - **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
 - **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
+- **Benchmark Updates**: SUB_ transactions now properly trigger benchmark adjustments
 - **Metadata includes**: `coin`, `usd_value`, `coin_price`, `price_source`, `transfer_type=1` (internal)
 - **Scripts**:
   - `detect_sub_transfers.py` - Manual detection of sub-account transfers
