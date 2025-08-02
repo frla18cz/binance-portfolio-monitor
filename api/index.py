@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, UTC
 from http.server import BaseHTTPRequestHandler
 from binance.client import Client as BinanceClient
 from api.binance_pay_helper import get_pay_transactions
-from api.sub_account_helper import get_sub_account_transfers, normalize_sub_account_transfers
 
 # Debug print removed - was causing issues on Vercel
 
@@ -290,7 +289,6 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
         account_name = account.get('account_name', 'Unknown')
         
         # For sub-account transfer detection, use master credentials if available
-        # The API endpoint /sapi/v1/sub-account/transfer/subUserHistory works from MASTER account perspective
         if account.get('is_sub_account') and account.get('master_api_key') and account.get('master_api_secret'):
             # Use master credentials for sub-account
             transfer_client = BinanceClient(account['master_api_key'], account['master_api_secret'])
@@ -307,6 +305,8 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
         ).like('transaction_id', 'SUB_%').order('timestamp', desc=True).limit(1).execute()
         
         start_time = None
+        end_time = int(datetime.now(UTC).timestamp() * 1000)
+        
         if last_result.data:
             last_timestamp = datetime.fromisoformat(last_result.data[0]['timestamp'].replace('Z', '+00:00'))
             start_time = int((last_timestamp + timedelta(minutes=1)).timestamp() * 1000)
@@ -314,33 +314,80 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
             # Default to 30 days ago if no previous transfers
             start_time = int((datetime.now(UTC) - timedelta(days=30)).timestamp() * 1000)
             
-        # Get transfers using the email
-        transfers = get_sub_account_transfers(
-            transfer_client.API_KEY,
-            transfer_client.API_SECRET,
-            email=account['email'],
-            start_time=start_time,
-            logger=logger,
-            account_id=account_id
-        )
+        all_transfers = []
         
-        if not transfers:
+        # For sub-accounts, we need to get both incoming and outgoing transfers
+        if account.get('is_sub_account'):
+            # Get transfers TO this sub-account (deposits)
+            try:
+                to_transfers = transfer_client.get_sub_account_transfer_history(
+                    toEmail=account['email'],
+                    startTime=start_time,
+                    endTime=end_time
+                )
+                if to_transfers:
+                    for transfer in to_transfers:
+                        transfer['direction'] = 'incoming'
+                        transfer['type'] = 'DEPOSIT'
+                    all_transfers.extend(to_transfers)
+            except Exception as e:
+                logger.warning(LogCategory.TRANSACTION, "sub_transfers_to_failed",
+                             f"Failed to get incoming transfers: {str(e)}",
+                             account_id=account_id)
+            
+            # Get transfers FROM this sub-account (withdrawals)
+            try:
+                from_transfers = transfer_client.get_sub_account_transfer_history(
+                    fromEmail=account['email'],
+                    startTime=start_time,
+                    endTime=end_time
+                )
+                if from_transfers:
+                    for transfer in from_transfers:
+                        transfer['direction'] = 'outgoing'
+                        transfer['type'] = 'WITHDRAWAL'
+                    all_transfers.extend(from_transfers)
+            except Exception as e:
+                logger.warning(LogCategory.TRANSACTION, "sub_transfers_from_failed",
+                             f"Failed to get outgoing transfers: {str(e)}",
+                             account_id=account_id)
+        else:
+            # For master accounts, get all transfers (we'll filter by email later)
+            try:
+                transfers = transfer_client.get_sub_account_transfer_history(
+                    startTime=start_time,
+                    endTime=end_time
+                )
+                if transfers:
+                    # Filter transfers related to this master account
+                    for transfer in transfers:
+                        # Determine direction based on whether master is sender or receiver
+                        if transfer.get('fromEmail', '').lower() == account['email'].lower():
+                            transfer['direction'] = 'outgoing'
+                            transfer['type'] = 'WITHDRAWAL'
+                        else:
+                            transfer['direction'] = 'incoming'
+                            transfer['type'] = 'DEPOSIT'
+                    all_transfers.extend(transfers)
+            except Exception as e:
+                logger.warning(LogCategory.TRANSACTION, "master_transfers_failed",
+                             f"Failed to get master account transfers: {str(e)}",
+                             account_id=account_id)
+        
+        if not all_transfers:
             logger.debug(LogCategory.TRANSACTION, "no_sub_transfers",
                         f"No sub-account transfers found for {account_name}",
                         account_id=account_id)
             return
             
-        # Normalize transfers with account email
-        normalized = normalize_sub_account_transfers(transfers, account['email'], logger, account_id)
-        
         # Get BTC price for fallback conversion
         btc_price = prices.get('BTCUSDT', 0) if prices else 0
         
         # Convert to processed_transactions format with USD conversion
         transactions_to_insert = []
-        for transfer in normalized:
+        for transfer in all_transfers:
             # Generate unique transaction ID with SUB_ prefix
-            transaction_id = f"SUB_{transfer.get('id', '').replace('SUB_', '')}"
+            transaction_id = f"SUB_{transfer.get('tranId', '')}"
             
             # Check if already processed
             existing = db_client.table('processed_transactions').select('id').eq(
@@ -350,10 +397,12 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
             if existing.data:
                 continue
             
-            # Get USD value for the transfer
-            coin = transfer.get('coin', '')
-            amount = transfer.get('amount', 0)
+            # Get transfer details
+            coin = transfer.get('asset', '')
+            amount = float(transfer.get('qty', 0))
+            transfer_time = transfer.get('time', 0)
             
+            # Get USD value for the transfer
             usd_value, coin_price, price_source = get_coin_usd_value(
                 transfer_client, coin, amount, btc_price, logger, account_id
             )
@@ -361,10 +410,10 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
             # Build metadata
             metadata = {
                 'coin': coin,
-                'from_email': transfer.get('from_email', ''),
-                'to_email': transfer.get('to_email', ''),
+                'from_email': transfer.get('from', ''),
+                'to_email': transfer.get('to', ''),
                 'direction': transfer.get('direction', ''),
-                'transfer_type': transfer.get('transfer_type', 1),  # 1 = internal
+                'transfer_type': 1,  # 1 = internal (sub-account transfer)
                 'network': 'INTERNAL'
             }
             
@@ -384,7 +433,7 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
                 'transaction_id': transaction_id,
                 'type': f"SUB_{transfer['type']}",  # SUB_DEPOSIT or SUB_WITHDRAWAL
                 'amount': usd_value if usd_value > 0 else amount,  # Use USD value if available
-                'timestamp': datetime.fromtimestamp(transfer['timestamp'] / 1000, UTC).isoformat(),
+                'timestamp': datetime.fromtimestamp(transfer_time / 1000, UTC).isoformat(),
                 'status': 'SUCCESS',
                 'metadata': metadata
             })
@@ -399,7 +448,7 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
                                'amount': amount,
                                'usd_value': usd_value,
                                'direction': transfer.get('direction', ''),
-                               'counterparty': transfer.get('from_email') if transfer['type'] == 'DEPOSIT' else transfer.get('to_email')
+                               'counterparty': transfer.get('from') if transfer['type'] == 'DEPOSIT' else transfer.get('to')
                            })
             
         if transactions_to_insert:
