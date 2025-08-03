@@ -163,6 +163,9 @@ python scripts/update_missing_prices.py # Update deposits with missing prices
 python scripts/validate_benchmark_consistency.py  # Validate benchmark calculations
 python scripts/validate_benchmark_consistency.py --account "Simple"  # Validate specific account
 
+# Sub-account transfers
+python scripts/detect_sub_transfers.py        # Detect and record sub-account transfers
+python scripts/process_sub_account_transfers.py # Process transfers for all master accounts
 
 # Account management
 python scripts/reset_account_data.py  # Reset account data for fresh start
