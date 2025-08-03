@@ -22,6 +22,9 @@
 # Spustit monitoring jednou (manuálně)
 python -m api.index
 
+# Spustit monitoring jednou (bez dashboard/runtime setup)
+python scripts/run_once.py
+
 # Spustit web dashboard
 python -m api.dashboard
 # Otevřít: http://localhost:8000
@@ -42,6 +45,9 @@ python demo_test.py
 ```bash
 # Spustit monitoring všech účtů (api/index.py)
 python -m api.index
+
+# Jednorázové spuštění (bez dashboard/runtime setup)
+python scripts/run_once.py
 
 # Debug NAV kalkulace
 python debug_nav.py
@@ -152,6 +158,30 @@ python scripts/fix_deposit_metadata.py
 
 # Aktualizovat depozity s chybějícími cenami
 python scripts/update_missing_prices.py
+```
+
+### Sub-Account Transfers
+```bash
+# Detekovat a zaznamenat sub-account transfery
+python scripts/detect_sub_transfers.py
+
+# Zpracovat transfery pro všechny master účty
+python scripts/process_sub_account_transfers.py
+```
+
+### Account Management
+```bash
+# Reset dat účtu (zachová konfiguraci)
+python scripts/reset_account_data.py
+
+# Seznam všech účtů
+python scripts/reset_account_data.py --list
+
+# Reset konkrétního účtu
+python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1"
+
+# Reset bez potvrzení
+python scripts/reset_account_data.py --account "ondra_osobni_sub_acc1" --yes
 ```
 
 ---
