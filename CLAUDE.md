@@ -129,7 +129,9 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 - **Solution**: Use `client.get_sub_account_transfer_history()` from python-binance
 - **Detection**: Master account credentials required - stored in `master_api_key` and `master_api_secret`
 - **Implementation**: Sub-accounts use their own API keys for everything EXCEPT transfer detection
-- **Recording**: Creates SUB_DEPOSIT/SUB_WITHDRAWAL transactions with USD conversion
+- **Recording**: Creates SUB_DEPOSIT for receiver and SUB_WITHDRAWAL for sender
+- **Processing**: Master accounts fetch all transfers but only save those involving them
+- **Testing**: Run `python scripts/test_sub_account_transfers.py` for automated tests
 
 ### Account Reset
 - **Purpose**: Clear all historical data for an account while preserving configuration
@@ -143,6 +145,21 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 - **Supabase MCP** (`mcp__supabase__*`) available for direct database operations
 - Project ID: `axvqumsxlncbqzecjlxy` (binance_strategy_monitoring)
 - Useful for debugging, running migrations, checking logs
+
+## Recent Fixes (2025-08-03)
+
+### SUB Transaction Detection Issues
+Two critical issues with sub-account transfers were fixed:
+
+1. **Benchmark NAV not updating immediately**
+   - Problem: Benchmark value was calculated before SUB transactions were processed
+   - Fix: Re-fetch benchmark_configs after all transactions are processed
+   - Result: Benchmark values now reflect transfers immediately
+
+2. **SUB transfers not detected after account reset**
+   - Problem: System used timestamps from deleted transactions after reset
+   - Fix: Verify last_processed transaction exists; use initialized_at if not
+   - Result: Transfers are properly detected even after account data reset
 
 ## Common Commands
 ```bash

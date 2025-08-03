@@ -376,7 +376,7 @@ def process_sub_transactions_for_benchmark(db_client, account_id, config, prices
     
     return config
 
-def process_account_transfers(db_client, account, binance_client, prices, logger):
+def process_account_transfers(db_client, account, binance_client, prices, config, logger):
     """
     Process sub-account transfers for any account type.
     Uses master credentials if available for sub-accounts.
@@ -408,12 +408,61 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
         start_time = None
         end_time = int(datetime.now(UTC).timestamp() * 1000)
         
+        logger.info(LogCategory.TRANSACTION, "transfer_time_range",
+                   f"Checking transfers for {account_name}",
+                   account_id=account_id,
+                   data={"last_processed": last_result.data[0]['timestamp'] if last_result.data else None})
+        
         if last_result.data:
-            last_timestamp = datetime.fromisoformat(last_result.data[0]['timestamp'].replace('Z', '+00:00'))
-            start_time = int((last_timestamp + timedelta(minutes=1)).timestamp() * 1000)
+            # Verify the transaction actually exists (not deleted during reset)
+            verify_result = db_client.table('processed_transactions').select('id').eq(
+                'account_id', account_id
+            ).eq('timestamp', last_result.data[0]['timestamp']).execute()
+            
+            if verify_result.data:
+                # Transaction exists, use its timestamp
+                last_timestamp = datetime.fromisoformat(last_result.data[0]['timestamp'].replace('Z', '+00:00'))
+                start_time = int((last_timestamp + timedelta(minutes=1)).timestamp() * 1000)
+                logger.debug(LogCategory.TRANSACTION, "using_last_processed",
+                           f"Using last processed timestamp",
+                           account_id=account_id,
+                           data={"last_timestamp": last_result.data[0]['timestamp']})
+            else:
+                # Transaction doesn't exist (was deleted), fall back to initialized_at
+                logger.warning(LogCategory.TRANSACTION, "last_processed_not_found",
+                             f"Last processed timestamp references non-existent transaction, using initialized_at",
+                             account_id=account_id,
+                             data={"orphaned_timestamp": last_result.data[0]['timestamp']})
+                if config.get('initialized_at'):
+                    initialized_dt = datetime.fromisoformat(config['initialized_at'].replace('Z', '+00:00'))
+                    start_time = int(initialized_dt.timestamp() * 1000)
+                else:
+                    # Fallback to current time
+                    start_time = int(datetime.now(UTC).timestamp() * 1000)
         else:
-            # Default to 30 days ago if no previous transfers
-            start_time = int((datetime.now(UTC) - timedelta(days=30)).timestamp() * 1000)
+            # Use initialized_at instead of 30 days ago to prevent processing historical transfers
+            if config.get('initialized_at'):
+                initialized_dt = datetime.fromisoformat(config['initialized_at'].replace('Z', '+00:00'))
+                start_time = int(initialized_dt.timestamp() * 1000)
+                logger.info(LogCategory.TRANSACTION, "using_initialized_at",
+                           f"Using initialized_at as start time for first transfer check",
+                           account_id=account_id, 
+                           data={"initialized_at": config['initialized_at']})
+            else:
+                # Fallback to current time (no historical transfers)
+                start_time = int(datetime.now(UTC).timestamp() * 1000)
+                logger.warning(LogCategory.TRANSACTION, "no_initialized_at",
+                             f"No initialized_at found, using current time",
+                             account_id=account_id)
+            
+        # Log the final time range
+        logger.info(LogCategory.TRANSACTION, "final_time_range",
+                   f"Final time range for transfer detection",
+                   account_id=account_id,
+                   data={
+                       "start_time": datetime.fromtimestamp(start_time/1000).isoformat() if start_time else None,
+                       "end_time": datetime.fromtimestamp(end_time/1000).isoformat()
+                   })
             
         all_transfers = []
         
@@ -454,22 +503,38 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
                              account_id=account_id)
         else:
             # For master accounts, get all transfers (we'll filter by email later)
+            logger.info(LogCategory.TRANSACTION, "master_account_detected",
+                       f"Processing transfers for master account {account_name}",
+                       account_id=account_id)
             try:
                 transfers = transfer_client.get_sub_account_transfer_history(
                     startTime=start_time,
                     endTime=end_time
                 )
                 if transfers:
+                    logger.info(LogCategory.TRANSACTION, "master_transfers_found",
+                               f"Found {len(transfers)} total transfers from API",
+                               account_id=account_id)
                     # Filter transfers related to this master account
                     for transfer in transfers:
-                        # Determine direction based on whether master is sender or receiver
-                        if transfer.get('fromEmail', '').lower() == account['email'].lower():
-                            transfer['direction'] = 'outgoing'
-                            transfer['type'] = 'WITHDRAWAL'
-                        else:
-                            transfer['direction'] = 'incoming'
-                            transfer['type'] = 'DEPOSIT'
-                    all_transfers.extend(transfers)
+                        # Only process transfers involving this master account
+                        from_email = transfer.get('from', '').lower()
+                        to_email = transfer.get('to', '').lower()
+                        master_email = account['email'].lower()
+                        
+                        # Check if master account is involved in this transfer
+                        if from_email == master_email or to_email == master_email:
+                            # Determine direction based on whether master is sender or receiver
+                            if from_email == master_email:
+                                transfer['direction'] = 'outgoing'
+                                transfer['type'] = 'WITHDRAWAL'
+                            else:
+                                transfer['direction'] = 'incoming'
+                                transfer['type'] = 'DEPOSIT'
+                            all_transfers.append(transfer)
+                            logger.info(LogCategory.TRANSACTION, "master_transfer_added",
+                                       f"Added {transfer['type']} transfer: {transfer.get('from')} -> {transfer.get('to')}",
+                                       account_id=account_id)
             except Exception as e:
                 logger.warning(LogCategory.TRANSACTION, "master_transfers_failed",
                              f"Failed to get master account transfers: {str(e)}",
@@ -634,7 +699,7 @@ def process_single_account(account, prices=None):
     config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
     
     # Process sub-account transfers
-    process_account_transfers(db_client, account, binance_client, prices, logger)
+    process_account_transfers(db_client, account, binance_client, prices, config, logger)
     
     # Process benchmark updates for any new SUB_ transactions
     config = process_sub_transactions_for_benchmark(db_client, account_id, config, prices, logger)
@@ -653,6 +718,14 @@ def process_single_account(account, prices=None):
             # Use current benchmark value to maintain independence from portfolio NAV
             current_benchmark_value = calculate_benchmark_value(config, prices)
             config = rebalance_benchmark(db_client, config, account_id, current_benchmark_value, prices, logger)
+
+    # Re-fetch the latest config after all modifications to ensure we have the most up-to-date BTC/ETH units
+    config_result = db_client.table('benchmark_configs').select('*').eq('account_id', account_id).execute()
+    if config_result.data:
+        config = config_result.data[0]
+        logger.debug(LogCategory.BENCHMARK, "config_refreshed", 
+                    f"Refreshed config after all modifications - BTC: {config.get('btc_units')}, ETH: {config.get('eth_units')}",
+                    account_id=account_id, account_name=account_name)
 
     benchmark_value = calculate_benchmark_value(config, prices)
     save_history(db_client, account_id, nav, benchmark_value, logger, account_name, prices)
