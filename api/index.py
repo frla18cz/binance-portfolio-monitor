@@ -281,10 +281,20 @@ def process_sub_transactions_for_benchmark(db_client, account_id, config, prices
     This is called after sub-account transfers are detected and saved.
     """
     try:
-        # Get all SUB_ transactions for this account
+        # Get initialized_at timestamp to avoid processing pre-initialization transactions
+        initialized_at = config.get('initialized_at')
+        if not initialized_at:
+            logger.warning(LogCategory.TRANSACTION, "no_initialized_at", 
+                          "No initialized_at timestamp in config, skipping SUB_ transaction processing",
+                          account_id=account_id)
+            return config
+            
+        # Get all SUB_ transactions for this account that are AFTER initialization
         sub_txns = db_client.table('processed_transactions').select('*').eq(
             'account_id', account_id
-        ).or_('type.eq.SUB_DEPOSIT,type.eq.SUB_WITHDRAWAL').execute()
+        ).or_('type.eq.SUB_DEPOSIT,type.eq.SUB_WITHDRAWAL').gte(
+            'timestamp', initialized_at
+        ).execute()
         
         if not sub_txns.data:
             return config
@@ -304,7 +314,21 @@ def process_sub_transactions_for_benchmark(db_client, account_id, config, prices
         ]
         
         if not unprocessed_txns:
+            logger.debug(LogCategory.TRANSACTION, "no_unprocessed_sub_txns", 
+                        "No unprocessed SUB_ transactions found",
+                        account_id=account_id)
             return config
+            
+        # Log which transactions we're about to process
+        logger.info(LogCategory.TRANSACTION, "processing_sub_transactions", 
+                   f"Processing {len(unprocessed_txns)} SUB_ transactions",
+                   account_id=account_id,
+                   data={
+                       "unprocessed_count": len(unprocessed_txns),
+                       "total_sub_txns": len(sub_txns.data),
+                       "already_processed": len(processed_tx_ids),
+                       "transaction_ids": [t['transaction_id'] for t in unprocessed_txns]
+                   })
             
         # Process each unprocessed SUB_ transaction
         total_net_flow = 0
@@ -312,6 +336,18 @@ def process_sub_transactions_for_benchmark(db_client, account_id, config, prices
         
         for txn in unprocessed_txns:
             amount = float(txn['amount'])
+            txn_time = txn.get('timestamp', 'unknown')
+            
+            logger.debug(LogCategory.TRANSACTION, "processing_sub_txn", 
+                        f"Processing {txn['type']}: ${amount:.2f} at {txn_time}",
+                        account_id=account_id,
+                        data={
+                            "transaction_id": txn['transaction_id'],
+                            "type": txn['type'],
+                            "amount": amount,
+                            "timestamp": txn_time
+                        })
+            
             if txn['type'] == 'SUB_DEPOSIT':
                 total_net_flow += amount
             elif txn['type'] == 'SUB_WITHDRAWAL':
