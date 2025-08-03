@@ -335,6 +335,16 @@ cp .env.example .env
 nano .env  # Add your configuration
 ```
 
+#### One-Time Execution
+For testing or manual runs without setting up continuous monitoring:
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run monitoring once
+python scripts/run_once.py
+```
+
 #### Create Systemd Service
 ```bash
 # Create service file

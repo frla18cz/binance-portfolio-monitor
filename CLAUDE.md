@@ -146,6 +146,7 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 
 ## Common Commands
 ```bash
+python scripts/run_once.py             # Run monitoring once (no dashboard/runtime setup)
 python -m api.index                    # Run monitoring manually
 python -m api.dashboard                # Start dashboard (port 8000)
 python -m api.config_admin_web         # Start config admin (port 8002)

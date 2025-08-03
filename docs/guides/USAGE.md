@@ -32,6 +32,7 @@ python -m api.dashboard              # Enhanced Dashboard na http://localhost:80
 ```bash
 python scrape_data.py                # Nový wrapper script
 python -m api.index                  # Přímo main modul
+python scripts/run_once.py           # Jednorázové spuštění bez runtime setup
 ```
 
 **Kontrola databáze:**
@@ -89,6 +90,9 @@ python scrape_data.py
 # Nebo přímo main modul
 python -m api.index
 
+# Jednorázové spuštění bez runtime setup
+python scripts/run_once.py
+
 # Zkontrolovat stav databáze
 python check_data.py
 ```
@@ -98,6 +102,8 @@ python check_data.py
 - ✅ Minimální resource usage
 - ✅ Ideální pro cron jobs
 - ✅ Stejná data jako s dashboardem
+
+**Poznámka:** `scripts/run_once.py` je vhodný pro testování, protože nenastavuje žádné runtime konfigurace ani nespouští dashboard.
 
 ## 🔍 Kontrola dat
 

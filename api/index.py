@@ -275,6 +275,71 @@ def process_all_accounts():
                     f"Failed to run log cleanup: {str(e)}", error=str(e))
 
 
+def process_sub_transactions_for_benchmark(db_client, account_id, config, prices, logger):
+    """
+    Process SUB_ transactions that haven't been reflected in benchmark yet.
+    This is called after sub-account transfers are detected and saved.
+    """
+    try:
+        # Get all SUB_ transactions for this account
+        sub_txns = db_client.table('processed_transactions').select('*').eq(
+            'account_id', account_id
+        ).or_('type.eq.SUB_DEPOSIT,type.eq.SUB_WITHDRAWAL').execute()
+        
+        if not sub_txns.data:
+            return config
+            
+        # Get existing benchmark modifications to check which are already processed
+        # Look for modifications that reference SUB_ transactions
+        mods = db_client.table('benchmark_modifications').select('transaction_id').eq(
+            'account_id', account_id
+        ).like('transaction_id', 'SUB_%').execute()
+        
+        processed_tx_ids = {mod['transaction_id'] for mod in mods.data if mod['transaction_id']} if mods.data else set()
+        
+        # Filter out already processed transactions
+        unprocessed_txns = [
+            txn for txn in sub_txns.data 
+            if txn['transaction_id'] not in processed_tx_ids
+        ]
+        
+        if not unprocessed_txns:
+            return config
+            
+        # Process each unprocessed SUB_ transaction
+        total_net_flow = 0
+        processed_txns = []
+        
+        for txn in unprocessed_txns:
+            amount = float(txn['amount'])
+            if txn['type'] == 'SUB_DEPOSIT':
+                total_net_flow += amount
+            elif txn['type'] == 'SUB_WITHDRAWAL':
+                total_net_flow -= amount
+                
+            processed_txns.append(txn)
+            
+        if total_net_flow != 0 and processed_txns:
+            logger.info(LogCategory.TRANSACTION, "sub_cashflow_detected", 
+                       f"SUB_ transaction cashflow detected: ${total_net_flow:+,.2f}",
+                       account_id=account_id, 
+                       data={"net_flow": total_net_flow, "transaction_count": len(processed_txns)})
+            
+            # Update benchmark for these SUB_ transactions
+            # Pass transaction IDs instead of full transactions since they're already in DB
+            transaction_ids = [{'transaction_id': txn['transaction_id'], 'type': txn['type']} for txn in processed_txns]
+            updated_config = adjust_benchmark_for_cashflow(
+                db_client, config, account_id, total_net_flow, prices, transaction_ids, logger
+            )
+            return updated_config
+            
+    except Exception as e:
+        logger.warning(LogCategory.TRANSACTION, "sub_benchmark_update_failed",
+                      f"Failed to update benchmark for SUB_ transactions: {str(e)}",
+                      account_id=account_id, error=str(e))
+    
+    return config
+
 def process_account_transfers(db_client, account, binance_client, prices, logger):
     """
     Process sub-account transfers for any account type.
@@ -534,6 +599,9 @@ def process_single_account(account, prices=None):
     
     # Process sub-account transfers
     process_account_transfers(db_client, account, binance_client, prices, logger)
+    
+    # Process benchmark updates for any new SUB_ transactions
+    config = process_sub_transactions_for_benchmark(db_client, account_id, config, prices, logger)
 
     # Kontrola a provedení rebalance
     now_utc = datetime.now(UTC)
@@ -2019,25 +2087,36 @@ def adjust_benchmark_for_cashflow(db_client, config, account_id, net_flow, price
                                    account_id=account_id, error=error_msg, data=atomic_context)
                     raise Exception(error_msg)
                 
-                # 2. Insert processed transactions if any
+                # 2. Insert processed transactions if any (only if they have required fields for insertion)
                 if processed_txns:
-                    try:
-                        txn_result = db_client.table('processed_transactions').insert(processed_txns).execute()
-                        if not txn_result.data:
-                            error_msg = f"Failed to insert processed_transactions for account_id {account_id}"
-                            if logger:
-                                logger.error(LogCategory.DATABASE, "atomic_cashflow_update", error_msg,
-                                           account_id=account_id, error=error_msg, data=atomic_context)
-                            raise Exception(error_msg)
-                    except Exception as txn_error:
-                        # Check if it's a duplicate key error
-                        error_msg = str(txn_error)
-                        if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
-                            if logger:
-                                logger.warning(LogCategory.DATABASE, "duplicate_in_atomic_update", 
-                                             f"Duplicate transactions in atomic update, rolling back",
-                                             account_id=account_id, data=atomic_context)
-                        raise  # Always re-raise to trigger rollback
+                    # Check if these are full transaction records that need to be inserted
+                    # or just references to existing transactions (only have transaction_id and type)
+                    needs_insert = any('account_id' in txn for txn in processed_txns)
+                    
+                    if needs_insert:
+                        try:
+                            txn_result = db_client.table('processed_transactions').insert(processed_txns).execute()
+                            if not txn_result.data:
+                                error_msg = f"Failed to insert processed_transactions for account_id {account_id}"
+                                if logger:
+                                    logger.error(LogCategory.DATABASE, "atomic_cashflow_update", error_msg,
+                                               account_id=account_id, error=error_msg, data=atomic_context)
+                                raise Exception(error_msg)
+                        except Exception as txn_error:
+                            # Check if it's a duplicate key error
+                            error_msg = str(txn_error)
+                            if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
+                                if logger:
+                                    logger.warning(LogCategory.DATABASE, "duplicate_in_atomic_update", 
+                                                 f"Duplicate transactions in atomic update, rolling back",
+                                                 account_id=account_id, data=atomic_context)
+                            raise  # Always re-raise to trigger rollback
+                    else:
+                        # These are just references to existing transactions
+                        if logger:
+                            logger.debug(LogCategory.DATABASE, "skip_transaction_insert", 
+                                       "Skipping transaction insert - using existing transaction references",
+                                       account_id=account_id, data={"transaction_count": len(processed_txns)})
                 
                 # 3. Save modification history
                 try:
