@@ -126,28 +126,10 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 
 ### Sub-Account Transfers
 - **Problem**: Binance API doesn't return internal transfers via standard withdrawal/deposit endpoints
-- **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
-- **Automatic Detection**: Works with proper credentials:
-  - Master accounts: automatically detect transfers for all their sub-accounts
-  - Sub-accounts: require master API credentials to detect transfers
-- **Simple Setup**: 
-  - For sub-accounts, manually enter master API key and secret
-  - No complex linking or inheritance - everything is explicit
-- **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
-- **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
-- **Benchmark Updates**: SUB_ transactions now properly trigger benchmark adjustments
-- **Metadata includes**: `coin`, `usd_value`, `coin_price`, `price_source`, `transfer_type=1` (internal)
-- **Scripts**:
-  - `detect_sub_transfers.py` - Manual detection of sub-account transfers
-  - `process_sub_account_transfers.py` - Batch processing for all accounts
-- **Database fields**: 
-  - `email`, `is_sub_account`, `master_account_id` - account identification
-  - `master_api_key`, `master_api_secret` - for sub-accounts to detect transfers
-- **Admin UI**: Account Management page provides full CRUD operations:
-  - Create new accounts (master or sub)
-  - Edit all account fields including API keys and master credentials
-  - Delete accounts with all related data
-  - Set performance fee rates per account
+- **Solution**: Use `client.get_sub_account_transfer_history()` from python-binance
+- **Detection**: Master account credentials required - stored in `master_api_key` and `master_api_secret`
+- **Implementation**: Sub-accounts use their own API keys for everything EXCEPT transfer detection
+- **Recording**: Creates SUB_DEPOSIT/SUB_WITHDRAWAL transactions with USD conversion
 
 ### Account Reset
 - **Purpose**: Clear all historical data for an account while preserving configuration
@@ -180,9 +162,6 @@ python scripts/update_missing_prices.py # Update deposits with missing prices
 python scripts/validate_benchmark_consistency.py  # Validate benchmark calculations
 python scripts/validate_benchmark_consistency.py --account "Simple"  # Validate specific account
 
-# Sub-account transfers
-python detect_sub_transfers.py        # Detect and record sub-account transfers
-python process_sub_account_transfers.py # Process transfers for all master accounts
 
 # Account management
 python scripts/reset_account_data.py  # Reset account data for fresh start
