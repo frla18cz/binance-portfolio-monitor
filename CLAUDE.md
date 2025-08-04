@@ -126,13 +126,15 @@ calculate_monthly_fees() → fee calculation with account-specific rates
 
 ### Sub-Account Transfers
 - **Problem**: Binance API doesn't return internal transfers via standard withdrawal/deposit endpoints
-- **Solution**: Use sub-account transfer API (`/sapi/v1/sub-account/transfer/subUserHistory`)
-- **Automatic Detection**: Works with proper credentials:
+- **Solution**: Different endpoints based on account type:
+  - Master accounts: `/sapi/v1/sub-account/sub/transfer/history` (returns transfers with all sub-accounts)
+  - Sub-accounts: `/sapi/v1/sub-account/transfer/subUserHistory` (only works from sub-account context)
+- **Automatic Detection**: Works during monitoring:
   - Master accounts: automatically detect transfers for all their sub-accounts
-  - Sub-accounts: require master API credentials to detect transfers
+  - Sub-accounts: API error -12022 will occur (endpoint restriction) - this is expected
 - **Simple Setup**: 
-  - For sub-accounts, manually enter master API key and secret
-  - No complex linking or inheritance - everything is explicit
+  - Master accounts need no special configuration
+  - Sub-accounts can use manual scripts for transfer detection
 - **Recording**: Creates matching WITHDRAWAL/DEPOSIT pair with `SUB_` prefix
 - **USD Conversion**: All transfers are converted to USD using `get_coin_usd_value()`
 - **Benchmark Updates**: SUB_ transactions now properly trigger benchmark adjustments

@@ -314,14 +314,18 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
             # Default to 30 days ago if no previous transfers
             start_time = int((datetime.now(UTC) - timedelta(days=30)).timestamp() * 1000)
             
+        # Determine if we're calling from master account
+        is_master = not account.get('is_sub_account', False)
+        
         # Get transfers using the email
         transfers = get_sub_account_transfers(
             transfer_client.API_KEY,
             transfer_client.API_SECRET,
-            email=account['email'],
+            email=account['email'] if not is_master else None,  # Email only needed for sub-accounts
             start_time=start_time,
             logger=logger,
-            account_id=account_id
+            account_id=account_id,
+            is_master=is_master
         )
         
         if not transfers:

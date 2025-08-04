@@ -14,24 +14,32 @@ def create_signature(query_string, secret):
     """Create HMAC SHA256 signature for Binance API"""
     return hmac.new(secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
-def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, end_time=None, logger=None, account_id=None):
+def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, end_time=None, logger=None, account_id=None, is_master=True):
     """
-    Get sub-account transfer history from main account perspective
+    Get sub-account transfer history
     
     Args:
-        api_key: Main account API key
-        api_secret: Main account API secret
-        email: Sub-account email (optional, gets all if not specified)
+        api_key: API key (master or sub-account)
+        api_secret: API secret (master or sub-account)
+        email: Sub-account email (optional for master accounts)
         start_time: Start timestamp in milliseconds
         end_time: End timestamp in milliseconds
         logger: Logger instance
         account_id: Account ID for logging
+        is_master: True if calling from master account, False if from sub-account
         
     Returns:
         List of transfer transactions
     """
     base_url = 'https://api.binance.com'
-    endpoint = '/sapi/v1/sub-account/transfer/subUserHistory'
+    
+    # Use different endpoints based on account type
+    if is_master:
+        # Master account endpoint for querying internal transfers
+        endpoint = '/sapi/v1/sub-account/sub/transfer/history'
+    else:
+        # Sub-account endpoint (can only see its own transfers)
+        endpoint = '/sapi/v1/sub-account/transfer/subUserHistory'
     
     # Build parameters
     params = {
@@ -64,11 +72,17 @@ def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, 
         
         if response.status_code == 200:
             data = response.json()
-            transfers = data if isinstance(data, list) else []
+            
+            # Master endpoint returns an object with 'result' array
+            if is_master and isinstance(data, dict) and 'result' in data:
+                transfers = data['result']
+            else:
+                # Sub-account endpoint returns array directly
+                transfers = data if isinstance(data, list) else []
             
             if logger:
                 logger.debug(LogCategory.API_CALL, 'sub_account_transfers_fetched', 
-                           f"Fetched {len(transfers)} sub-account transfers",
+                           f"Fetched {len(transfers)} sub-account transfers (endpoint: {endpoint})",
                            account_id=account_id)
             
             return transfers
@@ -129,7 +143,7 @@ def normalize_sub_account_transfers(transfers, account_email, logger=None, accou
             transaction = {
                 'id': f"SUB_{transfer.get('tranId', '')}",
                 'type': transaction_type,
-                'amount': float(transfer.get('amount', 0)),
+                'amount': float(transfer.get('qty', transfer.get('amount', 0))),  # Master uses 'qty', sub uses 'amount'
                 'timestamp': transfer.get('time', 0),
                 'status': 1 if transfer.get('status', '').upper() == 'SUCCESS' else 0,
                 # Metadata
