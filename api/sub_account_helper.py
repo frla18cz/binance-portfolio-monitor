@@ -14,7 +14,7 @@ def create_signature(query_string, secret):
     """Create HMAC SHA256 signature for Binance API"""
     return hmac.new(secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
-def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, end_time=None, logger=None, account_id=None, is_master=True):
+def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, end_time=None, logger=None, account_id=None, is_master=True, master_email=None):
     """
     Get sub-account transfer history
     
@@ -27,6 +27,7 @@ def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, 
         logger: Logger instance
         account_id: Account ID for logging
         is_master: True if calling from master account, False if from sub-account
+        master_email: Master account email (needed for bidirectional search)
         
     Returns:
         List of transfer transactions
@@ -48,7 +49,9 @@ def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, 
         'timestamp': int(time.time() * 1000)
     }
     
-    if email:
+    # Note: Don't use email parameter for master accounts as it limits results
+    # The API behaves differently when querying from master vs sub account
+    if email and not is_master:
         params['email'] = email
     if start_time:
         params['startTime'] = start_time
@@ -73,17 +76,81 @@ def get_sub_account_transfers(api_key, api_secret, email=None, start_time=None, 
         if response.status_code == 200:
             data = response.json()
             
-            # Master endpoint returns an object with 'result' array
-            if is_master and isinstance(data, dict) and 'result' in data:
-                transfers = data['result']
-            else:
-                # Sub-account endpoint returns array directly
-                transfers = data if isinstance(data, list) else []
+            # Master endpoint behavior varies:
+            # - Without email filter: returns list directly
+            # - With email filter: returns list directly
+            # The 'result' wrapper seems to be deprecated or not used consistently
+            transfers = data if isinstance(data, list) else []
             
             if logger:
                 logger.debug(LogCategory.API_CALL, 'sub_account_transfers_fetched', 
                            f"Fetched {len(transfers)} sub-account transfers (endpoint: {endpoint})",
                            account_id=account_id)
+            
+            # For master accounts, also fetch transfers in the opposite direction
+            # Always try to get bidirectional transfers regardless of initial result
+            if is_master and master_email:
+                try:
+                    # Build fresh params for each request to avoid mutation
+                    base_params = {
+                        'limit': 500,
+                        'recvWindow': 60000,
+                        'timestamp': int(time.time() * 1000)
+                    }
+                    if start_time:
+                        base_params['startTime'] = start_time
+                    if end_time:
+                        base_params['endTime'] = end_time
+                    
+                    # Get transfers TO master (from sub-accounts)
+                    params_to = base_params.copy()
+                    params_to['toEmail'] = master_email
+                    query_string_to = urlencode(params_to)
+                    params_to['signature'] = create_signature(query_string_to, api_secret)
+                    
+                    response_to = requests.get(url, headers=headers, params=params_to)
+                    transfers_to = []
+                    if response_to.status_code == 200:
+                        data_to = response_to.json()
+                        transfers_to = data_to if isinstance(data_to, list) else []
+                    
+                    # Get transfers FROM master (to sub-accounts)
+                    params_from = base_params.copy()
+                    params_from['fromEmail'] = master_email
+                    query_string_from = urlencode(params_from)
+                    params_from['signature'] = create_signature(query_string_from, api_secret)
+                    
+                    response_from = requests.get(url, headers=headers, params=params_from)
+                    transfers_from = []
+                    if response_from.status_code == 200:
+                        data_from = response_from.json()
+                        transfers_from = data_from if isinstance(data_from, list) else []
+                    
+                    # Combine all transfers (including original ones without filter)
+                    all_transfers = transfers + transfers_to + transfers_from
+                    
+                    # Remove duplicates based on tranId
+                    seen = set()
+                    unique_transfers = []
+                    for t in all_transfers:
+                        tran_id = t.get('tranId')
+                        if tran_id and tran_id not in seen:
+                            seen.add(tran_id)
+                            unique_transfers.append(t)
+                    
+                    transfers = sorted(unique_transfers, key=lambda x: x.get('time', 0), reverse=True)
+                    
+                    if logger:
+                        logger.debug(LogCategory.API_CALL, 'sub_account_transfers_bidirectional', 
+                                   f"Bidirectional: {len(transfers_to)} TO + {len(transfers_from)} FROM = {len(transfers)} total unique",
+                                   account_id=account_id)
+                except Exception as e:
+                    if logger:
+                        logger.error(LogCategory.API_CALL, 'sub_account_transfers_bidirectional_error', 
+                                   f"Error fetching bidirectional transfers: {str(e)}",
+                                   account_id=account_id, error=str(e))
+                    # Re-raise to see the actual error during debugging
+                    raise
             
             return transfers
         else:
