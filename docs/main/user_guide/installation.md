@@ -7,7 +7,7 @@
 Before starting, make sure you have:
 
 - [ ] **Binance Account** with futures trading enabled
-- [ ] **Python 3.13+** installed on your system
+- [ ] **Python 3.12+** installed on your system
 - [ ] **Supabase Account** (free tier is sufficient)
 - [ ] **Git** installed for version control
 - [ ] **Code Editor** (VS Code, PyCharm, etc.)
@@ -34,7 +34,7 @@ source .venv/bin/activate
 
 ### Install Dependencies
 ```bash
-pip install python-dotenv supabase python-binance
+pip install -r requirements.txt
 ```
 
 ## 🔑 Step 2: Binance API Setup
@@ -74,53 +74,195 @@ Open **SQL Editor** in Supabase and run this script:
 
 ```sql
 -- 1. Binance account credentials
-CREATE TABLE binance_accounts (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS binance_accounts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     account_name VARCHAR(100) NOT NULL,
     api_key TEXT NOT NULL,
     api_secret TEXT NOT NULL,
+    master_api_key VARCHAR(255),
+    master_api_secret VARCHAR(255),
+    email TEXT,
+    is_sub_account BOOLEAN DEFAULT false,
+    performance_fee_rate DECIMAL(5, 2) DEFAULT 0.20,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 2. Benchmark configuration per account
-CREATE TABLE benchmark_configs (
+CREATE TABLE IF NOT EXISTS benchmark_configs (
     id SERIAL PRIMARY KEY,
-    account_id INTEGER REFERENCES binance_accounts(id),
-    btc_units DECIMAL(20,8) DEFAULT 0,
-    eth_units DECIMAL(20,8) DEFAULT 0,
+    account_id UUID REFERENCES binance_accounts(id) ON DELETE CASCADE,
+    account_name VARCHAR(255),
+    btc_units DECIMAL(20, 8) DEFAULT 0,
+    eth_units DECIMAL(20, 8) DEFAULT 0,
     rebalance_day INTEGER DEFAULT 0, -- 0=Monday, 6=Sunday
     rebalance_hour INTEGER DEFAULT 12, -- Hour of day (0-23)
     next_rebalance_timestamp TIMESTAMPTZ,
+    initialized_at TIMESTAMPTZ,
+    last_modification_type VARCHAR(20),
+    last_modification_timestamp TIMESTAMPTZ,
+    last_modification_amount NUMERIC(20,8),
+    last_modification_id BIGINT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. Historical NAV and benchmark data
-CREATE TABLE nav_history (
-    id SERIAL PRIMARY KEY,
-    account_id INTEGER REFERENCES binance_accounts(id),
-    timestamp TIMESTAMPTZ NOT NULL,
-    nav DECIMAL(20,2) NOT NULL,
-    benchmark_value DECIMAL(20,2) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS nav_history (
+    id BIGSERIAL PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES binance_accounts(id) ON DELETE CASCADE,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    nav NUMERIC NOT NULL,
+    benchmark_value NUMERIC NOT NULL,
+    btc_price NUMERIC,
+    eth_price NUMERIC,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 4. Transaction processing tracking (prevents duplicates)
-CREATE TABLE processed_transactions (
+CREATE TABLE IF NOT EXISTS processed_transactions (
     id SERIAL PRIMARY KEY,
-    account_id INTEGER REFERENCES binance_accounts(id),
-    transaction_id VARCHAR(50) UNIQUE NOT NULL,
-    transaction_type VARCHAR(20) NOT NULL,
-    amount DECIMAL(20,8) NOT NULL,
+    account_id UUID REFERENCES binance_accounts(id),
+    transaction_id VARCHAR(255) UNIQUE NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('DEPOSIT', 'WITHDRAWAL', 'PAY_DEPOSIT', 'PAY_WITHDRAWAL', 'FEE_WITHDRAWAL')),
+    amount DECIMAL(20, 8) NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     status VARCHAR(20) NOT NULL,
+    metadata JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. Processing status per account
-CREATE TABLE account_processing_status (
-    account_id INTEGER PRIMARY KEY REFERENCES binance_accounts(id),
+CREATE TABLE IF NOT EXISTS account_processing_status (
+    account_id UUID PRIMARY KEY REFERENCES binance_accounts(id),
     last_processed_timestamp TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Price history table (stores BTC and ETH prices together)
+CREATE TABLE IF NOT EXISTS price_history (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL,
+    btc_price DECIMAL(20, 8) NOT NULL,
+    eth_price DECIMAL(20, 8) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(timestamp)
+);
+
+-- 7. Fee tracking
+CREATE TABLE IF NOT EXISTS fee_tracking (
+    id SERIAL PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES binance_accounts(id) ON DELETE CASCADE,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    avg_nav DECIMAL(20, 8),
+    starting_nav DECIMAL(20, 8),
+    ending_nav DECIMAL(20, 8),
+    starting_hwm DECIMAL(20, 8),
+    ending_hwm DECIMAL(20, 8),
+    portfolio_twr DECIMAL(10, 6),
+    benchmark_twr DECIMAL(10, 6),
+    alpha_pct DECIMAL(10, 6),
+    performance_fee DECIMAL(20, 8) NOT NULL DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'ACCRUED' CHECK (status IN ('ACCRUED', 'COLLECTED', 'WAIVED')),
+    collected_at TIMESTAMPTZ,
+    collection_tx_id VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(account_id, period_start)
+);
+
+-- 8. Benchmark rebalance history
+CREATE TABLE IF NOT EXISTS benchmark_rebalance_history (
+    id BIGSERIAL PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES binance_accounts(id) ON DELETE CASCADE,
+    account_name VARCHAR(255),
+    rebalance_timestamp TIMESTAMPTZ NOT NULL,
+    btc_units_before NUMERIC(20, 10) NOT NULL,
+    eth_units_before NUMERIC(20, 10) NOT NULL,
+    btc_price NUMERIC(20, 8) NOT NULL,
+    eth_price NUMERIC(20, 8) NOT NULL,
+    btc_value_before NUMERIC(20, 8) NOT NULL,
+    eth_value_before NUMERIC(20, 8) NOT NULL,
+    total_value_before NUMERIC(20, 8) NOT NULL,
+    btc_percentage_before NUMERIC(6, 4),
+    eth_percentage_before NUMERIC(6, 4),
+    btc_units_after NUMERIC(20, 10) NOT NULL,
+    eth_units_after NUMERIC(20, 10) NOT NULL,
+    btc_value_after NUMERIC(20, 8) NOT NULL,
+    eth_value_after NUMERIC(20, 8) NOT NULL,
+    total_value_after NUMERIC(20, 8) NOT NULL,
+    btc_units_change NUMERIC(20, 10) GENERATED ALWAYS AS (btc_units_after - btc_units_before) STORED,
+    eth_units_change NUMERIC(20, 10) GENERATED ALWAYS AS (eth_units_after - eth_units_before) STORED,
+    rebalance_type VARCHAR(20) NOT NULL DEFAULT 'scheduled' CHECK (rebalance_type IN ('scheduled', 'manual', 'init')),
+    status VARCHAR(20) NOT NULL DEFAULT 'success' CHECK (status IN ('success', 'failed', 'validated')),
+    error_message TEXT,
+    validation_error NUMERIC(6, 4),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 9. Benchmark modifications
+CREATE TABLE IF NOT EXISTS benchmark_modifications (
+    id BIGSERIAL PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES binance_accounts(id) ON DELETE CASCADE,
+    account_name VARCHAR(255),
+    modification_timestamp TIMESTAMPTZ NOT NULL,
+    modification_type VARCHAR(20) NOT NULL CHECK (modification_type IN ('deposit', 'withdrawal', 'fee_withdrawal')),
+    btc_units_before NUMERIC(20, 10) NOT NULL,
+    eth_units_before NUMERIC(20, 10) NOT NULL,
+    cashflow_amount NUMERIC(20, 8) NOT NULL,
+    btc_price NUMERIC(20, 8) NOT NULL,
+    eth_price NUMERIC(20, 8) NOT NULL,
+    btc_allocation NUMERIC(20, 8),
+    eth_allocation NUMERIC(20, 8),
+    btc_units_bought NUMERIC(20, 10),
+    eth_units_bought NUMERIC(20, 10),
+    btc_units_after NUMERIC(20, 10) NOT NULL,
+    eth_units_after NUMERIC(20, 10) NOT NULL,
+    total_value_before NUMERIC(20, 8) GENERATED ALWAYS AS (btc_units_before * btc_price + eth_units_before * eth_price) STORED,
+    total_value_after NUMERIC(20, 8) GENERATED ALWAYS AS (btc_units_after * btc_price + eth_units_after * eth_price) STORED,
+    transaction_id VARCHAR(255),
+    transaction_type VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 10. Runtime configuration
+CREATE TABLE IF NOT EXISTS runtime_config (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    key VARCHAR(255) NOT NULL UNIQUE,
+    value JSONB NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(255),
+    version INTEGER DEFAULT 1
+);
+
+-- 11. Runtime configuration history
+CREATE TABLE IF NOT EXISTS runtime_config_history (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    config_id UUID REFERENCES runtime_config(id) ON DELETE CASCADE,
+    key VARCHAR(255) NOT NULL,
+    old_value JSONB,
+    new_value JSONB NOT NULL,
+    change_reason TEXT,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    changed_by VARCHAR(255) NOT NULL,
+    version INTEGER NOT NULL
+);
+
+-- 12. Account configuration overrides
+CREATE TABLE IF NOT EXISTS account_config_overrides (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id UUID REFERENCES binance_accounts(id) ON DELETE CASCADE,
+    config_key VARCHAR(255) NOT NULL,
+    value JSONB NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(255),
+    UNIQUE(account_id, config_key)
 );
 ```
 
