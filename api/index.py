@@ -276,16 +276,22 @@ def process_all_accounts():
                     f"Failed to run log cleanup: {str(e)}", error=str(e))
 
 
-def process_account_transfers(db_client, account, binance_client, prices, logger):
+def process_account_transfers(db_client, account, binance_client, prices, logger, config=None):
     """
     Process sub-account transfers for any account type.
     Uses master credentials if available for sub-accounts.
-    Returns updated account with modified benchmark_configs if changes were made.
+    Returns updated config if changes were made.
+    
+    Args:
+        config: Current benchmark config (optional, will use account['benchmark_configs'] if not provided)
+    
+    Returns:
+        Updated config object if changes were made, otherwise returns the input config
     """
     try:
         # Skip if no email
         if not account.get('email'):
-            return account
+            return config
             
         account_id = account['id']
         account_name = account.get('account_name', 'Unknown')
@@ -334,7 +340,7 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
             logger.debug(LogCategory.TRANSACTION, "no_sub_transfers",
                         f"No sub-account transfers found for {account_name}",
                         account_id=account_id)
-            return account
+            return config
             
         # Normalize transfers with account email
         normalized = normalize_sub_account_transfers(transfers, account['email'], logger, account_id)
@@ -408,41 +414,39 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
                                'counterparty': transfer.get('from_email') if transfer['type'] == 'DEPOSIT' else transfer.get('to_email')
                            })
             
-        if transactions_to_insert:
-            db_client.table('processed_transactions').insert(transactions_to_insert).execute()
-            logger.info(LogCategory.TRANSACTION, "sub_transfers_recorded",
-                       f"Recorded {len(transactions_to_insert)} new sub-account transfers for {account_name}",
-                       account_id=account_id)
             
             # Calculate net cashflow from SUB transactions to adjust benchmark
+            # This should always be zero for sub-account transfers as it's an internal movement
             total_net_flow = 0
             for txn in transactions_to_insert:
-                amount = float(txn['amount'])
-                if txn['type'] == 'SUB_DEPOSIT':
-                    total_net_flow += amount
-                elif txn['type'] == 'SUB_WITHDRAWAL':
-                    total_net_flow -= amount
+                if txn['account_id'] == account_id:
+                    amount = float(txn['amount'])
+                    if txn['type'] == 'SUB_DEPOSIT':
+                        total_net_flow += amount
+                    elif txn['type'] == 'SUB_WITHDRAWAL':
+                        total_net_flow -= amount
             
             # Adjust benchmark if there's net cashflow
-            if total_net_flow != 0 and account.get('benchmark_configs'):
+            if total_net_flow != 0:
                 logger.info(LogCategory.TRANSACTION, "sub_cashflow_detected",
                            f"SUB transfer net cashflow: ${total_net_flow:+,.2f}",
                            account_id=account_id)
                 
-                # Get current config
-                config = account['benchmark_configs']
-                if isinstance(config, list):
-                    config = config[0]
+                # Use provided config or get from account
+                if not config:
+                    config = account.get('benchmark_configs')
+                    if isinstance(config, list):
+                        config = config[0]
                 
-                # Adjust benchmark for the cashflow
-                from api.index import adjust_benchmark_for_cashflow
-                updated_config = adjust_benchmark_for_cashflow(
-                    db_client, config, account_id, total_net_flow, prices, 
-                    transactions_to_insert, logger
-                )
-                
-                # Update the account's config for subsequent calculations
-                account['benchmark_configs'] = updated_config
+                if config:
+                    # Adjust benchmark for the cashflow
+                    updated_config = adjust_benchmark_for_cashflow(
+                        db_client, config, account_id, total_net_flow, prices, 
+                        transactions_to_insert, logger
+                    )
+                    
+                    # Return the updated config
+                    config = updated_config
                        
     except Exception as e:
         # Log error but don't fail the whole process
@@ -450,7 +454,7 @@ def process_account_transfers(db_client, account, binance_client, prices, logger
                       f"Failed to detect sub-account transfers: {str(e)}",
                       account_id=account.get('id'), error=str(e))
     
-    return account
+    return config
 
 def process_single_account(account, prices=None):
     """Kompletní logika pro jeden Binance účet."""
@@ -521,12 +525,10 @@ def process_single_account(account, prices=None):
     # Zpracování vkladů a výběrů
     config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
     
-    # Process sub-account transfers and update config if needed
-    updated_account = process_account_transfers(db_client, account, binance_client, prices, logger)
-    if updated_account and updated_account.get('benchmark_configs'):
-        config = updated_account['benchmark_configs']
-        if isinstance(config, list):
-            config = config[0]
+    # Process sub-account transfers with current config
+    updated_config = process_account_transfers(db_client, account, binance_client, prices, logger, config)
+    if updated_config:
+        config = updated_config
 
     # Kontrola a provedení rebalance
     now_utc = datetime.now(UTC)
