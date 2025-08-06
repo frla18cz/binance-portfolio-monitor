@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import settings
 from config.runtime_config import get_runtime_config
 from scripts.reset_account_data import get_accounts, reset_account_data
+from scripts.cleanup_nav_data import NavDataCleaner
 from utils.database_manager import DatabaseManager
 
 app = Flask(__name__, 
@@ -587,6 +588,106 @@ def delete_account(account_id):
                 'error': 'Failed to delete account'
             }), 500
             
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/accounts/cleanup')
+def cleanup_data():
+    """Show data cleanup form."""
+    try:
+        # Get all accounts
+        accounts = get_accounts()
+        
+        return render_template('admin/data_cleanup.html', 
+                               accounts=accounts)
+    except Exception as e:
+        flash(f'Error loading cleanup page: {str(e)}', 'error')
+        return redirect(url_for('accounts'))
+
+
+@app.route('/accounts/cleanup/preview', methods=['POST'])
+def preview_cleanup():
+    """Preview what data would be deleted."""
+    try:
+        data = request.get_json()
+        account_ids = data.get('account_ids', [])
+        from_timestamp = datetime.fromisoformat(data['from_timestamp'].replace('Z', '+00:00'))
+        to_timestamp = None
+        if data.get('to_timestamp'):
+            to_timestamp = datetime.fromisoformat(data['to_timestamp'].replace('Z', '+00:00'))
+        
+        if not account_ids:
+            return jsonify({'success': False, 'error': 'No accounts selected'}), 400
+        
+        # Get preview
+        cleaner = NavDataCleaner(dry_run=True)
+        preview = cleaner.preview_cleanup(account_ids, from_timestamp, to_timestamp)
+        
+        # Get account names for display
+        db = DatabaseManager()
+        accounts = db._client.table('binance_accounts')\
+            .select('id, account_name')\
+            .in_('id', account_ids)\
+            .execute()
+        
+        account_names = {a['id']: a['account_name'] for a in accounts.data}
+        
+        return jsonify({
+            'success': True,
+            'preview': preview,
+            'account_names': account_names,
+            'from_timestamp': from_timestamp.isoformat(),
+            'to_timestamp': to_timestamp.isoformat() if to_timestamp else None
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/accounts/cleanup/execute', methods=['POST'])
+def execute_cleanup():
+    """Execute the data cleanup."""
+    try:
+        data = request.get_json()
+        account_ids = data.get('account_ids', [])
+        from_timestamp = datetime.fromisoformat(data['from_timestamp'].replace('Z', '+00:00'))
+        to_timestamp = None
+        if data.get('to_timestamp'):
+            to_timestamp = datetime.fromisoformat(data['to_timestamp'].replace('Z', '+00:00'))
+        reset_status = data.get('reset_processing_status', True)
+        
+        if not account_ids:
+            return jsonify({'success': False, 'error': 'No accounts selected'}), 400
+        
+        # Execute cleanup
+        cleaner = NavDataCleaner(dry_run=False)
+        deleted_counts, errors = cleaner.cleanup_data(
+            account_ids, 
+            from_timestamp, 
+            to_timestamp,
+            reset_processing_status=reset_status
+        )
+        
+        if errors:
+            return jsonify({
+                'success': False,
+                'errors': errors,
+                'deleted_counts': deleted_counts
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'deleted_counts': deleted_counts,
+            'message': 'Data cleanup completed successfully'
+        })
+        
     except Exception as e:
         return jsonify({
             'success': False,

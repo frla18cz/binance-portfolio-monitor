@@ -1,0 +1,334 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Data Cleanup - Config Admin{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <h1 style="color: #2c3e50; margin-bottom: 30px;">
+        Data Cleanup Tool
+        <div style="float: right;">
+            <a href="{{ url_for('accounts') }}" style="font-size: 16px; color: #3498db; text-decoration: none;">
+                ← Back to Accounts
+            </a>
+        </div>
+    </h1>
+    
+    <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ffc107;">
+        <h3 style="margin-top: 0; color: #856404;">⚠️ Important Warning</h3>
+        <p><strong>This tool will permanently delete the following data within the specified time range:</strong></p>
+        <ul>
+            <li>NAV history records</li>
+            <li>Processed transactions (deposits/withdrawals)</li>
+            <li>Benchmark modifications and rebalance history</li>
+            <li>Fee tracking records</li>
+        </ul>
+        <p style="color: #721c24; font-weight: bold;">
+            ⚠️ This action cannot be undone! Make sure you have a backup before proceeding.
+        </p>
+    </div>
+    
+    <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <form id="cleanupForm">
+            <!-- Account Selection -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #2c3e50; margin-bottom: 15px;">1. Select Accounts</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                    <div style="margin-bottom: 10px;">
+                        <label>
+                            <input type="checkbox" id="selectAll" onchange="toggleAllAccounts()">
+                            <strong>Select All Accounts</strong>
+                        </label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px;">
+                        {% for account in accounts %}
+                        <label style="display: flex; align-items: center;">
+                            <input type="checkbox" name="account" value="{{ account['id'] }}" 
+                                   data-name="{{ account['account_name'] }}" class="account-checkbox">
+                            <span style="margin-left: 5px;">{{ account['account_name'] }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Time Range Selection -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #2c3e50; margin-bottom: 15px;">2. Select Time Range</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <label for="fromDate" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                            From Date & Time <span style="color: red;">*</span>
+                        </label>
+                        <input type="datetime-local" id="fromDate" name="fromDate" required
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="toDate" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                            To Date & Time (optional, default: now)
+                        </label>
+                        <input type="datetime-local" id="toDate" name="toDate"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Options -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #2c3e50; margin-bottom: 15px;">3. Options</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                    <label style="display: flex; align-items: center;">
+                        <input type="checkbox" id="resetStatus" name="resetStatus" checked>
+                        <span style="margin-left: 5px;">
+                            <strong>Reset processing status</strong> 
+                            <small>(recommended - sets last processed timestamp to last valid data before cleanup range)</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button type="button" onclick="previewCleanup()" 
+                        style="background: #3498db; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;">
+                    Preview Cleanup
+                </button>
+                <button type="button" onclick="executeCleanup()" id="executeBtn" disabled
+                        style="background: #e74c3c; color: white; padding: 12px 30px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;">
+                    Execute Cleanup
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Preview Results -->
+    <div id="previewResults" style="display: none; margin-top: 30px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3 style="color: #2c3e50; margin-bottom: 20px;">Preview Results</h3>
+        <div id="previewContent"></div>
+    </div>
+    
+    <!-- Confirmation Dialog -->
+    <div id="confirmDialog" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; max-width: 500px; width: 90%;">
+            <h3 style="color: #e74c3c; margin-bottom: 20px;">⚠️ Confirm Data Deletion</h3>
+            <div id="confirmContent"></div>
+            <div style="margin-top: 20px;">
+                <p style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px;">
+                    <strong>This action cannot be undone!</strong><br>
+                    Type <strong>DELETE</strong> to confirm:
+                </p>
+                <input type="text" id="confirmInput" placeholder="Type DELETE to confirm"
+                       style="width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button onclick="closeConfirmDialog()" 
+                        style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+                    Cancel
+                </button>
+                <button onclick="confirmDeletion()" id="confirmDeleteBtn" disabled
+                        style="background: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+                    Delete Data
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let previewData = null;
+
+function toggleAllAccounts() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.account-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+}
+
+function formatDateTime(isoString) {
+    if (!isoString) return 'Now';
+    const date = new Date(isoString);
+    return date.toLocaleString();
+}
+
+async function previewCleanup() {
+    // Validate form
+    const selectedAccounts = Array.from(document.querySelectorAll('.account-checkbox:checked'))
+        .map(cb => cb.value);
+    
+    if (selectedAccounts.length === 0) {
+        alert('Please select at least one account');
+        return;
+    }
+    
+    const fromDate = document.getElementById('fromDate').value;
+    if (!fromDate) {
+        alert('Please select a "From" date');
+        return;
+    }
+    
+    const toDate = document.getElementById('toDate').value;
+    
+    // Prepare data
+    const data = {
+        account_ids: selectedAccounts,
+        from_timestamp: new Date(fromDate).toISOString(),
+        to_timestamp: toDate ? new Date(toDate).toISOString() : null
+    };
+    
+    try {
+        const response = await fetch('/accounts/cleanup/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            previewData = result;
+            displayPreview(result);
+            document.getElementById('executeBtn').disabled = false;
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error previewing cleanup: ' + error);
+    }
+}
+
+function displayPreview(data) {
+    const accountNames = Object.values(data.account_names).join(', ');
+    let total = 0;
+    let html = `
+        <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <strong>Accounts:</strong> ${accountNames}<br>
+            <strong>From:</strong> ${formatDateTime(data.from_timestamp)}<br>
+            <strong>To:</strong> ${formatDateTime(data.to_timestamp)}
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f8f9fa;">
+                    <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Table</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #dee2e6;">Records to Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    for (const [table, count] of Object.entries(data.preview)) {
+        total += count;
+        html += `
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">${table}</td>
+                <td style="padding: 10px; text-align: right; border-bottom: 1px solid #dee2e6;">
+                    <strong>${count.toLocaleString()}</strong>
+                </td>
+            </tr>
+        `;
+    }
+    
+    html += `
+            </tbody>
+            <tfoot>
+                <tr style="background: #f8f9fa;">
+                    <th style="padding: 10px; text-align: left; border-top: 2px solid #dee2e6;">TOTAL</th>
+                    <th style="padding: 10px; text-align: right; border-top: 2px solid #dee2e6; color: #e74c3c;">
+                        ${total.toLocaleString()} records
+                    </th>
+                </tr>
+            </tfoot>
+        </table>
+    `;
+    
+    document.getElementById('previewContent').innerHTML = html;
+    document.getElementById('previewResults').style.display = 'block';
+}
+
+function executeCleanup() {
+    if (!previewData) {
+        alert('Please preview the cleanup first');
+        return;
+    }
+    
+    // Show confirmation dialog
+    const accountNames = Object.values(previewData.account_names).join(', ');
+    let total = Object.values(previewData.preview).reduce((a, b) => a + b, 0);
+    
+    document.getElementById('confirmContent').innerHTML = `
+        <p>You are about to delete <strong style="color: #e74c3c;">${total.toLocaleString()}</strong> records from the following accounts:</p>
+        <p><strong>${accountNames}</strong></p>
+        <p>Time range: ${formatDateTime(previewData.from_timestamp)} to ${formatDateTime(previewData.to_timestamp)}</p>
+    `;
+    
+    document.getElementById('confirmDialog').style.display = 'block';
+    document.getElementById('confirmInput').value = '';
+    document.getElementById('confirmDeleteBtn').disabled = true;
+}
+
+function closeConfirmDialog() {
+    document.getElementById('confirmDialog').style.display = 'none';
+}
+
+// Enable confirm button when DELETE is typed
+document.getElementById('confirmInput').addEventListener('input', function(e) {
+    document.getElementById('confirmDeleteBtn').disabled = e.target.value !== 'DELETE';
+});
+
+async function confirmDeletion() {
+    const selectedAccounts = Array.from(document.querySelectorAll('.account-checkbox:checked'))
+        .map(cb => cb.value);
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+    const resetStatus = document.getElementById('resetStatus').checked;
+    
+    const data = {
+        account_ids: selectedAccounts,
+        from_timestamp: new Date(fromDate).toISOString(),
+        to_timestamp: toDate ? new Date(toDate).toISOString() : null,
+        reset_processing_status: resetStatus
+    };
+    
+    // Disable button and show loading
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+    
+    try {
+        const response = await fetch('/accounts/cleanup/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeConfirmDialog();
+            alert('✅ ' + result.message + '\n\nDeleted records:\n' + 
+                  Object.entries(result.deleted_counts)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join('\n'));
+            
+            // Reset form
+            document.getElementById('cleanupForm').reset();
+            document.getElementById('previewResults').style.display = 'none';
+            document.getElementById('executeBtn').disabled = true;
+            previewData = null;
+        } else {
+            alert('Error: ' + (result.error || result.errors?.join('\n')));
+            btn.textContent = 'Delete Data';
+            btn.disabled = false;
+        }
+    } catch (error) {
+        alert('Error executing cleanup: ' + error);
+        btn.textContent = 'Delete Data';
+        btn.disabled = false;
+    }
+}
+
+// Set default from date to 7 days ago
+window.addEventListener('DOMContentLoaded', function() {
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 7);
+    document.getElementById('fromDate').value = fromDate.toISOString().slice(0, 16);
+});
+</script>
+{% endblock %}
