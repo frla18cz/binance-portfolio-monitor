@@ -127,7 +127,7 @@ class NavDataCleaner:
             LogCategory.SYSTEM,
             "data_cleanup_started",
             f"Starting cleanup for {len(account_ids)} accounts from {from_timestamp} to {to_timestamp}",
-            metadata={
+            data={
                 "account_ids": account_ids,
                 "from_timestamp": from_timestamp.isoformat(),
                 "to_timestamp": to_timestamp.isoformat(),
@@ -245,7 +245,7 @@ class NavDataCleaner:
                 LogCategory.SYSTEM,
                 "data_cleanup_completed",
                 f"Cleanup completed successfully",
-                metadata={
+                data={
                     "deleted_counts": deleted_counts,
                     "dry_run": self.dry_run
                 }
@@ -258,7 +258,7 @@ class NavDataCleaner:
                 LogCategory.SYSTEM,
                 "data_cleanup_error",
                 error_msg,
-                metadata={"error": str(e)}
+                data={"error": str(e)}
             )
         
         return deleted_counts, errors
