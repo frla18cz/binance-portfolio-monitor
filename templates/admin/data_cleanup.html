@@ -53,21 +53,27 @@
             
             <!-- Time Range Selection -->
             <div style="margin-bottom: 30px;">
-                <h3 style="color: #2c3e50; margin-bottom: 15px;">2. Select Time Range</h3>
+                <h3 style="color: #2c3e50; margin-bottom: 15px;">2. Select Time Range (UTC)</h3>
+                <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    <strong>⚠️ Note:</strong> All times are in UTC. Your local time is <span id="localTime"></span>, 
+                    which is <span id="timezoneOffset"></span> hours from UTC.
+                </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div>
                         <label for="fromDate" style="display: block; margin-bottom: 5px; font-weight: bold;">
-                            From Date & Time <span style="color: red;">*</span>
+                            From Date & Time (UTC) <span style="color: red;">*</span>
                         </label>
                         <input type="datetime-local" id="fromDate" name="fromDate" required
                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <small style="color: #666;">Enter time in UTC</small>
                     </div>
                     <div>
                         <label for="toDate" style="display: block; margin-bottom: 5px; font-weight: bold;">
-                            To Date & Time (optional, default: now)
+                            To Date & Time (UTC) (optional, default: now)
                         </label>
                         <input type="datetime-local" id="toDate" name="toDate"
                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <small style="color: #666;">Enter time in UTC</small>
                     </div>
                 </div>
             </div>
@@ -324,11 +330,44 @@ async function confirmDeletion() {
     }
 }
 
-// Set default from date to 7 days ago
+// Set default from date to 7 days ago and show timezone info
 window.addEventListener('DOMContentLoaded', function() {
+    // Show timezone info
+    const now = new Date();
+    const offset = -now.getTimezoneOffset() / 60;
+    document.getElementById('localTime').textContent = now.toLocaleTimeString();
+    document.getElementById('timezoneOffset').textContent = (offset >= 0 ? '+' : '') + offset;
+    
+    // Set default from date to 7 days ago in UTC
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 7);
-    document.getElementById('fromDate').value = fromDate.toISOString().slice(0, 16);
+    // Convert to UTC for the input
+    const utcFromDate = new Date(fromDate.getTime() - fromDate.getTimezoneOffset() * 60000);
+    document.getElementById('fromDate').value = utcFromDate.toISOString().slice(0, 16);
+    
+    // Add helper text showing local equivalent
+    updateLocalTimeDisplay();
 });
+
+// Update local time display when dates change
+document.getElementById('fromDate').addEventListener('change', updateLocalTimeDisplay);
+document.getElementById('toDate').addEventListener('change', updateLocalTimeDisplay);
+
+function updateLocalTimeDisplay() {
+    const fromInput = document.getElementById('fromDate');
+    const toInput = document.getElementById('toDate');
+    
+    if (fromInput.value) {
+        const utcDate = new Date(fromInput.value + 'Z'); // Add Z to treat as UTC
+        const localDate = new Date(utcDate.toLocaleString());
+        fromInput.title = 'Local time: ' + utcDate.toLocaleString();
+    }
+    
+    if (toInput.value) {
+        const utcDate = new Date(toInput.value + 'Z');
+        const localDate = new Date(utcDate.toLocaleString());
+        toInput.title = 'Local time: ' + utcDate.toLocaleString();
+    }
+}
 </script>
 {% endblock %}
