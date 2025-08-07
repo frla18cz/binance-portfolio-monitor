@@ -546,6 +546,8 @@ def edit_account(account_id):
         return redirect(url_for('edit_account', account_id=account_id))
 
 
+
+
 @app.route('/accounts/delete/<account_id>', methods=['POST'])
 def delete_account(account_id):
     """Delete account and all related data."""
