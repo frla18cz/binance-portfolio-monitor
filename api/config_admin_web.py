@@ -482,9 +482,24 @@ def edit_account(account_id):
     if request.method == 'GET':
         # Get master accounts for dropdown
         master_accounts = supabase.table('binance_accounts').select('*').eq('is_sub_account', False).execute()
+        
+        # Test current account credentials (with error handling)
+        validation_result = None
+        try:
+            from scripts.validate_account import test_account_settings
+            is_valid, message = test_account_settings(account_id)
+            validation_result = {
+                'is_valid': is_valid,
+                'message': message
+            }
+        except Exception as e:
+            # If validation fails, log but continue showing the form
+            print(f"Warning: Could not validate account {account_id}: {str(e)}")
+        
         return render_template('admin/account_form.html', 
                              account=account, 
-                             master_accounts=master_accounts.data or [])
+                             master_accounts=master_accounts.data or [],
+                             validation_result=validation_result)
     
     # POST - update account
     try:
@@ -546,6 +561,102 @@ def edit_account(account_id):
         return redirect(url_for('edit_account', account_id=account_id))
 
 
+
+
+@app.route('/accounts/test-connection', methods=['POST'])
+def test_connection():
+    """Test API connection for an account."""
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key', '').strip()
+        api_secret = data.get('api_secret', '').strip()
+        is_sub_account = data.get('is_sub_account', False)
+        master_api_key = data.get('master_api_key', '').strip()
+        master_api_secret = data.get('master_api_secret', '').strip()
+        email = data.get('email', '').strip()
+        
+        errors = []
+        warnings = []
+        
+        # Test main API credentials
+        if not api_key or not api_secret:
+            errors.append('API key and secret are required')
+        else:
+            # Try to make a simple API call to test credentials
+            import requests
+            import time
+            import hmac
+            import hashlib
+            from urllib.parse import urlencode
+            
+            def test_binance_api(key, secret):
+                try:
+                    base_url = 'https://api.binance.com'
+                    endpoint = '/api/v3/account'
+                    timestamp = int(time.time() * 1000)
+                    params = {'timestamp': timestamp}
+                    query_string = urlencode(params)
+                    signature = hmac.new(
+                        secret.encode('utf-8'),
+                        query_string.encode('utf-8'),
+                        hashlib.sha256
+                    ).hexdigest()
+                    params['signature'] = signature
+                    
+                    headers = {'X-MBX-APIKEY': key}
+                    response = requests.get(
+                        base_url + endpoint,
+                        headers=headers,
+                        params=params,
+                        timeout=10
+                    )
+                    
+                    if response.status_code == 200:
+                        return True, 'Connection successful'
+                    elif response.status_code == 401:
+                        return False, 'Invalid API credentials'
+                    elif response.status_code == 418:
+                        return False, 'IP not whitelisted for this API key'
+                    else:
+                        return False, f'API error (code {response.status_code})'
+                except Exception as e:
+                    return False, f'Connection failed: {str(e)}'
+            
+            success, message = test_binance_api(api_key, api_secret)
+            if not success:
+                errors.append(f'Main API: {message}')
+        
+        # Test sub-account specific requirements
+        if is_sub_account:
+            if not email:
+                warnings.append('Email is recommended for sub-account transfer detection')
+            
+            if master_api_key and master_api_secret:
+                # Test master API credentials
+                success, message = test_binance_api(master_api_key, master_api_secret)
+                if not success:
+                    errors.append(f'Master API: {message}')
+            else:
+                warnings.append('Master API credentials not provided - transfer detection will not work')
+        
+        if errors:
+            return jsonify({
+                'success': False,
+                'errors': errors,
+                'warnings': warnings
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'All tests passed successfully!',
+                'warnings': warnings
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'errors': [f'Unexpected error: {str(e)}']
+        }), 500
 
 
 @app.route('/accounts/delete/<account_id>', methods=['POST'])
