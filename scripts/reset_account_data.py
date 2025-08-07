@@ -20,10 +20,10 @@ logger = MonitorLogger()
 def get_accounts():
     """Get list of all accounts"""
     db_client = get_supabase_client()
-    response = db_client.table('binance_accounts')\
-        .select('id, account_name')\
-        .order('account_name')\
-        .execute()
+    response = (db_client.table('binance_accounts')
+        .select('id, account_name, is_sub_account, email, master_api_key')
+        .order('account_name')
+        .execute())
     
     return response.data if response.data else []
 
