@@ -95,6 +95,9 @@ class NavDataCleaner:
         result = query.execute()
         counts['fee_tracking'] = result.count if result else 0
         
+        # Show benchmark_configs that will be reset
+        counts['benchmark_configs_to_reset'] = len(account_ids)
+        
         return counts
     
     def cleanup_data(
@@ -102,7 +105,8 @@ class NavDataCleaner:
         account_ids: List[str],
         from_timestamp: datetime,
         to_timestamp: Optional[datetime] = None,
-        reset_processing_status: bool = True
+        reset_processing_status: bool = True,
+        reset_benchmark: bool = True
     ) -> Tuple[Dict[str, int], List[str]]:
         """
         Clean up NAV history and related data.
@@ -112,6 +116,7 @@ class NavDataCleaner:
             from_timestamp: Start of deletion range
             to_timestamp: End of deletion range (None = now)
             reset_processing_status: Whether to reset account processing status
+            reset_benchmark: Whether to reset benchmark_configs to last valid state
             
         Returns:
             Tuple of (deleted counts, list of errors)
@@ -213,7 +218,77 @@ class NavDataCleaner:
             else:
                 deleted_counts['fee_tracking'] = self.preview_cleanup(account_ids, from_timestamp, to_timestamp)['fee_tracking']
             
-            # 7. Reset account processing status if requested
+            # 7. Reset benchmark_configs to last valid state
+            if reset_benchmark and not self.dry_run:
+                benchmark_reset_count = 0
+                for account_id in account_ids:
+                    # Find last valid benchmark_modification BEFORE cleanup range
+                    last_valid_mod = self.db._client.table('benchmark_modifications')\
+                        .select('btc_units_after, eth_units_after, modification_timestamp')\
+                        .eq('account_id', account_id)\
+                        .lt('modification_timestamp', from_timestamp.isoformat())\
+                        .order('modification_timestamp', desc=True)\
+                        .limit(1)\
+                        .execute()
+                    
+                    if last_valid_mod.data:
+                        # Reset to last valid values
+                        result = self.db._client.table('benchmark_configs')\
+                            .update({
+                                'btc_units': last_valid_mod.data[0]['btc_units_after'],
+                                'eth_units': last_valid_mod.data[0]['eth_units_after'],
+                                'last_modification_id': None,
+                                'last_modification_timestamp': last_valid_mod.data[0]['modification_timestamp'],
+                                'last_modification_type': None,
+                                'last_modification_amount': None
+                            })\
+                            .eq('account_id', account_id)\
+                            .execute()
+                        
+                        if result.data:
+                            benchmark_reset_count += 1
+                            logger.info(
+                                LogCategory.SYSTEM,
+                                "benchmark_reset",
+                                f"Reset benchmark for account {account_id} to BTC={last_valid_mod.data[0]['btc_units_after']}, ETH={last_valid_mod.data[0]['eth_units_after']}",
+                                account_id=account_id,
+                                data=last_valid_mod.data[0]
+                            )
+                    else:
+                        # No previous modifications, reset to zero
+                        # But preserve initialized_at
+                        config = self.db._client.table('benchmark_configs')\
+                            .select('initialized_at, rebalance_day, rebalance_hour')\
+                            .eq('account_id', account_id)\
+                            .single()\
+                            .execute()
+                        
+                        result = self.db._client.table('benchmark_configs')\
+                            .update({
+                                'btc_units': 0,
+                                'eth_units': 0,
+                                'last_modification_id': None,
+                                'last_modification_timestamp': None,
+                                'last_modification_type': None,
+                                'last_modification_amount': None,
+                                # Preserve important settings
+                                'initialized_at': config.data.get('initialized_at') if config.data else None
+                            })\
+                            .eq('account_id', account_id)\
+                            .execute()
+                        
+                        if result.data:
+                            benchmark_reset_count += 1
+                            logger.info(
+                                LogCategory.SYSTEM,
+                                "benchmark_reset_to_zero",
+                                f"Reset benchmark for account {account_id} to zero (no prior modifications)",
+                                account_id=account_id
+                            )
+                
+                deleted_counts['benchmark_configs_reset'] = benchmark_reset_count
+            
+            # 8. Reset account processing status if requested
             if reset_processing_status and not self.dry_run:
                 for account_id in account_ids:
                     # Get last valid timestamp before the cleanup range
@@ -275,6 +350,7 @@ def main():
     parser.add_argument('--to', dest='to_date', help='To timestamp (ISO format, default: now)')
     parser.add_argument('--dry-run', action='store_true', help='Preview without deleting')
     parser.add_argument('--no-reset-status', action='store_true', help='Do not reset processing status')
+    parser.add_argument('--no-reset-benchmark', action='store_true', help='Do not reset benchmark configs')
     
     args = parser.parse_args()
     
@@ -309,6 +385,7 @@ def main():
     print(f"From: {from_timestamp}")
     print(f"To: {to_timestamp or 'Now'}")
     print(f"Reset processing status: {not args.no_reset_status}")
+    print(f"Reset benchmark configs: {not args.no_reset_benchmark}")
     print("\nRecords to be deleted:")
     
     preview = cleaner.preview_cleanup(account_ids, from_timestamp, to_timestamp)
@@ -335,7 +412,8 @@ def main():
         account_ids, 
         from_timestamp, 
         to_timestamp,
-        reset_processing_status=not args.no_reset_status
+        reset_processing_status=not args.no_reset_status,
+        reset_benchmark=not args.no_reset_benchmark
     )
     
     print("\n" + "="*60)
