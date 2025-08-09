@@ -86,7 +86,7 @@
                         <input type="checkbox" id="resetStatus" name="resetStatus" checked>
                         <span style="margin-left: 5px;">
                             <strong>Reset processing status</strong> 
-                            <small>(recommended - sets last processed timestamp to last valid data before cleanup range)</small>
+                            <small>(recommended – will set last processed timestamp to (From − 1s) to guarantee replay)</small>
                         </span>
                     </label>
                 </div>
@@ -110,6 +110,13 @@
     <div id="previewResults" style="display: none; margin-top: 30px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <h3 style="color: #2c3e50; margin-bottom: 20px;">Preview Results</h3>
         <div id="previewContent"></div>
+        <div style="margin-top: 15px; background: #e8f5e9; border: 1px solid #c8e6c9; color: #1b5e20; padding: 12px; border-radius: 6px;">
+            <strong>Replay will be enforced:</strong>
+            <ul style="margin: 8px 0 0 18px;">
+                <li>initialized_at will be set to (From − 1s) if it is later, so transactions in the window are not filtered out as pre-init.</li>
+                <li>last_processed_timestamp will be set to (From − 1s), so all data from From onward will be re-fetched.</li>
+            </ul>
+        </div>
     </div>
     
     <!-- Confirmation Dialog -->

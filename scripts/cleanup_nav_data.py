@@ -95,6 +95,9 @@ class NavDataCleaner:
         result = query.execute()
         counts['fee_tracking'] = result.count if result else 0
         
+        # Show benchmark_configs that will be reset
+        counts['benchmark_configs_to_reset'] = len(account_ids)
+        
         return counts
     
     def cleanup_data(
@@ -102,7 +105,8 @@ class NavDataCleaner:
         account_ids: List[str],
         from_timestamp: datetime,
         to_timestamp: Optional[datetime] = None,
-        reset_processing_status: bool = True
+        reset_processing_status: bool = True,
+        reset_benchmark: bool = True
     ) -> Tuple[Dict[str, int], List[str]]:
         """
         Clean up NAV history and related data.
@@ -112,6 +116,7 @@ class NavDataCleaner:
             from_timestamp: Start of deletion range
             to_timestamp: End of deletion range (None = now)
             reset_processing_status: Whether to reset account processing status
+            reset_benchmark: Whether to reset benchmark_configs to last valid state
             
         Returns:
             Tuple of (deleted counts, list of errors)
@@ -213,33 +218,57 @@ class NavDataCleaner:
             else:
                 deleted_counts['fee_tracking'] = self.preview_cleanup(account_ids, from_timestamp, to_timestamp)['fee_tracking']
             
-            # 7. Reset account processing status if requested
-            if reset_processing_status and not self.dry_run:
+            # 7. Reset benchmark_configs and processing status to enforce replay
+            if reset_benchmark and not self.dry_run:
+                from datetime import timedelta
+                benchmark_reset_count = 0
+                # Unconditionally enforce the replay start time
+                replay_init_at = (from_timestamp - timedelta(seconds=1))
+                replay_start_checkpoint = replay_init_at.isoformat()
+
                 for account_id in account_ids:
-                    # Get last valid timestamp before the cleanup range
-                    last_valid = self.db._client.table('nav_history')\
-                        .select('timestamp')\
+                    # A. Enforce replay checkpoint
+                    upsert_payload = {
+                        'account_id': account_id,
+                        'last_processed_timestamp': replay_start_checkpoint
+                    }
+                    self.db._client.table('account_processing_status').upsert(upsert_payload).execute()
+
+                    # B. Find last valid benchmark state BEFORE the cleanup window
+                    last_valid_mod = self.db._client.table('benchmark_modifications')\
+                        .select('btc_units_after, eth_units_after, modification_timestamp')\
                         .eq('account_id', account_id)\
-                        .lt('timestamp', from_timestamp.isoformat())\
-                        .order('timestamp', desc=True)\
+                        .lt('modification_timestamp', from_timestamp.isoformat())\
+                        .order('modification_timestamp', desc=True)\
                         .limit(1)\
                         .execute()
-                    
-                    if last_valid.data:
-                        # Update or insert processing status
-                        self.db._client.table('account_processing_status')\
-                            .upsert({
-                                'account_id': account_id,
-                                'last_processed_timestamp': last_valid.data[0]['timestamp']
-                            })\
-                            .execute()
+
+                    update_payload = {
+                        'initialized_at': replay_init_at.isoformat(),
+                        'last_modification_id': None,
+                        'last_modification_timestamp': None,
+                        'last_modification_type': None,
+                        'last_modification_amount': None,
+                    }
+
+                    if last_valid_mod.data:
+                        update_payload['btc_units'] = last_valid_mod.data[0]['btc_units_after']
+                        update_payload['eth_units'] = last_valid_mod.data[0]['eth_units_after']
+                        update_payload['last_modification_timestamp'] = last_valid_mod.data[0]['modification_timestamp']
                     else:
-                        # No data before cleanup range, remove processing status
-                        self.db._client.table('account_processing_status')\
-                            .delete()\
-                            .eq('account_id', account_id)\
-                            .execute()
+                        update_payload['btc_units'] = 0
+                        update_payload['eth_units'] = 0
+
+                    result = self.db._client.table('benchmark_configs').update(update_payload).eq('account_id', account_id).execute()
+
+                    if result.data:
+                        benchmark_reset_count += 1
+
+                deleted_counts['benchmark_configs_reset'] = benchmark_reset_count
             
+
+            # Note: Initialized_at and last_processed_timestamp were set above to enforce replay. Do not override them again here.
+
             # Log success
             logger.info(
                 LogCategory.SYSTEM,
@@ -275,6 +304,7 @@ def main():
     parser.add_argument('--to', dest='to_date', help='To timestamp (ISO format, default: now)')
     parser.add_argument('--dry-run', action='store_true', help='Preview without deleting')
     parser.add_argument('--no-reset-status', action='store_true', help='Do not reset processing status')
+    parser.add_argument('--no-reset-benchmark', action='store_true', help='Do not reset benchmark configs')
     
     args = parser.parse_args()
     
@@ -309,6 +339,7 @@ def main():
     print(f"From: {from_timestamp}")
     print(f"To: {to_timestamp or 'Now'}")
     print(f"Reset processing status: {not args.no_reset_status}")
+    print(f"Reset benchmark configs: {not args.no_reset_benchmark}")
     print("\nRecords to be deleted:")
     
     preview = cleaner.preview_cleanup(account_ids, from_timestamp, to_timestamp)
@@ -335,7 +366,8 @@ def main():
         account_ids, 
         from_timestamp, 
         to_timestamp,
-        reset_processing_status=not args.no_reset_status
+        reset_processing_status=not args.no_reset_status,
+        reset_benchmark=not args.no_reset_benchmark
     )
     
     print("\n" + "="*60)
