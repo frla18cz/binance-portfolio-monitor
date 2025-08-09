@@ -138,6 +138,14 @@ def reset_account_data(account_id, account_name, skip_confirmation=False):
             .execute()
         
         print("✅ Cleared benchmark rebalance history")
+
+        # 7. Delete fee tracking
+        response = db_client.table('fee_tracking')\
+            .delete()\
+            .eq('account_id', account_id)\
+            .execute()
+        
+        print("✅ Cleared fee tracking")
         
         logger.info(LogCategory.SYSTEM, "account_reset_complete",
                    f"Successfully reset account: {account_name}",

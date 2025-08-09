@@ -514,14 +514,14 @@ def process_single_account(account, prices=None):
     if nav is None:
         return
 
-    if not config.get('btc_units') and not config.get('eth_units'):
+    # Initialize benchmark if it hasn't been initialized yet (is NULL)
+    if config.get('initialized_at') is None:
         logger.info(LogCategory.BENCHMARK, "initialize", 
-                   f"Benchmark not initialized, initializing with NAV: ${nav:.2f}",
+                   f"Benchmark not initialized (is NULL), initializing with NAV: ${nav:.2f}",
                    account_id=account_id, account_name=account_name, 
                    data={"initial_nav": nav})
         config = initialize_benchmark(db_client, config, account_id, nav, prices, logger)
 
-    
     # Zpracování vkladů a výběrů
     config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
     

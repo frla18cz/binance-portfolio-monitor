@@ -218,11 +218,23 @@ class NavDataCleaner:
             else:
                 deleted_counts['fee_tracking'] = self.preview_cleanup(account_ids, from_timestamp, to_timestamp)['fee_tracking']
             
-            # 7. Reset benchmark_configs to last valid state
+            # 7. Reset benchmark_configs and processing status to enforce replay
             if reset_benchmark and not self.dry_run:
+                from datetime import timedelta
                 benchmark_reset_count = 0
+                # Unconditionally enforce the replay start time
+                replay_init_at = (from_timestamp - timedelta(seconds=1))
+                replay_start_checkpoint = replay_init_at.isoformat()
+
                 for account_id in account_ids:
-                    # Find last valid benchmark_modification BEFORE cleanup range
+                    # A. Enforce replay checkpoint
+                    upsert_payload = {
+                        'account_id': account_id,
+                        'last_processed_timestamp': replay_start_checkpoint
+                    }
+                    self.db._client.table('account_processing_status').upsert(upsert_payload).execute()
+
+                    # B. Find last valid benchmark state BEFORE the cleanup window
                     last_valid_mod = self.db._client.table('benchmark_modifications')\
                         .select('btc_units_after, eth_units_after, modification_timestamp')\
                         .eq('account_id', account_id)\
@@ -230,91 +242,33 @@ class NavDataCleaner:
                         .order('modification_timestamp', desc=True)\
                         .limit(1)\
                         .execute()
-                    
+
+                    update_payload = {
+                        'initialized_at': replay_init_at.isoformat(),
+                        'last_modification_id': None,
+                        'last_modification_timestamp': None,
+                        'last_modification_type': None,
+                        'last_modification_amount': None,
+                    }
+
                     if last_valid_mod.data:
-                        # Reset to last valid values
-                        result = self.db._client.table('benchmark_configs')\
-                            .update({
-                                'btc_units': last_valid_mod.data[0]['btc_units_after'],
-                                'eth_units': last_valid_mod.data[0]['eth_units_after'],
-                                'last_modification_id': None,
-                                'last_modification_timestamp': last_valid_mod.data[0]['modification_timestamp'],
-                                'last_modification_type': None,
-                                'last_modification_amount': None
-                            })\
-                            .eq('account_id', account_id)\
-                            .execute()
-                        
-                        if result.data:
-                            benchmark_reset_count += 1
-                            logger.info(
-                                LogCategory.SYSTEM,
-                                "benchmark_reset",
-                                f"Reset benchmark for account {account_id} to BTC={last_valid_mod.data[0]['btc_units_after']}, ETH={last_valid_mod.data[0]['eth_units_after']}",
-                                account_id=account_id,
-                                data=last_valid_mod.data[0]
-                            )
+                        update_payload['btc_units'] = last_valid_mod.data[0]['btc_units_after']
+                        update_payload['eth_units'] = last_valid_mod.data[0]['eth_units_after']
+                        update_payload['last_modification_timestamp'] = last_valid_mod.data[0]['modification_timestamp']
                     else:
-                        # No previous modifications, reset to zero
-                        # But preserve initialized_at
-                        config = self.db._client.table('benchmark_configs')\
-                            .select('initialized_at, rebalance_day, rebalance_hour')\
-                            .eq('account_id', account_id)\
-                            .single()\
-                            .execute()
-                        
-                        result = self.db._client.table('benchmark_configs')\
-                            .update({
-                                'btc_units': 0,
-                                'eth_units': 0,
-                                'last_modification_id': None,
-                                'last_modification_timestamp': None,
-                                'last_modification_type': None,
-                                'last_modification_amount': None,
-                                # Preserve important settings
-                                'initialized_at': config.data.get('initialized_at') if config.data else None
-                            })\
-                            .eq('account_id', account_id)\
-                            .execute()
-                        
-                        if result.data:
-                            benchmark_reset_count += 1
-                            logger.info(
-                                LogCategory.SYSTEM,
-                                "benchmark_reset_to_zero",
-                                f"Reset benchmark for account {account_id} to zero (no prior modifications)",
-                                account_id=account_id
-                            )
-                
+                        update_payload['btc_units'] = 0
+                        update_payload['eth_units'] = 0
+
+                    result = self.db._client.table('benchmark_configs').update(update_payload).eq('account_id', account_id).execute()
+
+                    if result.data:
+                        benchmark_reset_count += 1
+
                 deleted_counts['benchmark_configs_reset'] = benchmark_reset_count
             
-            # 8. Reset account processing status if requested
-            if reset_processing_status and not self.dry_run:
-                for account_id in account_ids:
-                    # Get last valid timestamp before the cleanup range
-                    last_valid = self.db._client.table('nav_history')\
-                        .select('timestamp')\
-                        .eq('account_id', account_id)\
-                        .lt('timestamp', from_timestamp.isoformat())\
-                        .order('timestamp', desc=True)\
-                        .limit(1)\
-                        .execute()
-                    
-                    if last_valid.data:
-                        # Update or insert processing status
-                        self.db._client.table('account_processing_status')\
-                            .upsert({
-                                'account_id': account_id,
-                                'last_processed_timestamp': last_valid.data[0]['timestamp']
-                            })\
-                            .execute()
-                    else:
-                        # No data before cleanup range, remove processing status
-                        self.db._client.table('account_processing_status')\
-                            .delete()\
-                            .eq('account_id', account_id)\
-                            .execute()
-            
+
+            # Note: Initialized_at and last_processed_timestamp were set above to enforce replay. Do not override them again here.
+
             # Log success
             logger.info(
                 LogCategory.SYSTEM,
