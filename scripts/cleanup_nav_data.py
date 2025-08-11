@@ -234,7 +234,7 @@ class NavDataCleaner:
                     }
                     self.db._client.table('account_processing_status').upsert(upsert_payload).execute()
 
-                    # B. Find last valid benchmark state BEFORE the cleanup window
+                    # B. ELEGANTNÍ ŘEŠENÍ: Nejdřív zkusíme najít snapshot v benchmark_modifications
                     last_valid_mod = self.db._client.table('benchmark_modifications')\
                         .select('btc_units_after, eth_units_after, modification_timestamp')\
                         .eq('account_id', account_id)\
@@ -243,21 +243,57 @@ class NavDataCleaner:
                         .limit(1)\
                         .execute()
 
+                    # Pokud existuje záznam v benchmark_modifications, použijeme ho
+                    if last_valid_mod.data:
+                        btc_units = last_valid_mod.data[0]['btc_units_after']
+                        eth_units = last_valid_mod.data[0]['eth_units_after']
+                        source_timestamp = last_valid_mod.data[0]['modification_timestamp']
+                        source = "snapshot_modification"
+                    else:
+                        # POKUD NE, použijeme AKTUÁLNÍ stav z benchmark_configs, pokud je validní (není None)
+                        current_config = self.db._client.table('benchmark_configs')\
+                            .select('btc_units, eth_units')\
+                            .eq('account_id', account_id)\
+                            .execute()
+                        
+                        btc_units = None
+                        eth_units = None
+                        source_timestamp = None
+                        source = None
+                        if current_config.data and current_config.data[0].get('btc_units') is not None and current_config.data[0].get('eth_units') is not None:
+                            btc_units = current_config.data[0]['btc_units']
+                            eth_units = current_config.data[0]['eth_units']
+                            source = "current_config"
+                            logger.info(
+                                LogCategory.SYSTEM,
+                                "using_current_benchmark_state",
+                                f"No historical snapshot found, using current benchmark state as baseline",
+                                data={
+                                    "account_id": account_id,
+                                    "btc_units": btc_units,
+                                    "eth_units": eth_units
+                                }
+                            )
+                        else:
+                            # NEPŘEPISUJ jednotky vůbec – ponech původní, zabráníme tím nastavení na nulu
+                            logger.warning(
+                                LogCategory.SYSTEM,
+                                "no_benchmark_units_to_set",
+                                f"No historical snapshot or valid current units found – leaving btc/eth units unchanged",
+                                data={"account_id": account_id}
+                            )
+
                     update_payload = {
                         'initialized_at': replay_init_at.isoformat(),
                         'last_modification_id': None,
-                        'last_modification_timestamp': None,
+                        'last_modification_timestamp': source_timestamp,
                         'last_modification_type': None,
                         'last_modification_amount': None,
                     }
-
-                    if last_valid_mod.data:
-                        update_payload['btc_units'] = last_valid_mod.data[0]['btc_units_after']
-                        update_payload['eth_units'] = last_valid_mod.data[0]['eth_units_after']
-                        update_payload['last_modification_timestamp'] = last_valid_mod.data[0]['modification_timestamp']
-                    else:
-                        update_payload['btc_units'] = 0
-                        update_payload['eth_units'] = 0
+                    # Jednotky zapíšeme pouze pokud máme validní zdroj
+                    if btc_units is not None and eth_units is not None:
+                        update_payload['btc_units'] = btc_units
+                        update_payload['eth_units'] = eth_units
 
                     result = self.db._client.table('benchmark_configs').update(update_payload).eq('account_id', account_id).execute()
 

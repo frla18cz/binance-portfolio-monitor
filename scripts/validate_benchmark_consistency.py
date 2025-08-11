@@ -30,6 +30,7 @@ class BenchmarkValidator:
         self.account_id = account_id
         self.account_name = account_name
         self.discrepancies = []
+        self.recalculated = None
         
     def validate(self) -> bool:
         """Run all validation checks and return True if all pass"""
@@ -52,11 +53,11 @@ class BenchmarkValidator:
         
         # Validate from transaction history
         print("\nRecalculating from transaction history...")
-        recalculated = self._recalculate_from_history(config)
+        self.recalculated = self._recalculate_from_history(config)
         
         # Compare results
         print("\nValidation results:")
-        is_valid = self._compare_results(config, recalculated)
+        is_valid = self._compare_results(config, self.recalculated)
         
         if self.discrepancies:
             print(f"\n⚠️  Found {len(self.discrepancies)} discrepancies:")
@@ -214,6 +215,32 @@ class BenchmarkValidator:
             self.discrepancies.append(f"ETH units mismatch: diff={eth_diff}")
             
         return btc_diff <= tolerance and eth_diff <= tolerance
+    
+    def fix(self):
+        """Fix discrepancies by updating benchmark config with recalculated values"""
+        if not self.recalculated:
+            print("ERROR: No recalculated values available. Run validate() first.")
+            return False
+            
+        print(f"\nFixing benchmark for {self.account_name}...")
+        print(f"  Setting BTC units to: {self.recalculated['btc_units']}")
+        print(f"  Setting ETH units to: {self.recalculated['eth_units']}")
+        
+        try:
+            response = self.db.table('benchmark_configs').update({
+                'btc_units': self.recalculated['btc_units'],
+                'eth_units': self.recalculated['eth_units']
+            }).eq('account_id', self.account_id).execute()
+            
+            if response.data:
+                print("✅ Benchmark fixed successfully!")
+                return True
+            else:
+                print("❌ Failed to update benchmark config")
+                return False
+        except Exception as e:
+            print(f"❌ Error fixing benchmark: {str(e)}")
+            return False
 
 
 def main():
@@ -238,10 +265,30 @@ def main():
     
     # Validate each account
     all_valid = True
+    validators = []
     for account in accounts:
         validator = BenchmarkValidator(db_client, account['id'], account['account_name'])
         is_valid = validator.validate()
         all_valid = all_valid and is_valid
+        validators.append((validator, is_valid))
+    
+    # If --fix flag is provided and there are discrepancies, fix them
+    if args.fix and not all_valid:
+        print("\n" + "="*60)
+        print("FIXING DISCREPANCIES")
+        print("="*60)
+        for validator, is_valid in validators:
+            if not is_valid:
+                validator.fix()
+        print("\n" + "="*60)
+        print("RE-VALIDATING AFTER FIX")
+        print("="*60)
+        # Re-validate to confirm fixes
+        all_valid = True
+        for account in accounts:
+            validator = BenchmarkValidator(db_client, account['id'], account['account_name'])
+            is_valid = validator.validate()
+            all_valid = all_valid and is_valid
     
     # Summary
     print(f"\n{'='*60}")

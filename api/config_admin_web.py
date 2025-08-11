@@ -81,6 +81,19 @@ CONFIG_METADATA = {
 }
 
 
+# Custom template filter for formatting date strings
+@app.template_filter('date')
+def format_date(value, format='%Y-%m-%d %H:%M'):
+    if isinstance(value, str):
+        try:
+            # Attempt to parse ISO format with potential timezone
+            dt_object = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            return dt_object.strftime(format)
+        except ValueError:
+            return value  # Return original string if parsing fails
+    return value
+
+
 @app.route('/')
 def index():
     """Main page - list all configurations."""
@@ -304,6 +317,57 @@ def validate_value():
             'valid': False,
             'errors': [str(e)]
         })
+
+
+@app.route('/fee-management')
+def fee_management():
+    """Fee management page."""
+    try:
+        db = DatabaseManager()
+        # Get all accrued fees
+        accrued_fees = db._client.table('fee_tracking').select('*').eq('status', 'ACCRUED').execute().data
+        # Get all withdrawal transactions
+        withdrawals = db._client.table('processed_transactions').select('*').eq('type', 'WITHDRAWAL').execute().data
+
+        for fee in accrued_fees:
+            fee['potential_transactions'] = [tx for tx in withdrawals if tx['account_id'] == fee['account_id']]
+
+        return render_template('admin/fee_management.html', accrued_fees=accrued_fees)
+    except Exception as e:
+        flash(f'Error loading fee management page: {str(e)}', 'error')
+        return redirect(url_for('accounts'))
+
+
+@app.route('/collect-fee', methods=['POST'])
+def collect_fee():
+    """Collect fee and update transaction type."""
+    try:
+        fee_id = request.form.get('fee_id')
+        transaction_id = request.form.get('transaction_id')
+
+        if not fee_id or not transaction_id:
+            flash('Fee ID and Transaction ID are required.', 'error')
+            return redirect(url_for('fee_management'))
+
+        db = DatabaseManager()
+
+        # Update fee_tracking table
+        db._client.table('fee_tracking').update({
+            'status': 'COLLECTED',
+            'collection_tx_id': transaction_id,
+            'collected_at': datetime.utcnow().isoformat()
+        }).eq('id', fee_id).execute()
+
+        # Update processed_transactions table
+        db._client.table('processed_transactions').update({
+            'type': 'FEE_WITHDRAWAL'
+        }).eq('transaction_id', transaction_id).execute()
+
+        flash('Fee collected successfully!', 'success')
+        return redirect(url_for('fee_management'))
+    except Exception as e:
+        flash(f'Error collecting fee: {str(e)}', 'error')
+        return redirect(url_for('fee_management'))
 
 
 @app.route('/accounts')

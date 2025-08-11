@@ -60,24 +60,9 @@ def reset_account_data(account_id, account_name, skip_confirmation=False):
         # Start transaction-like operations
         deleted_counts = {}
         
-        # 1. Reset benchmark config first (to avoid foreign key issues)
+        # 1. Delete benchmark config (it will be recreated on next run)
         response = db_client.table('benchmark_configs')\
-            .update({
-                'btc_units': None,
-                'eth_units': None,
-                'initialized_at': None,
-                'last_rebalance_timestamp': None,
-                'next_rebalance_timestamp': None,
-                'last_rebalance_status': None,
-                'last_rebalance_error': None,
-                'rebalance_count': 0,
-                'last_rebalance_btc_units': None,
-                'last_rebalance_eth_units': None,
-                'last_modification_type': None,
-                'last_modification_timestamp': None,
-                'last_modification_amount': None,
-                'last_modification_id': None
-            })\
+            .delete()\
             .eq('account_id', account_id)\
             .execute()
         
