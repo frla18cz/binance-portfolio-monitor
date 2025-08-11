@@ -521,6 +521,14 @@ def process_single_account(account, prices=None):
                    account_id=account_id, account_name=account_name, 
                    data={"initial_nav": nav})
         config = initialize_benchmark(db_client, config, account_id, nav, prices, logger)
+    else:
+        # SAFE-GUARD: Pokud initialized_at je nastavené, ale jednotky jsou None, inicializuj bezpečně
+        if config.get('btc_units') is None or config.get('eth_units') is None:
+            logger.warning(LogCategory.BENCHMARK, "units_missing_after_cleanup",
+                           "Benchmark has initialized_at but missing units – performing safe initialization",
+                           account_id=account_id, account_name=account_name,
+                           data={"initialized_at": config.get('initialized_at')})
+            config = initialize_benchmark(db_client, config, account_id, nav, prices, logger)
 
     # Zpracování vkladů a výběrů
     config = process_deposits_withdrawals(db_client, binance_client, account_id, config, prices, logger)
