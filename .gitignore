@@ -83,6 +83,9 @@ Thumbs.db
 *.db
 *.sqlite3
 
+# Backups (sensitive snapshots)
+backups/
+
 # Temporary files
 tmp/
 temp/

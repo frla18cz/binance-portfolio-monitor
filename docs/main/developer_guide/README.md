@@ -9,4 +9,5 @@ This guide provides technical documentation for developers.
 *   [Database Schema](./database_schema.md)
 *   [Runtime Configuration](./runtime_configuration.md)
 *   [Transaction Type Migration](./transaction_type_migration.md)
+*   [Database Backup and Restore](./database_backup.md)
 

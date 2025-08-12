@@ -232,6 +232,34 @@ screen -S monitor
 
 ## 🗄️ Database Operations
 
+### Snapshots (PostgreSQL backup/restore)
+
+Prerequisites (macOS):
+- Install CLI tools: `brew install libpq`
+- Ensure PATH in zsh: `echo 'export PATH="/opt/homebrew/opt/libpq/bin:$PATH"' >> ~/.zshrc && exec zsh`
+
+Securely set DB URL in this shell (no secrets in chat):
+```bash
+read -s "PGPASS?DB password: "; export SUPABASE_DB_URL="postgres://postgres:${PGPASS}@db.<your-project>.supabase.co:5432/postgres?sslmode=require"; unset PGPASS; echo
+```
+
+Create a snapshot now:
+```bash
+python3 scripts/backup_db.py
+```
+
+Restore snapshot to a local DB (isolated "branch"):
+```bash
+createdb my_branch_db            # if not exists
+python3 scripts/restore_db.py backups/latest.dump my_branch_db
+psql postgres:///my_branch_db    # inspect
+```
+
+Troubleshooting:
+- `pg_dump not found` -> install libpq and update PATH above
+- auth failed -> verify SUPABASE_DB_URL (no braces, correct password, URL-encode special chars)
+- module import error -> run from repo root: `python3 scripts/backup_db.py`
+
 ### Supabase MCP
 ```bash
 # Project ID: axvqumsxlncbqzecjlxy
