@@ -15,6 +15,7 @@
   "financial": {
     "minimum_balance_threshold": 0.01,
     "minimum_usd_value_threshold": 1.0,
+    "_comment_performance_alert_thresholds": "UNUSED in app; left here for completeness in test env",
     "performance_alert_thresholds": {
       "nav_difference_warning": 100,
       "nav_difference_critical": 500

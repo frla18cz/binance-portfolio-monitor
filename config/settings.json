@@ -32,6 +32,7 @@
       "ETH": 0.5
     },
     "rebalance_frequency": "weekly",
+    "_comment_performance_alert_thresholds": "UNUSED: performance alerts are not implemented; kept for future use",
     "performance_alert_thresholds": {
       "nav_difference_warning": 5000,
       "nav_difference_critical": 10000

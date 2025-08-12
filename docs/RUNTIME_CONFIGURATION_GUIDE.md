@@ -190,7 +190,7 @@ These settings can be changed without restart:
 - `financial.minimum_usd_value_threshold` - Min USD value
 - `financial.benchmark_allocation` - BTC/ETH allocation
 - `financial.rebalance_frequency` - Rebalancing schedule
-- `financial.performance_alert_thresholds` - Alert levels
+- `financial.performance_alert_thresholds` - Alert levels (UNUSED/Not implemented)
 
 #### Fee Management
 - `fee_management.default_performance_fee_rate` - Default fee rate
